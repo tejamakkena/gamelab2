@@ -22,19 +22,21 @@ def create_app(config_name='default'):
     from games.tictactoe.routes import tictactoe_bp
     from games.trivia.routes import trivia_bp
     from games.snake_ladder.routes import snake_ladder_bp
+    from games.roulette.routes import roulette_bp
     
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
     app.register_blueprint(trivia_bp, url_prefix='/trivia')
     app.register_blueprint(snake_ladder_bp, url_prefix='/snake')
-# In app.py, make sure you have:
-
+    app.register_blueprint(roulette_bp, url_prefix='/roulette')
     
     # Import Socket.IO event handlers
     from games.trivia.socket_events import register_trivia_events
     from games.snake_ladder.socket_events import register_snake_events
+    from games.roulette.socket_events import register_roulette_events
     
     register_trivia_events(socketio)
     register_snake_events(socketio)
+    register_roulette_events(socketio)
     
     # Login required decorator
     def login_required(f):
@@ -112,6 +114,13 @@ def create_app(config_name='default'):
                 'players': '4',
                 'description': 'Classic 4-player guessing game!'
             },
+            {
+                'name': 'Roulette', 
+                'url': '/roulette', 
+                'icon': '🎰🎲', 
+                'players': '1+',
+                'description': 'Place your bets and spin the wheel! Try your luck!'
+            }
         ]
         
         user = session.get('user')
@@ -164,14 +173,12 @@ def create_app(config_name='default'):
         token = request.json.get('credential')
         
         try:
-            # Verify the token
             idinfo = id_token.verify_oauth2_token(
                 token, 
                 requests.Request(), 
                 app.config['GOOGLE_CLIENT_ID']
             )
             
-            # Store user info in session
             session['user'] = {
                 'email': idinfo['email'],
                 'first_name': idinfo.get('given_name', ''),
@@ -196,7 +203,6 @@ def create_app(config_name='default'):
         if not player_name or len(player_name) < 2:
             return jsonify({'success': False, 'error': 'Name must be at least 2 characters'}), 400
         
-        # Create simple user session
         session['user'] = {
             'name': player_name,
             'first_name': player_name.split()[0] if ' ' in player_name else player_name,
@@ -206,7 +212,6 @@ def create_app(config_name='default'):
             'login_type': 'manual'
         }
         
-        print(f"✅ Manual login successful: {player_name}")
         return jsonify({'success': True, 'user': session['user']})
     
     @app.route("/logout")
@@ -237,12 +242,9 @@ def create_app(config_name='default'):
     
     return app, socketio
 
-
 if __name__ == "__main__":
     app, socketio = create_app('development')
     print("\n🚀 Starting Futuristic Games Hub...")
     print(f"📍 Server running at: http://localhost:5000")
-    print(f"🔐 Google OAuth: {'Configured ✅' if app.config.get('GOOGLE_CLIENT_ID') else 'Manual login only ⚠️'}")
-    print(f"🔌 Socket.IO: Enabled ✅")
-    print(f"🎮 Games loaded: Tic-Tac-Toe ✅, Trivia ✅, Snake & Ladder ✅\n")
+    print(f"🎮 Games loaded: Tic-Tac-Toe ✅, Trivia ✅, Snake & Ladder ✅, Roulette ✅\n")
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)

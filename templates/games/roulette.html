@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎰 Roulette - GameLab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Game Header -->
+        <div class="game-header">
+            <a href="/" class="back-btn">← Back to Home</a>
+            <h1>🎰 Roulette Casino</h1>
+            <div class="spacer"></div>
+        </div>
+
+        <!-- User Info -->
+        {% if user %}
+        <div class="user-info">
+            {% if user.picture %}
+                <img src="{{ user.picture }}" alt="{{ user.name }}" class="profile-pic">
+            {% else %}
+                <div class="profile-pic-placeholder">
+                    {{ user.first_name[0] if user.first_name else 'P' }}
+                </div>
+            {% endif %}
+            <span class="user-name">{{ user.name or user.first_name }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Game Content -->
+        <div class="game-section">
+            <!-- Mode Selection -->
+            <div id="mode-selection">
+                <div class="trivia-card">
+                    <div class="trivia-icon">🎰</div>
+                    <h2>Welcome to Roulette Casino</h2>
+                    <p class="subtitle-text">You start with $1,000. Place your bets and spin the wheel!</p>
+                    
+                    <div class="mode-buttons">
+                        <button id="solo-mode-btn" class="mode-btn">
+                            <div class="mode-icon">🤖</div>
+                            <h3>Solo Mode</h3>
+                            <p>Practice your betting strategy</p>
+                        </button>
+                        <button id="multiplayer-mode-btn" class="mode-btn">
+                            <div class="mode-icon">👥</div>
+                            <h3>Multiplayer</h3>
+                            <p>Compete with friends</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roulette Game -->
+            <div id="roulette-game" class="hidden">
+                <!-- Player Stats Bar -->
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-label">💰 Total Money</span>
+                        <span class="stat-value total-money" id="total-money">$1,000</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🎲 Current Bet</span>
+                        <span class="stat-value current-bet" id="current-bet-display">$0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">📊 This Round</span>
+                        <span class="stat-value round-total" id="round-total">$0</span>
+                    </div>
+                </div>
+
+                <!-- Game Layout -->
+                <div class="roulette-game-layout">
+                    <!-- Roulette Wheel Section -->
+                    <div class="wheel-section">
+                        <div class="wheel-container">
+                            <canvas id="roulette-canvas" width="500" height="500"></canvas>
+                            <div class="ball" id="ball"></div>
+                            <div class="wheel-center">
+                                <div id="winning-number" class="winning-number">--</div>
+                            </div>
+                        </div>
+                        
+                        <div class="spin-controls">
+                            <button id="spin-btn" class="btn btn-spin" disabled>
+                                🎰 Place Bets First
+                            </button>
+                            <button id="clear-bets-btn" class="btn btn-secondary">
+                                🗑️ Clear Bets
+                            </button>
+                        </div>
+                        
+                        <div id="result-message" class="result-message hidden"></div>
+                    </div>
+
+                    <!-- Betting Board Section -->
+                    <div class="betting-section">
+                        <h3 class="betting-title">💎 Select Chip Value</h3>
+                        <div class="chip-selector">
+                            <button class="chip-btn active" data-value="10">
+                                <span class="chip-value">$10</span>
+                            </button>
+                            <button class="chip-btn" data-value="25">
+                                <span class="chip-value">$25</span>
+                            </button>
+                            <button class="chip-btn" data-value="50">
+                                <span class="chip-value">$50</span>
+                            </button>
+                            <button class="chip-btn" data-value="100">
+                                <span class="chip-value">$100</span>
+                            </button>
+                            <button class="chip-btn" data-value="500">
+                                <span class="chip-value">$500</span>
+                            </button>
+                        </div>
+
+                        <h3 class="betting-title">🎯 Place Your Bets</h3>
+                        <div class="bet-categories">
+                            <!-- Color Bets -->
+                            <div class="bet-category">
+                                <h4>Colors</h4>
+                                <div class="bet-group">
+                                    <button class="bet-btn color-red" data-type="red" data-payout="2">
+                                        <span class="bet-icon">🔴</span>
+                                        <span class="bet-label">Red</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="red">$0</span>
+                                    </button>
+                                    <button class="bet-btn color-black" data-type="black" data-payout="2">
+                                        <span class="bet-icon">⚫</span>
+                                        <span class="bet-label">Black</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="black">$0</span>
+                                    </button>
+                                    <button class="bet-btn color-green" data-type="zero" data-payout="36">
+                                        <span class="bet-icon">🟢</span>
+                                        <span class="bet-label">Zero</span>
+                                        <span class="bet-payout">36x</span>
+                                        <span class="bet-amount" data-bet="zero">$0</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Even/Odd Bets -->
+                            <div class="bet-category">
+                                <h4>Even / Odd</h4>
+                                <div class="bet-group">
+                                    <button class="bet-btn" data-type="even" data-payout="2">
+                                        <span class="bet-icon">2️⃣</span>
+                                        <span class="bet-label">Even</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="even">$0</span>
+                                    </button>
+                                    <button class="bet-btn" data-type="odd" data-payout="2">
+                                        <span class="bet-icon">1️⃣</span>
+                                        <span class="bet-label">Odd</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="odd">$0</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- High/Low Bets -->
+                            <div class="bet-category">
+                                <h4>High / Low</h4>
+                                <div class="bet-group">
+                                    <button class="bet-btn" data-type="low" data-payout="2">
+                                        <span class="bet-icon">📉</span>
+                                        <span class="bet-label">1-18</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="low">$0</span>
+                                    </button>
+                                    <button class="bet-btn" data-type="high" data-payout="2">
+                                        <span class="bet-icon">📈</span>
+                                        <span class="bet-label">19-36</span>
+                                        <span class="bet-payout">2x</span>
+                                        <span class="bet-amount" data-bet="high">$0</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Dozen Bets -->
+                            <div class="bet-category">
+                                <h4>Dozens</h4>
+                                <div class="bet-group">
+                                    <button class="bet-btn" data-type="first12" data-payout="3">
+                                        <span class="bet-icon">1️⃣</span>
+                                        <span class="bet-label">1-12</span>
+                                        <span class="bet-payout">3x</span>
+                                        <span class="bet-amount" data-bet="first12">$0</span>
+                                    </button>
+                                    <button class="bet-btn" data-type="second12" data-payout="3">
+                                        <span class="bet-icon">2️⃣</span>
+                                        <span class="bet-label">13-24</span>
+                                        <span class="bet-payout">3x</span>
+                                        <span class="bet-amount" data-bet="second12">$0</span>
+                                    </button>
+                                    <button class="bet-btn" data-type="third12" data-payout="3">
+                                        <span class="bet-icon">3️⃣</span>
+                                        <span class="bet-label">25-36</span>
+                                        <span class="bet-payout">3x</span>
+                                        <span class="bet-amount" data-bet="third12">$0</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/games/roulette.js') }}"></script>
+</body>
+</html>
