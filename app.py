@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, url_for, session, request, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from config import config
 import os
 from functools import wraps
@@ -10,13 +11,23 @@ def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     
+    # Initialize Socket.IO
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+    
     # Debug: Print Google Client ID (first 20 chars only for security)
     client_id = app.config.get('GOOGLE_CLIENT_ID', 'NOT SET')
     print(f"Google Client ID configured: {client_id[:20] if client_id else 'NOT SET'}...")
     
     # Register blueprints
     from games.tictactoe.routes import tictactoe_bp
+    from games.trivia.routes import trivia_bp
+    
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
+    app.register_blueprint(trivia_bp, url_prefix='/trivia')
+    
+    # Import Socket.IO event handlers
+    from games.trivia.socket_events import register_trivia_events
+    register_trivia_events(socketio)
     
     # Login required decorator
     def login_required(f):
@@ -217,11 +228,12 @@ def create_app(config_name='default'):
         except:
             return '<h1>500 - Internal Server Error</h1><a href="/">Go Home</a>', 500
     
-    return app
+    return app, socketio
 
 if __name__ == "__main__":
-    app = create_app('development')
+    app, socketio = create_app('development')
     print("\n🚀 Starting Futuristic Games Hub...")
     print(f"📍 Server running at: http://localhost:5000")
-    print(f"🔐 Google OAuth: {'Configured ✅' if app.config.get('GOOGLE_CLIENT_ID') else 'Manual login only ⚠️'}\n")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print(f"🔐 Google OAuth: {'Configured ✅' if app.config.get('GOOGLE_CLIENT_ID') else 'Manual login only ⚠️'}")
+    print(f"🔌 Socket.IO: Enabled ✅\n")
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)

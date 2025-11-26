@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Trivia Game - Futuristic Games Hub{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header with Back Button -->
+    <div class="game-header">
+        <a href="/" class="btn btn-secondary back-btn">⬅️ Home</a>
+        <h1>❓🏆 Trivia Challenge</h1>
+        <div class="spacer"></div>
+    </div>
+    
+    <!-- Mode Selection -->
+    <div id="mode-selection" class="trivia-section">
+        <div class="trivia-card">
+            <div class="trivia-icon">🎯</div>
+            <h2>Choose Game Mode</h2>
+            <p class="subtitle-text">Play solo or challenge friends!</p>
+            
+            <div class="mode-buttons">
+                <button id="solo-mode-btn" class="mode-btn">
+                    <div class="mode-icon">👤</div>
+                    <h3>Solo Play</h3>
+                    <p>Test your knowledge alone</p>
+                </button>
+                <button id="multiplayer-mode-btn" class="mode-btn">
+                    <div class="mode-icon">👥</div>
+                    <h3>Multiplayer</h3>
+                    <p>Challenge friends in real-time</p>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Multiplayer Lobby -->
+    <div id="multiplayer-lobby" class="trivia-section hidden">
+        <div class="trivia-card">
+            <div class="trivia-icon">🎮</div>
+            <h2>Multiplayer Lobby</h2>
+            
+            <div class="lobby-controls">
+                <button id="create-room-btn" class="btn btn-primary">
+                    ➕ Create Room
+                </button>
+                <div class="join-room-section">
+                    <input type="text" id="room-code-input" placeholder="Enter Room Code" class="room-input">
+                    <button id="join-room-btn" class="btn btn-secondary">
+                        🚪 Join Room
+                    </button>
+                </div>
+            </div>
+            
+            <div class="rooms-container">
+                <div class="rooms-header">
+                    <h3>🎮 Active Rooms</h3>
+                    <button id="refresh-rooms-btn" class="refresh-btn">🔄 Refresh</button>
+                </div>
+                <div id="rooms-list" class="rooms-list">
+                    <div class="empty-rooms">Loading rooms...</div>
+                </div>
+            </div>
+            
+            <button id="back-to-mode-btn" class="btn btn-secondary">
+                ⬅️ Back
+            </button>
+        </div>
+    </div>
+    
+    <!-- Waiting Room -->
+    <div id="waiting-room" class="trivia-section hidden">
+        <div class="trivia-card">
+            <div class="trivia-icon">⏳</div>
+            <h2>Waiting Room</h2>
+            
+            <div class="room-info">
+                <div class="room-code-display">
+                    <span class="label">Room Code:</span>
+                    <span class="code" id="waiting-room-code">ABCD</span>
+                    <button id="copy-code-btn" class="copy-btn">📋 Copy</button>
+                </div>
+            </div>
+            
+            <div class="players-waiting">
+                <h3>Players in Room (<span id="player-count">1</span>/4)</h3>
+                <div id="players-list" class="players-list">
+                    <!-- Players will be dynamically added -->
+                </div>
+            </div>
+            
+            <div class="waiting-settings">
+                <div id="host-controls" class="hidden">
+                    <h3>Game Settings (Host Only)</h3>
+                    <div class="setting-row">
+                        <label for="waiting-topic">Topic:</label>
+                        <select id="waiting-topic" class="topic-select">
+                            <option value="Science">🔬 Science</option>
+                            <option value="History">📚 History</option>
+                            <option value="Geography">🌍 Geography</option>
+                            <option value="Sports">⚽ Sports</option>
+                            <option value="Movies">🎬 Movies</option>
+                            <option value="Music">🎵 Music</option>
+                            <option value="Technology">💻 Technology</option>
+                            <option value="Literature">📖 Literature</option>
+                            <option value="Food">🍕 Food & Cuisine</option>
+                            <option value="Art">🎨 Art</option>
+                            <option value="Nature">🌿 Nature & Animals</option>
+                            <option value="Space">🚀 Space & Astronomy</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label for="waiting-difficulty">Difficulty:</label>
+                        <select id="waiting-difficulty" class="topic-select">
+                            <option value="easy">⭐ Easy</option>
+                            <option value="medium">⭐⭐ Medium</option>
+                            <option value="hard">⭐⭐⭐ Hard</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label for="waiting-questions">Questions:</label>
+                        <input type="number" id="waiting-questions" value="5" min="3" max="10" class="count-input">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="waiting-actions">
+                <button id="start-multiplayer-btn" class="btn btn-primary hidden">
+                    🎮 Start Game
+                </button>
+                <button id="leave-room-btn" class="btn btn-secondary">
+                    🚪 Leave Room
+                </button>
+            </div>
+            
+            <div class="waiting-message">
+                <p id="waiting-status">Waiting for host to start the game...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Topic Selection (Solo Mode) -->
+    <div id="topic-selection" class="trivia-section hidden">
+        <div class="trivia-card">
+            <div class="trivia-icon">🎯</div>
+            <h2>Choose Your Topic</h2>
+            <p class="subtitle-text">Test your knowledge across various categories</p>
+            
+            <div class="topic-selector">
+                <select id="topic-dropdown" class="topic-select">
+                    <option value="">-- Select a Topic --</option>
+                    <option value="Science">🔬 Science</option>
+                    <option value="History">📚 History</option>
+                    <option value="Geography">🌍 Geography</option>
+                    <option value="Sports">⚽ Sports</option>
+                    <option value="Movies">🎬 Movies</option>
+                    <option value="Music">🎵 Music</option>
+                    <option value="Technology">💻 Technology</option>
+                    <option value="Literature">📖 Literature</option>
+                    <option value="Food">🍕 Food & Cuisine</option>
+                    <option value="Art">🎨 Art</option>
+                    <option value="Nature">🌿 Nature & Animals</option>
+                    <option value="Space">🚀 Space & Astronomy</option>
+                </select>
+                
+                <div class="difficulty-selector">
+                    <label>Difficulty Level:</label>
+                    <div class="difficulty-buttons">
+                        <button class="difficulty-btn active" data-difficulty="easy">
+                            <span class="diff-icon">⭐</span> Easy
+                        </button>
+                        <button class="difficulty-btn" data-difficulty="medium">
+                            <span class="diff-icon">⭐⭐</span> Medium
+                        </button>
+                        <button class="difficulty-btn" data-difficulty="hard">
+                            <span class="diff-icon">⭐⭐⭐</span> Hard
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="question-count-selector">
+                    <label for="question-count">Number of Questions:</label>
+                    <input type="number" id="question-count" value="5" min="3" max="10" class="count-input">
+                </div>
+                
+                <button id="start-game-btn" class="btn btn-primary" disabled>
+                    🎮 Start Game
+                </button>
+                <button id="back-to-mode-solo-btn" class="btn btn-secondary">
+                    ⬅️ Back
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="trivia-section hidden">
+        <div class="trivia-card">
+            <div class="loading-spinner"></div>
+            <h2>Generating Questions...</h2>
+            <p class="loading-text">AI is crafting challenging questions for you</p>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Screen -->
+    <div id="game-screen" class="trivia-section hidden">
+        <div class="game-header-info">
+            <div class="game-stat">
+                <span class="stat-label">Question</span>
+                <span class="stat-value" id="current-question">1</span>
+                <span class="stat-total">/ <span id="total-questions">5</span></span>
+            </div>
+            <div class="game-stat">
+                <span class="stat-label">Score</span>
+                <span class="stat-value" id="current-score">0</span>
+            </div>
+            <div class="game-stat">
+                <span class="stat-label">Timer</span>
+                <span class="stat-value timer" id="timer">30</span>
+            </div>
+        </div>
+        
+        <!-- Multiplayer Leaderboard (shown in multiplayer mode) -->
+        <div id="live-leaderboard" class="live-leaderboard hidden">
+            <h3>🏆 Live Scores</h3>
+            <div id="leaderboard-list" class="leaderboard-list">
+                <!-- Dynamic player scores -->
+            </div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        
+        <div class="question-card">
+            <div class="question-topic" id="question-topic">Science</div>
+            <h2 class="question-text" id="question-text"></h2>
+            
+            <div class="answers-grid" id="answers-grid">
+                <!-- Answers will be dynamically inserted here -->
+            </div>
+        </div>
+        
+        <div class="game-controls">
+            <button id="skip-question-btn" class="btn btn-secondary">
+                ⏭️ Skip Question
+            </button>
+        </div>
+    </div>
+    
+    <!-- Results Screen -->
+    <div id="results-screen" class="trivia-section hidden">
+        <div class="trivia-card results-card">
+            <div class="result-icon" id="result-icon">🏆</div>
+            <h2 id="result-title">Game Complete!</h2>
+            
+            <!-- Multiplayer Final Leaderboard -->
+            <div id="final-leaderboard" class="final-leaderboard hidden">
+                <h3>🏆 Final Rankings</h3>
+                <div id="final-rankings" class="rankings-list">
+                    <!-- Dynamic rankings -->
+                </div>
+            </div>
+            
+            <div class="final-score-display">
+                <div class="score-circle">
+                    <div class="score-number" id="final-score">0</div>
+                    <div class="score-label">/ <span id="max-score">5</span></div>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-number" id="correct-answers">0</div>
+                    <div class="stat-text">Correct</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-icon">❌</div>
+                    <div class="stat-number" id="wrong-answers">0</div>
+                    <div class="stat-text">Wrong</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-icon">⏭️</div>
+                    <div class="stat-number" id="skipped-answers">0</div>
+                    <div class="stat-text">Skipped</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-number" id="time-taken">0s</div>
+                    <div class="stat-text">Time</div>
+                </div>
+            </div>
+            
+            <div class="performance-message" id="performance-message"></div>
+            
+            <div class="result-actions">
+                <button id="play-again-btn" class="btn btn-primary">
+                    🔄 Play Again
+                </button>
+                <button id="change-topic-btn" class="btn btn-secondary">
+                    🎯 New Game
+                </button>
+                <a href="/" class="btn btn-secondary">🏠 Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/games/trivia.js') }}"></script>
+{% endblock %}
