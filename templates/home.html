@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Futuristic Games Hub{% endblock %}
+
+{% block extra_head %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<meta name="google-signin-client_id" content="{{ google_client_id }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>🎮 Futuristic Games Hub</h1>
+    <p class="subtitle">Choose Your Epic Adventure</p>
+    
+    {% if user %}
+    <!-- Logged in view -->
+    <div class="user-info">
+        {% if user.picture %}
+        <img src="{{ user.picture }}" alt="Profile" class="profile-pic">
+        {% else %}
+        <div class="profile-pic-placeholder">{{ user.first_name[0] if user.first_name else user.name[0] }}</div>
+        {% endif %}
+        <span class="user-name">Welcome, {{ user.first_name or user.name }}! 👋</span>
+        <a href="/logout" class="btn btn-secondary">Logout</a>
+    </div>
+    
+    <div class="games-grid">
+        {% for game in games %}
+        <a href="{{ game.url }}" class="game-card">
+            <div class="game-icon">{{ game.icon }}</div>
+            <h2>{{ game.name }}</h2>
+            <p>{{ game.description }}</p>
+            <p class="player-count">👥 {{ game.players }} Players</p>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Login required view -->
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-icon">🔐</div>
+            <h2>Sign In to Play</h2>
+            <p>Sign in with Google or enter your name to start playing</p>
+            
+            <!-- Google Sign-In Button Container -->
+            <div id="google-signin-section">
+                <div id="google-signin-button"></div>
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+            </div>
+            
+            <!-- Manual Name Input -->
+            <div class="manual-login-section">
+                <form id="manual-login-form">
+                    <div class="input-group">
+                        <input type="text" 
+                               id="player-name" 
+                               name="player_name" 
+                               placeholder="Enter your name" 
+                               required
+                               minlength="2"
+                               maxlength="30"
+                               class="name-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        🎮 Start Playing
+                    </button>
+                </form>
+                <p class="login-hint">💡 Tip: Sign in with Google to save your progress!</p>
+            </div>
+        </div>
+        
+        <!-- Preview of games (blurred) -->
+        <div class="games-preview">
+            <h3>🎮 Available Games</h3>
+            <div class="games-grid blurred">
+                {% for game in games %}
+                <div class="game-card preview">
+                    <div class="game-icon">{{ game.icon }}</div>
+                    <h2>{{ game.name }}</h2>
+                    <p>{{ game.description }}</p>
+                    <p class="player-count">👥 {{ game.players }} Players</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Google Sign-In Callback
+function handleCredentialResponse(response) {
+    console.log('Credential received from Google');
+    
+    fetch('/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            credential: response.credential,
+            login_type: 'google'
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Login successful:', data.user);
+            window.location.reload();
+        } else {
+            alert('Login failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Login failed. Please try again.');
+    });
+}
+
+// Initialize Google Sign-In
+window.onload = function() {
+    const clientId = "{{ google_client_id }}";
+    
+    console.log('Initializing Google Sign-In...');
+    
+    if (!clientId || clientId === '' || clientId === 'None') {
+        console.warn('Google Client ID not configured - hiding Google Sign-In');
+        document.getElementById('google-signin-section').style.display = 'none';
+        return;
+    }
+    
+    // Wait for google.accounts to be available
+    const checkGoogle = setInterval(function() {
+        if (typeof google !== 'undefined' && google.accounts) {
+            clearInterval(checkGoogle);
+            
+            // Initialize Google Sign-In
+            google.accounts.id.initialize({
+                client_id: clientId,
+                callback: handleCredentialResponse
+            });
+            
+            // Render the button
+            google.accounts.id.renderButton(
+                document.getElementById('google-signin-button'),
+                {
+                    theme: 'filled_black',
+                    size: 'large',
+                    type: 'standard',
+                    text: 'signin_with',
+                    shape: 'rectangular',
+                    logo_alignment: 'left',
+                    width: 300
+                }
+            );
+            
+            console.log('Google Sign-In initialized successfully');
+        }
+    }, 100);
+    
+    // Timeout after 3 seconds
+    setTimeout(function() {
+        clearInterval(checkGoogle);
+        if (typeof google === 'undefined' || !google.accounts) {
+            console.warn('Google Sign-In library failed to load');
+            document.getElementById('google-signin-section').style.display = 'none';
+        }
+    }, 3000);
+};
+
+// Manual Login Form Handler
+document.addEventListener('DOMContentLoaded', function() {
+    const manualForm = document.getElementById('manual-login-form');
+    
+    manualForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const playerName = document.getElementById('player-name').value.trim();
+        
+        if (playerName.length < 2) {
+            alert('Please enter a name with at least 2 characters');
+            return;
+        }
+        
+        // Send manual login request
+        fetch('/login/manual', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                player_name: playerName
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Manual login successful:', data.user);
+                window.location.reload();
+            } else {
+                alert('Login failed: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Login failed. Please try again.');
+        });
+    });
+});
+</script>
+{% endblock %}

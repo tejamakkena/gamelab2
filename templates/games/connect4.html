@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Connect 4 - Futuristic Games Hub{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header with Back Button -->
+    <div class="game-header">
+        <a href="/" class="btn btn-secondary back-btn">⬅️ Home</a>
+        <h1>🔴🟡 Connect 4</h1>
+        <div class="spacer"></div>
+    </div>
+    
+    <div class="game-placeholder">
+        <div class="coming-soon-card">
+            <div class="coming-soon-icon">🚧</div>
+            <h2>Coming Soon!</h2>
+            <p>Connect 4 is under development</p>
+            <p class="game-description">Strategic dropping game where you connect four discs to win!</p>
+            <div class="features">
+                <div class="feature-item">✨ Multiplayer support</div>
+                <div class="feature-item">🎨 Beautiful animations</div>
+                <div class="feature-item">🏆 Win detection</div>
+            </div>
+            <a href="/" class="btn btn-primary">🏠 Back to Games</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
