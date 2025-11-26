@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Snake & Ladder - Futuristic Games Hub{% endblock %}
+
+{% block content %}
+<div data-user='{{ user | tojson if user else "{}" }}' style="display: none;"></div>
+
+<div class="container">
+    <div class="game-header">
+        <a href="/" class="btn btn-secondary back-btn">⬅️ Home</a>
+        <h1>🐍🪜 Snake & Ladder</h1>
+        <div class="spacer"></div>
+    </div>
+    
+    <!-- Mode Selection -->
+    <div id="mode-selection" class="game-section">
+        <div class="game-card">
+            <div class="game-icon-large">🎲</div>
+            <h2>Choose Game Mode</h2>
+            <p class="subtitle-text">Play solo against AI or challenge friends!</p>
+            
+            <div class="mode-buttons">
+                <button id="solo-mode-btn" class="mode-btn" type="button" style="cursor: pointer;">
+                    <div class="mode-icon">🤖</div>
+                    <h3>Solo vs AI</h3>
+                    <p>Race against computer opponents</p>
+                </button>
+                <button id="multiplayer-mode-btn" class="mode-btn" type="button" style="cursor: pointer;">
+                    <div class="mode-icon">👥</div>
+                    <h3>Multiplayer</h3>
+                    <p>Play with friends online</p>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Solo Setup -->
+    <div id="solo-setup" class="game-section" style="display: none;">
+        <div class="game-card">
+            <div class="game-icon-large">🤖</div>
+            <h2>Solo Game Setup</h2>
+            
+            <div class="setup-options">
+                <div class="option-group">
+                    <label>Number of AI Players:</label>
+                    <div class="player-count-btns">
+                        <button class="count-btn active" data-count="1" type="button">1 AI</button>
+                        <button class="count-btn" data-count="2" type="button">2 AI</button>
+                        <button class="count-btn" data-count="3" type="button">3 AI</button>
+                    </div>
+                </div>
+                
+                <div class="option-group">
+                    <label>AI Difficulty:</label>
+                    <div class="difficulty-btns">
+                        <button class="diff-btn active" data-diff="easy" type="button">😊 Easy</button>
+                        <button class="diff-btn" data-diff="medium" type="button">😐 Medium</button>
+                        <button class="diff-btn" data-diff="hard" type="button">😈 Hard</button>
+                    </div>
+                </div>
+                
+                <button id="start-solo-btn" class="btn btn-primary" type="button">🎮 Start Game</button>
+                <button id="back-from-solo-btn" class="btn btn-secondary" type="button">⬅️ Back</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Multiplayer Lobby -->
+    <div id="multiplayer-lobby" class="game-section" style="display: none;">
+        <div class="game-card">
+            <div class="game-icon-large">🎮</div>
+            <h2>Multiplayer Lobby</h2>
+            
+            <div class="lobby-controls">
+                <button id="create-room-btn" class="btn btn-primary" type="button">
+                    ➕ Create Room
+                </button>
+                <div class="join-room-section">
+                    <input type="text" id="room-code-input" placeholder="Enter Room Code" class="room-input" maxlength="4">
+                    <button id="join-room-btn" class="btn btn-secondary" type="button">
+                        🚪 Join Room
+                    </button>
+                </div>
+            </div>
+            
+            <div class="rooms-container">
+                <div class="rooms-header">
+                    <h3>🎮 Active Rooms</h3>
+                    <button id="refresh-rooms-btn" class="refresh-btn" type="button">🔄 Refresh</button>
+                </div>
+                <div id="rooms-list" class="rooms-list">
+                    <div class="empty-rooms">Loading rooms...</div>
+                </div>
+            </div>
+            
+            <button id="back-from-lobby-btn" class="btn btn-secondary" type="button">⬅️ Back</button>
+        </div>
+    </div>
+    
+    <!-- Waiting Room -->
+    <div id="waiting-room" class="game-section" style="display: none;">
+        <div class="game-card">
+            <div class="game-icon-large">⏳</div>
+            <h2>Waiting Room</h2>
+            
+            <div class="room-code-display">
+                <span>Room Code:</span>
+                <span id="waiting-room-code" class="room-code">------</span>
+                <button id="copy-room-code-btn" class="btn btn-secondary">📋 Copy</button>
+            </div>
+            
+            <div class="players-waiting">
+                <h3>Players (<span id="players-count">0/6</span>)</h3>
+                <div id="waiting-players-list" class="players-list">
+                    <!-- Players will be added here dynamically -->
+                </div>
+            </div>
+    
+            <div class="waiting-message">
+                <p id="waiting-status">Waiting for host to start the game...</p>
+            </div>
+    
+            <div class="waiting-actions">
+                <button id="start-multiplayer-btn" class="btn btn-primary" style="display: none;">
+                    🎮 Start Game
+                </button>
+                <button id="leave-room-btn" class="btn btn-secondary">
+                    ⬅️ Leave Room
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Screen -->
+    <div id="game-screen" class="game-section" style="display: none;">
+        <div class="game-info-bar">
+            <div class="info-item">
+                <span class="label">Room:</span>
+                <span class="value" id="room-code-game">SOLO</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Current Turn:</span>
+                <span class="value" id="current-turn-display">Player 1</span>
+            </div>
+        </div>
+        
+        <div class="game-layout">
+            <div class="players-panel">
+                <h3>🎮 Players</h3>
+                <div id="players-info" class="players-info"></div>
+                
+                <div class="dice-section">
+                    <div class="dice-display" id="dice-display">
+                        <div class="dice-face">🎲</div>
+                    </div>
+                    <button id="roll-dice-btn" class="btn btn-primary dice-btn" type="button" disabled>
+                        🎲 Roll Dice
+                    </button>
+                    <div class="dice-result" id="dice-result"></div>
+                </div>
+            </div>
+            
+            <div class="board-container">
+                <div class="snake-ladder-board" id="game-board"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Screen -->
+    <div id="results-screen" class="game-section" style="display: none;">
+        <div class="game-card results-card">
+            <div class="result-icon-large" id="result-icon">🏆</div>
+            <h2 id="result-title">Game Over!</h2>
+            
+            <div class="final-rankings">
+                <h3>🏆 Final Rankings</h3>
+                <div id="final-rankings-list" class="rankings-list"></div>
+            </div>
+            
+            <div class="result-message" id="result-message"></div>
+            
+            <div class="result-actions">
+                <button id="play-again-btn" class="btn btn-primary" type="button">🔄 Play Again</button>
+                <button id="new-game-btn" class="btn btn-secondary" type="button">🎯 New Game</button>
+                <a href="/" class="btn btn-secondary">🏠 Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    console.log('=== PAGE LOADED ===');
+    console.log('Socket.IO available:', typeof io !== 'undefined');
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='/js/games/snake.js') }}"></script>
+<script>
+    console.log('=== SNAKE-LADDER.JS TAG EXECUTED ===');
+</script>
+{% endblock %}

@@ -7,9 +7,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='/css/main.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body {% if user %}data-user='{{ user|tojson }}'{% endif %}>
     {% block content %}{% endblock %}
     
+    <!-- Scripts should be at the end of body -->
     {% block extra_js %}{% endblock %}
 </body>
 </html>

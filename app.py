@@ -21,13 +21,20 @@ def create_app(config_name='default'):
     # Register blueprints
     from games.tictactoe.routes import tictactoe_bp
     from games.trivia.routes import trivia_bp
+    from games.snake_ladder.routes import snake_ladder_bp
     
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
     app.register_blueprint(trivia_bp, url_prefix='/trivia')
+    app.register_blueprint(snake_ladder_bp, url_prefix='/snake')
+# In app.py, make sure you have:
+
     
     # Import Socket.IO event handlers
     from games.trivia.socket_events import register_trivia_events
+    from games.snake_ladder.socket_events import register_snake_events
+    
     register_trivia_events(socketio)
+    register_snake_events(socketio)
     
     # Login required decorator
     def login_required(f):
@@ -58,7 +65,7 @@ def create_app(config_name='default'):
             },
             {
                 'name': 'Snake & Ladder', 
-                'url': '/snake-ladder', 
+                'url': '/snake', 
                 'icon': '🐍🪜', 
                 'players': '2-4',
                 'description': 'Multiplayer board game. Climb ladders, avoid snakes!'
@@ -116,10 +123,10 @@ def create_app(config_name='default'):
     def connect4():
         return render_template("games/connect4.html")
     
-    @app.route("/snake-ladder")
+    @app.route("/snake")
     @login_required
     def snake_ladder():
-        return render_template("games/snake-ladder.html")
+        return render_template("games/snake.html")
     
     @app.route("/memory")
     @login_required
@@ -230,10 +237,12 @@ def create_app(config_name='default'):
     
     return app, socketio
 
+
 if __name__ == "__main__":
     app, socketio = create_app('development')
     print("\n🚀 Starting Futuristic Games Hub...")
     print(f"📍 Server running at: http://localhost:5000")
     print(f"🔐 Google OAuth: {'Configured ✅' if app.config.get('GOOGLE_CLIENT_ID') else 'Manual login only ⚠️'}")
-    print(f"🔌 Socket.IO: Enabled ✅\n")
+    print(f"🔌 Socket.IO: Enabled ✅")
+    print(f"🎮 Games loaded: Tic-Tac-Toe ✅, Trivia ✅, Snake & Ladder ✅\n")
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
