@@ -8,6 +8,7 @@ trivia_bp = Blueprint('trivia', __name__)
 # Configure Gemini AI
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 
+
 def generate_questions_sync(topic, difficulty, count):
     """Synchronous function to generate questions (for Socket.IO)"""
     prompt = f"""Generate {count} multiple-choice trivia questions about {topic} with {difficulty} difficulty level.
@@ -20,12 +21,11 @@ For each question, provide:
 
 Return the response as a JSON array with this exact structure:
 [
-  {{
-    "question": "Question text here?",
+  {"question": "Question text here?",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correct_answer": 0,
     "explanation": "Brief explanation"
-  }}
+  }
 ]
 
 Make sure the questions are:
@@ -39,21 +39,23 @@ Return ONLY the JSON array, no additional text."""
 
     model = genai.GenerativeModel('gemini-2.0-flash-exp')
     response = model.generate_content(prompt)
-    
+
     response_text = response.text.strip()
-    
+
     if response_text.startswith('```'):
         response_text = response_text.split('```')[1]
         if response_text.startswith('json'):
             response_text = response_text[4:]
         response_text = response_text.strip()
-    
+
     questions = json.loads(response_text)
     return questions
+
 
 @trivia_bp.route('/')
 def index():
     return render_template('games/trivia.html')
+
 
 @trivia_bp.route('/generate', methods=['POST'])
 def generate_questions():
@@ -61,15 +63,15 @@ def generate_questions():
     topic = data.get('topic')
     difficulty = data.get('difficulty', 'medium')
     count = data.get('count', 5)
-    
+
     try:
         questions = generate_questions_sync(topic, difficulty, count)
-        
+
         return jsonify({
             'success': True,
             'questions': questions
         })
-        
+
     except Exception as e:
         print(f"Error generating questions: {e}")
         return jsonify({

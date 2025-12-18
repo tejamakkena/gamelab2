@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class BaseGame(ABC):
     """Base class for all games"""
 

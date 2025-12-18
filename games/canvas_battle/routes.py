@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, session, redirect, url_for
 from functools import wraps
 
-connect4_bp = Blueprint(
-    'connect4',
+canvas_battle_bp = Blueprint(
+    'canvas_battle',
     __name__,
     template_folder='../../templates')
 
@@ -16,8 +16,10 @@ def login_required(f):
     return decorated_function
 
 
-@connect4_bp.route('/')
+@canvas_battle_bp.route('/')
 @login_required
 def index():
-    """Connect 4 game page"""
-    return render_template('games/connect4.html', user=session.get('user'))
+    """Canvas Battle game page"""
+    return render_template(
+        'games/canvas_battle.html',
+        user=session.get('user'))

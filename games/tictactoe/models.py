@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 from datetime import datetime
 
+
 @dataclass
 class Player:
     """Player model for Tic Tac Toe"""
@@ -11,7 +12,7 @@ class Player:
     wins: int = 0
     losses: int = 0
     draws: int = 0
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -22,6 +23,7 @@ class Player:
             'draws': self.draws
         }
 
+
 @dataclass
 class GameMove:
     """Represents a single move in the game"""
@@ -29,7 +31,7 @@ class GameMove:
     position: int
     symbol: str
     timestamp: datetime
-    
+
     def to_dict(self):
         return {
             'player_id': self.player_id,
@@ -37,6 +39,7 @@ class GameMove:
             'symbol': self.symbol,
             'timestamp': self.timestamp.isoformat()
         }
+
 
 @dataclass
 class GameSession:
@@ -48,11 +51,11 @@ class GameSession:
     is_draw: bool = False
     created_at: datetime = None
     finished_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
-    
+
     def to_dict(self):
         return {
             'room_code': self.room_code,
@@ -64,6 +67,7 @@ class GameSession:
             'finished_at': self.finished_at.isoformat() if self.finished_at else None
         }
 
+
 @dataclass
 class RoomInfo:
     """Room information for lobby display"""
@@ -72,15 +76,15 @@ class RoomInfo:
     max_players: int
     status: str  # 'WAITING', 'PLAYING', 'FINISHED'
     created_at: datetime
-    
+
     @property
     def is_full(self) -> bool:
         return self.player_count >= self.max_players
-    
+
     @property
     def is_joinable(self) -> bool:
         return not self.is_full and self.status == 'WAITING'
-    
+
     def to_dict(self):
         return {
             'room_code': self.room_code,

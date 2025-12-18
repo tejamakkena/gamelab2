@@ -1,0 +1,746 @@
+{% extends "base.html" %}
+
+{% block title %}Canvas Battle - Futuristic Games Hub{% endblock %}
+{% block extra_css %}
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .canvas-battle-container {
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .game-section {
+        padding: 40px 20px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .game-section.hidden {
+        display: none;
+    }
+
+    /* Mode Selection */
+    .mode-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .mode-btn {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        border: 2px solid #00f5ff;
+        border-radius: 15px;
+        padding: 30px;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-align: center;
+        color: white;
+    }
+
+    .mode-btn:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0, 245, 255, 0.3);
+        border-color: #00ff00;
+    }
+
+    .mode-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+
+    /* Waiting Room */
+    .waiting-room {
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 20px;
+        padding: 40px 20px;
+        color: white;
+    }
+
+    .room-code-display {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+    .room-code {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #00ff00;
+        letter-spacing: 10px;
+        margin: 20px 0;
+        word-break: break-all;
+    }
+
+    .players-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin: 30px 0;
+    }
+
+    .player-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 15px 20px;
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .player-item.host {
+        border-color: #FFD700;
+    }
+
+    .player-item.ready {
+        border-color: #00ff00;
+    }
+
+    /* Canvas Area */
+    .drawing-area {
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 20px;
+        padding: 20px;
+        color: white;
+    }
+
+    .theme-display {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 20px 15px;
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border-radius: 15px;
+        color: black;
+    }
+
+    .theme-text {
+        font-size: 1.5em;
+        font-weight: bold;
+        word-break: break-word;
+    }
+
+    .timer-display {
+        font-size: 1.3em;
+        color: #000;
+        margin-top: 10px;
+        font-weight: bold;
+    }
+
+    .timer-display.warning {
+        color: #ff4500;
+        animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0.3; }
+    }
+
+    .canvas-container {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+        align-items: flex-start;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .toolbar {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 15px;
+        border-radius: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .tool-btn {
+        width: 50px;
+        height: 50px;
+        border: 2px solid #00f5ff;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 1.5em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .tool-btn:hover, .tool-btn.active {
+        background: #00f5ff;
+        color: black;
+        transform: scale(1.1);
+    }
+
+    .color-picker {
+        width: 50px;
+        height: 50px;
+        border: 2px solid #00f5ff;
+        border-radius: 10px;
+        cursor: pointer;
+        padding: 2px;
+    }
+
+    #brush-size {
+        width: 100px;
+        height: 50px;
+    }
+
+    #drawing-canvas {
+        border: 3px solid #00f5ff;
+        border-radius: 10px;
+        background: white;
+        cursor: crosshair;
+        box-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
+        max-width: 100%;
+        height: auto;
+        touch-action: none;
+    }
+
+    .canvas-wrapper {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        overflow-x: auto;
+    }
+
+    /* Voting Area */
+    .voting-area {
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 20px;
+        padding: 30px 15px;
+        color: white;
+    }
+
+    .submissions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .submission-card {
+        background: rgba(0, 0, 0, 0.6);
+        border: 3px solid transparent;
+        border-radius: 15px;
+        padding: 15px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .submission-card:hover {
+        border-color: #00f5ff;
+        transform: scale(1.05);
+    }
+
+    .submission-card.selected {
+        border-color: #00ff00;
+        box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+    }
+
+    .submission-canvas {
+        width: 100%;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+
+    .submission-author {
+        text-align: center;
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #FFD700;
+    }
+
+    /* Results */
+    .results-area {
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 20px;
+        padding: 40px 20px;
+        color: white;
+    }
+
+    .results-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin: 30px 0;
+    }
+
+    .result-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 15px;
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 10px;
+        border-left: 5px solid #00f5ff;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .result-item.first {
+        border-left-color: #FFD700;
+        background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(0, 0, 0, 0.6));
+    }
+
+    .result-item.second {
+        border-left-color: #C0C0C0;
+    }
+
+    .result-item.third {
+        border-left-color: #CD7F32;
+    }
+
+    .result-rank {
+        font-size: 2em;
+        font-weight: bold;
+        margin-right: 15px;
+    }
+
+    .result-name {
+        flex: 1;
+        font-size: 1.2em;
+        min-width: 150px;
+    }
+
+    .result-score {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #00ff00;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 15px 30px;
+        border: none;
+        border-radius: 10px;
+        font-size: 1.1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        width: 100%;
+        max-width: 300px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #00ff00, #00cc00);
+        color: black;
+    }
+
+    .btn-secondary {
+        background: linear-gradient(135deg, #666, #444);
+        color: white;
+    }
+
+    .btn:hover:not(:disabled) {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .input-group {
+        display: flex;
+        gap: 10px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+    }
+
+    #room-code-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 15px;
+        font-size: 1.5em;
+        text-align: center;
+        border: 2px solid #00f5ff;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        text-transform: uppercase;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .canvas-battle-container {
+            padding: 10px;
+        }
+
+        .game-section {
+            padding: 20px 10px;
+        }
+
+        .room-code {
+            font-size: 2em;
+            letter-spacing: 5px;
+        }
+
+        .mode-buttons {
+            grid-template-columns: 1fr;
+        }
+
+        .mode-btn {
+            padding: 25px 20px;
+        }
+
+        .mode-icon {
+            font-size: 2.5em;
+        }
+
+        .theme-text {
+            font-size: 1.2em;
+        }
+
+        .timer-display {
+            font-size: 1.1em;
+        }
+
+        .canvas-container {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .toolbar {
+            width: 100%;
+            order: 2;
+            margin-top: 15px;
+        }
+
+        .canvas-wrapper {
+            order: 1;
+            width: 100%;
+        }
+
+        #drawing-canvas {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 50vh;
+        }
+
+        #brush-size {
+            width: 80px;
+            height: 40px;
+        }
+
+        .tool-btn {
+            width: 45px;
+            height: 45px;
+            font-size: 1.3em;
+        }
+
+        .color-picker {
+            width: 45px;
+            height: 45px;
+        }
+
+        .submissions-grid {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .submission-card {
+            padding: 12px;
+        }
+
+        .result-item {
+            padding: 15px 10px;
+        }
+
+        .result-rank {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .result-name {
+            font-size: 1em;
+            min-width: auto;
+        }
+
+        .result-score {
+            font-size: 1.1em;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            font-size: 1em;
+            max-width: 100%;
+        }
+
+        .waiting-room {
+            padding: 20px 15px;
+        }
+
+        .drawing-area, .voting-area, .results-area {
+            padding: 20px 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .room-code {
+            font-size: 1.5em;
+            letter-spacing: 3px;
+        }
+
+        .theme-text {
+            font-size: 1em;
+        }
+
+        .timer-display {
+            font-size: 1em;
+        }
+
+        .player-item {
+            padding: 12px 15px;
+            gap: 10px;
+        }
+
+        #room-code-input {
+            font-size: 1.2em;
+            padding: 12px;
+            min-width: 150px;
+        }
+
+        .input-group {
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            font-size: 0.95em;
+        }
+
+        .tool-btn {
+            width: 40px;
+            height: 40px;
+            font-size: 1.2em;
+        }
+
+        .color-picker {
+            width: 40px;
+            height: 40px;
+        }
+
+        #brush-size {
+            width: 60px;
+            height: 35px;
+        }
+    }
+
+    /* Landscape mode on mobile */
+    @media (max-height: 500px) and (orientation: landscape) {
+        .game-section {
+            padding: 10px;
+        }
+
+        .theme-display {
+            padding: 10px;
+        }
+
+        .theme-text {
+            font-size: 1em;
+        }
+
+        .timer-display {
+            font-size: 0.9em;
+        }
+
+        #drawing-canvas {
+            max-height: 60vh;
+        }
+
+        .toolbar {
+            padding: 10px;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+    }
+
+    /* Better button layouts on mobile */
+    @media (max-width: 768px) {
+        .input-group {
+            flex-direction: column;
+        }
+
+        .input-group .btn {
+            max-width: 100%;
+        }
+
+        #room-code-input {
+            width: 100%;
+        }
+
+        div[style*="display: flex"][style*="gap: 15px"] {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        div[style*="display: flex"][style*="gap: 15px"] .btn {
+            max-width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="canvas-battle-container">
+    <!-- Mode Selection -->
+    <div id="mode-selection" class="game-section">
+        <h1 style="text-align: center; color: white; margin-bottom: 20px;">🎨 Canvas Battle</h1>
+        <p style="text-align: center; color: #aaa; margin-bottom: 40px;">
+            Draw on the theme, vote for the best artwork, and become the ultimate artist!
+        </p>
+        
+        <div class="mode-buttons">
+            <button id="create-room-btn" class="mode-btn">
+                <div class="mode-icon">🎨</div>
+                <h3>Create Room</h3>
+                <p>Start a new canvas battle</p>
+            </button>
+            <button id="join-room-btn-start" class="mode-btn">
+                <div class="mode-icon">🚪</div>
+                <h3>Join Room</h3>
+                <p>Enter an existing game</p>
+            </button>
+        </div>
+    </div>
+
+    <!-- Join Room -->
+    <div id="join-room-section" class="game-section hidden">
+        <div style="background: rgba(0,0,0,0.7); padding: 40px; border-radius: 20px; color: white;">
+            <h2 style="text-align: center; margin-bottom: 30px;">Enter Room Code</h2>
+            <div class="input-group">
+                <input type="text" id="room-code-input" placeholder="XXXXXX" maxlength="6">
+                <button id="join-room-submit-btn" class="btn btn-primary">Join</button>
+            </div>
+            <button id="back-to-mode-btn" class="btn btn-secondary" style="width: 100%; margin-top: 20px;">⬅️ Back</button>
+        </div>
+    </div>
+
+    <!-- Waiting Room -->
+    <div id="waiting-room" class="game-section hidden">
+        <div class="waiting-room">
+            <div class="room-code-display">
+                <h2>Room Code</h2>
+                <div class="room-code" id="display-room-code">------</div>
+                <button id="copy-code-btn" class="btn btn-secondary">📋 Copy Code</button>
+            </div>
+
+            <div class="players-waiting">
+                <h3 style="text-align: center; margin-bottom: 20px;">Players in Room</h3>
+                <div id="waiting-players-list" class="players-list"></div>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <button id="ready-btn" class="btn btn-primary">✅ I'm Ready</button>
+            </div>
+
+            <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                <button id="start-game-btn" class="btn btn-primary hidden">🎮 Start Game</button>
+                <button id="leave-room-btn" class="btn btn-secondary">🚪 Leave Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drawing Screen -->
+   <!-- Drawing Screen -->
+    <div id="drawing-screen" class="game-section hidden">
+        <div class="drawing-area">
+            <div class="theme-display">
+                <div>Theme:</div>
+                <div class="theme-text" id="theme-text">Waiting...</div>
+                <div class="timer-display" id="timer-display">⏱️ 0:00</div>
+            </div>
+
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <canvas id="drawing-canvas" width="800" height="600"></canvas>
+                </div>
+                
+                <div class="toolbar">
+                    <button class="tool-btn active" data-tool="pen" title="Pen">🖊️</button>
+                    <button class="tool-btn" data-tool="eraser" title="Eraser">🧹</button>
+                    <input type="color" class="color-picker" id="color-picker" value="#000000">
+                    <input type="range" id="brush-size" min="1" max="20" value="3">
+                    <button class="tool-btn" id="clear-canvas-btn" title="Clear">🗑️</button>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="submit-drawing-btn" class="btn btn-primary">✅ Submit Drawing</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voting Screen -->
+    <div id="voting-screen" class="game-section hidden">
+        <div class="voting-area">
+            <h2 style="text-align: center; margin-bottom: 10px;">Vote for the Best Drawing!</h2>
+            <p style="text-align: center; color: #aaa; margin-bottom: 30px;">
+                Theme: <span id="voting-theme" style="color: #FFD700;"></span>
+            </p>
+
+            <div id="submissions-container" class="submissions-grid"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button id="submit-vote-btn" class="btn btn-primary" disabled>🗳️ Submit Vote</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="results-screen" class="game-section hidden">
+        <div class="results-area">
+            <h2 style="text-align: center; margin-bottom: 30px;">Round Results</h2>
+            
+            <div id="results-list" class="results-list"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button id="next-round-btn" class="btn btn-primary hidden">➡️ Next Round</button>
+                <button id="view-final-results-btn" class="btn btn-primary hidden">🏆 View Final Results</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Results Screen -->
+    <div id="final-results-screen" class="game-section hidden">
+        <div class="results-area">
+            <h1 style="text-align: center; margin-bottom: 30px;">🎉 Final Results</h1>
+            
+            <div id="final-results-list" class="results-list"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button id="new-game-btn" class="btn btn-primary">🎮 New Game</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Pass user data from Flask to JavaScript
+    window.user = {{ user | tojson | safe }};
+    console.log('User data loaded:', window.user);
+</script>
+<script src="{{ url_for('static', filename='js/games/canvas_battle.js') }}"></script>
+{% endblock %}

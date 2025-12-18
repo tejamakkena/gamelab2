@@ -4,6 +4,7 @@ import uuid
 
 snake_ladder_bp = Blueprint('snake_ladder', __name__)
 
+
 @snake_ladder_bp.route('/')
 def index():
     """Snake and Ladder game page"""
@@ -11,6 +12,7 @@ def index():
     print("🐍 Snake & Ladder route accessed!")
     print(f"🎮 Snake & Ladder - User: {user}")
     return render_template('games/snake.html', user=user)
+
 
 @snake_ladder_bp.route('/create', methods=['POST'])
 def create_game():
@@ -24,6 +26,7 @@ def create_game():
         'player_id': player_id
     })
 
+
 @snake_ladder_bp.route('/join/<room_code>', methods=['POST'])
 def join_game(room_code):
     """Join an existing game"""
@@ -34,6 +37,7 @@ def join_game(room_code):
         'player_id': player_id,
         'room_code': room_code
     })
+
 
 @snake_ladder_bp.route('/roll/<room_code>', methods=['POST'])
 def roll_dice(room_code):

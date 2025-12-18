@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, session
 
 roulette_bp = Blueprint('roulette', __name__)
 
+
 @roulette_bp.route('/')
 def index():
     """Roulette game page"""

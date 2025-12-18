@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+
+{% block title %}Texas Hold'em Poker - Futuristic Games Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .poker-container {
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .poker-table-container {
+        position: relative;
+        width: 100%;
+        height: 85vh;
+        background: linear-gradient(135deg, #0a4d3c 0%, #1a1a2e 100%);
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Top Section - Game Info */
+    .game-info-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 25px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 12px;
+        color: white;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .info-label {
+        font-size: 0.85em;
+        opacity: 0.8;
+    }
+
+    .info-value {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #FFD700;
+    }
+
+    /* Center Section - Table */
+    .poker-table-area {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+    }
+
+    /* Community Cards */
+    .community-cards-container {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        gap: 10px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 15px;
+        min-width: 400px;
+        justify-content: center;
+        z-index: 5;
+    }
+
+    .pot-display {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 215, 0, 0.2);
+        border: 2px solid #FFD700;
+        border-radius: 15px;
+        padding: 15px 30px;
+        z-index: 10;
+    }
+
+    .pot-label {
+        font-size: 0.9em;
+        color: #FFD700;
+        margin-bottom: 5px;
+    }
+
+    .pot-amount {
+        font-size: 2em;
+        font-weight: bold;
+        color: #FFD700;
+    }
+
+    /* Player Seats */
+    #player-seats-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .player-seat {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.6);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 12px;
+        min-width: 150px;
+        pointer-events: auto;
+        transition: all 0.3s ease;
+    }
+
+    .player-seat.active-turn {
+        border-color: #00ff00;
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.5); }
+        50% { box-shadow: 0 0 30px rgba(0, 255, 0, 0.8); }
+    }
+
+    /* Seat Positions */
+    .seat-bottom-left { bottom: 15%; left: 5%; }
+    .seat-left { top: 40%; left: 5%; }
+    .seat-top-left { top: 15%; left: 15%; }
+    .seat-top { top: 5%; left: 50%; transform: translateX(-50%); }
+    .seat-top-right { top: 15%; right: 15%; }
+    .seat-right { top: 40%; right: 5%; }
+    .seat-bottom-right { bottom: 15%; right: 5%; }
+
+    .player-name-tag {
+        font-weight: bold;
+        color: white;
+        margin-bottom: 8px;
+        font-size: 0.95em;
+    }
+
+    .dealer-button {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        background: #FFD700;
+        color: black;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 24px;
+        font-weight: bold;
+        margin-right: 5px;
+    }
+
+    .player-chips-display {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-size: 0.9em;
+    }
+
+    .chip-amount {
+        color: #00ff00;
+        font-weight: bold;
+    }
+
+    .player-cards-container {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 8px;
+        justify-content: center;
+    }
+
+    .player-status {
+        text-align: center;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+
+    .status-waiting {
+        background: rgba(128, 128, 128, 0.3);
+        color: #999;
+    }
+
+    .status-betting {
+        background: rgba(0, 255, 0, 0.2);
+        color: #00ff00;
+    }
+
+    .status-folded {
+        background: rgba(255, 0, 0, 0.2);
+        color: #ff6b6b;
+    }
+
+    /* Bottom Section - Player Controls */
+    .player-controls {
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 12px;
+        padding: 15px;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .my-hand-section {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 8px;
+    }
+
+    .my-stats-section {
+        flex: 1;
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .stat-box {
+        background: rgba(0, 0, 0, 0.4);
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .stat-label {
+        font-size: 0.8em;
+        color: #999;
+        margin-bottom: 3px;
+    }
+
+    .stat-value {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #00ff00;
+    }
+
+    .action-buttons-section {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        max-width: 400px;
+    }
+
+    /* Cards */
+    .card {
+        width: 70px;
+        height: 100px;
+        background: white;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        position: relative;
+        transition: transform 0.2s;
+    }
+
+    .my-hand-section .card {
+        width: 90px;
+        height: 130px;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+    }
+
+    .card.back {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 2px solid #FFD700;
+    }
+
+    .card.back::before {
+        content: '🎴';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2.5em;
+    }
+
+    .card.hearts, .card.diamonds {
+        color: #dc143c;
+    }
+
+    .card.spades, .card.clubs {
+        color: #000;
+    }
+
+    .card-value {
+        font-size: 1.3em;
+        font-weight: bold;
+    }
+
+    .card-suit {
+        font-size: 1.8em;
+        text-align: center;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Buttons */
+    .action-btn {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 0.95em;
+        color: white;
+    }
+
+    .action-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .action-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    #fold-btn {
+        background: linear-gradient(135deg, #dc143c, #8b0000);
+    }
+
+    #check-btn {
+        background: linear-gradient(135deg, #4682b4, #1e3a5f);
+    }
+
+    #call-btn {
+        background: linear-gradient(135deg, #32cd32, #228b22);
+    }
+
+    #raise-btn {
+        background: linear-gradient(135deg, #ffa500, #ff8c00);
+    }
+
+    #allin-btn {
+        background: linear-gradient(135deg, #ff4500, #dc143c);
+    }
+
+    /* Raise Controls */
+    .raise-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 15px;
+        border-radius: 10px;
+    }
+
+    .raise-slider-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    #raise-slider {
+        width: 100%;
+    }
+
+    .raise-amount-display {
+        color: #FFD700;
+        font-size: 1.3em;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    /* Mode Selection & Waiting Room */
+    .game-section {
+        padding: 40px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .game-section.hidden {
+        display: none;
+    }
+
+    .mode-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .mode-btn {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        border: 2px solid #00f5ff;
+        border-radius: 15px;
+        padding: 30px;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-align: center;
+        color: white;
+    }
+
+    .mode-btn:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0, 245, 255, 0.3);
+        border-color: #00ff00;
+    }
+
+    .mode-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+
+    /* Chip Selection */
+    .chip-selector {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 30px 0;
+    }
+
+    .chip-option-btn {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border: 3px solid transparent;
+        border-radius: 50%;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: black;
+        font-weight: bold;
+    }
+
+    .chip-option-btn:hover {
+        transform: scale(1.1);
+    }
+
+    .chip-option-btn.active {
+        border-color: #00ff00;
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.6);
+    }
+
+    .chip-value {
+        font-size: 1.2em;
+    }
+
+    /* Waiting Room */
+    .waiting-room {
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 20px;
+        padding: 40px;
+        color: white;
+    }
+
+    .room-code-display {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+    .room-code {
+        font-size: 3em;
+        font-weight: bold;
+        color: #00ff00;
+        letter-spacing: 10px;
+        margin: 20px 0;
+    }
+
+    .players-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin: 30px 0;
+    }
+
+    .player-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 15px 20px;
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .player-item.host {
+        border-color: #FFD700;
+    }
+
+    .player-number {
+        width: 35px;
+        height: 35px;
+        background: #00f5ff;
+        color: black;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+
+    .player-name {
+        flex: 1;
+        font-size: 1.1em;
+    }
+
+    .host-badge {
+        background: #FFD700;
+        color: black;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+
+    .waiting-actions {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin-top: 30px;
+    }
+
+    .btn {
+        padding: 15px 30px;
+        border: none;
+        border-radius: 10px;
+        font-size: 1.1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #00ff00, #00cc00);
+        color: black;
+    }
+
+    .btn-secondary {
+        background: linear-gradient(135deg, #666, #444);
+        color: white;
+    }
+
+    .btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Input */
+    .input-group {
+        display: flex;
+        gap: 10px;
+        margin: 20px 0;
+    }
+
+    #room-code-input {
+        flex: 1;
+        padding: 15px;
+        font-size: 1.5em;
+        text-align: center;
+        border: 2px solid #00f5ff;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        text-transform: uppercase;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    #new-hand-btn {
+        position: absolute;
+        bottom: 30px;
+        right: 30px;
+        padding: 15px 30px;
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border: none;
+        border-radius: 10px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 1.1em;
+        z-index: 100;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="poker-container">
+    <!-- Mode Selection -->
+    <div id="mode-selection" class="game-section">
+        <h1 style="text-align: center; color: white; margin-bottom: 20px;">🃏 Texas Hold'em Poker</h1>
+        
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h3 style="color: #00f5ff;">Select Starting Chips</h3>
+            <div class="chip-selector">
+                <button class="chip-option-btn" data-chips="500">
+                    <span class="chip-value">$500</span>
+                </button>
+                <button class="chip-option-btn active" data-chips="1000">
+                    <span class="chip-value">$1000</span>
+                </button>
+                <button class="chip-option-btn" data-chips="2500">
+                    <span class="chip-value">$2500</span>
+                </button>
+                <button class="chip-option-btn" data-chips="5000">
+                    <span class="chip-value">$5000</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="mode-buttons">
+            <button id="create-room-btn" class="mode-btn">
+                <div class="mode-icon">🎲</div>
+                <h3>Create Room</h3>
+                <p>Start a new poker game</p>
+            </button>
+            <button id="join-room-btn-start" class="mode-btn">
+                <div class="mode-icon">🚪</div>
+                <h3>Join Room</h3>
+                <p>Enter an existing game</p>
+            </button>
+        </div>
+    </div>
+
+    <!-- Join Room -->
+    <div id="join-room-section" class="game-section hidden">
+        <div style="background: rgba(0,0,0,0.7); padding: 40px; border-radius: 20px; color: white;">
+            <h2 style="text-align: center; margin-bottom: 30px;">Enter Room Code</h2>
+            <div class="input-group">
+                <input type="text" id="room-code-input" placeholder="XXXXXX" maxlength="6">
+                <button id="join-room-submit-btn" class="btn btn-primary">Join</button>
+            </div>
+            <button id="back-to-mode-btn" class="btn btn-secondary" style="width: 100%; margin-top: 20px;">⬅️ Back</button>
+        </div>
+    </div>
+
+    <!-- Waiting Room -->
+    <div id="waiting-room" class="game-section hidden">
+        <div class="waiting-room">
+            <div class="room-code-display">
+                <h2>Room Code</h2>
+                <div class="room-code" id="display-room-code">------</div>
+                <button id="copy-code-btn" class="btn btn-secondary">📋 Copy Code</button>
+            </div>
+
+            <div class="players-waiting">
+                <h3 style="text-align: center; margin-bottom: 20px;">Players in Room</h3>
+                <div id="waiting-players-list" class="players-list"></div>
+            </div>
+
+            <div class="waiting-actions">
+                <button id="start-game-btn" class="btn btn-primary hidden">🎮 Start Game</button>
+                <button id="leave-room-btn" class="btn btn-secondary">🚪 Leave Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="poker-table-container hidden">
+        <!-- Game Info Bar -->
+        <div class="game-info-bar">
+            <div class="info-item">
+                <div class="info-label">Phase</div>
+                <div class="info-value" id="phase-indicator">Waiting...</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Pot</div>
+                <div class="info-value" id="pot-amount">$0</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Current Bet</div>
+                <div class="info-value" id="to-call">$0</div>
+            </div>
+        </div>
+
+        <!-- Poker Table Area -->
+        <div class="poker-table-area">
+            <!-- Community Cards -->
+            <div class="community-cards-container">
+                <div id="community-cards" style="display: flex; gap: 10px; min-height: 100px; align-items: center;">
+                    <div style="color: #666; font-style: italic;">Community cards will appear here</div>
+                </div>
+            </div>
+
+            <!-- Player Seats -->
+            <div id="player-seats-container"></div>
+        </div>
+
+        <!-- Player Controls -->
+        <div class="player-controls">
+            <!-- My Hand -->
+            <div class="my-hand-section">
+                <div id="my-cards" style="display: flex; gap: 8px;"></div>
+            </div>
+
+            <!-- My Stats -->
+            <div class="my-stats-section">
+                <div class="stat-box">
+                    <div class="stat-label">Your Chips</div>
+                    <div class="stat-value" id="my-chips">$1000</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Your Bet</div>
+                    <div class="stat-value" id="my-bet">$0</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons-section">
+                <div id="action-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="fold-btn" class="action-btn" disabled>Fold</button>
+                    <button id="check-btn" class="action-btn" disabled>Check</button>
+                    <button id="call-btn" class="action-btn" disabled>Call</button>
+                    <button id="raise-btn" class="action-btn" disabled>Raise</button>
+                    <button id="allin-btn" class="action-btn" disabled>All-In</button>
+                </div>
+
+                <div id="raise-controls" class="raise-controls hidden">
+                    <div class="raise-slider-container">
+                        <input type="range" id="raise-slider" min="0" max="1000" value="0" step="10">
+                        <div class="raise-amount-display" id="raise-amount-display">$0</div>
+                    </div>
+                    <button id="confirm-raise-btn" class="action-btn" style="background: #32cd32;">Confirm</button>
+                    <button id="cancel-raise-btn" class="action-btn" style="background: #dc143c;">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Hand Button -->
+        <button id="new-hand-btn" class="hidden">🎴 Deal New Hand</button>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/games/poker.js') }}"></script>
+{% endblock %}
