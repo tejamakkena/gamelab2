@@ -268,11 +268,8 @@ function spinWheel() {
         // Redraw wheel
         drawWheel();
         
-        // Ball stays at fixed position (top)
-        const ballX = 250 + Math.cos(ballAngle) * ballRadius;
-        const ballY = 250 + Math.sin(ballAngle) * ballRadius;
-        ball.style.left = ballX + 'px';
-        ball.style.top = ballY + 'px';
+        // Update ball position to match wheel rotation
+        updateBallPosition(currentRotation);
         
         if (progress < 1) {
             requestAnimationFrame(animate);
@@ -285,6 +282,20 @@ function spinWheel() {
     }
     
     animate();
+}
+
+function updateBallPosition(currentRotation) {
+    const ball = document.getElementById('ball');
+    const ballRadius = 180; // Distance from center
+    
+    // Ball moves opposite to wheel rotation
+    const ballAngle = -currentRotation + Math.PI / 2; // Adjust starting position
+    
+    const x = Math.cos(ballAngle) * ballRadius;
+    const y = Math.sin(ballAngle) * ballRadius;
+    
+    ball.style.left = `calc(50% + ${x}px)`;
+    ball.style.top = `calc(50% + ${y}px)`;
 }
 
 function finishSpin(winningNumber) {

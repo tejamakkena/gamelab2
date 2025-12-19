@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Raja Mantri Chor Sipahi{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="game-header">
+        <h1>Raja Mantri Chor Sipahi</h1>
+        <p class="lead">A classic Indian guessing game for 4 players</p>
+    </div>
+
+    <div class="game-rules mb-4">
+        <h3>How to Play:</h3>
+        <ul>
+            <li>4 players needed: Raja (King), Mantri (Minister), Chor (Thief), Sipahi (Police)</li>
+            <li>Each player draws a secret role</li>
+            <li>The Mantri reveals themselves first</li>
+            <li>The Sipahi must guess who the Chor is</li>
+            <li>Points: Raja gets 1000, Mantri gets 800, correct guess gives Sipahi 500, Chor loses 500 if caught</li>
+        </ul>
+    </div>
+
+    <div id="setupSection" class="mb-4">
+        <h3>Enter Player Names:</h3>
+        <div class="row">
+            <div class="col-md-6 mb-2">
+                <input type="text" class="form-control" id="player1" placeholder="Player 1">
+            </div>
+            <div class="col-md-6 mb-2">
+                <input type="text" class="form-control" id="player2" placeholder="Player 2">
+            </div>
+            <div class="col-md-6 mb-2">
+                <input type="text" class="form-control" id="player3" placeholder="Player 3">
+            </div>
+            <div class="col-md-6 mb-2">
+                <input type="text" class="form-control" id="player4" placeholder="Player 4">
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="gameSection" style="display: none;">
+        <div id="roleReveal" class="mb-4">
+            <h3>Click to Reveal Your Role:</h3>
+            <div class="row" id="playerButtons"></div>
+        </div>
+
+        <div id="mantriSection" style="display: none;" class="mb-4">
+            <h3>Mantri Revealed!</h3>
+            <p id="mantriName" class="alert alert-info"></p>
+        </div>
+
+        <div id="guessSection" style="display: none;" class="mb-4">
+            <h3 id="sipahiName"></h3>
+            <p>Guess who the Chor is:</p>
+            <div id="guessButtons"></div>
+        </div>
+
+        <div id="resultsSection" style="display: none;">
+            <h3>Game Results</h3>
+            <div id="results" class="alert alert-success"></div>
+            <button class="btn btn-primary" onclick="location.reload()">Play Again</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let players = [];
+let roles = ['Raja', 'Mantri', 'Chor', 'Sipahi'];
+let playerRoles = {};
+let revealedCount = 0;
+
+function startGame() {
+    const p1 = document.getElementById('player1').value.trim();
+    const p2 = document.getElementById('player2').value.trim();
+    const p3 = document.getElementById('player3').value.trim();
+    const p4 = document.getElementById('player4').value.trim();
+
+    if (!p1 || !p2 || !p3 || !p4) {
+        alert('Please enter all 4 player names!');
+        return;
+    }
+
+    players = [p1, p2, p3, p4];
+    assignRoles();
+    
+    document.getElementById('setupSection').style.display = 'none';
+    document.getElementById('gameSection').style.display = 'block';
+    
+    createRoleButtons();
+}
+
+function assignRoles() {
+    const shuffledRoles = [...roles].sort(() => Math.random() - 0.5);
+    players.forEach((player, index) => {
+        playerRoles[player] = shuffledRoles[index];
+    });
+}
+
+function createRoleButtons() {
+    const container = document.getElementById('playerButtons');
+    container.innerHTML = '';
+    
+    players.forEach(player => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6 mb-2';
+        col.innerHTML = `<button class="btn btn-outline-primary w-100" onclick="revealRole('${player}')">${player} - Click to See Role</button>`;
+        container.appendChild(col);
+    });
+}
+
+function revealRole(player) {
+    const role = playerRoles[player];
+    alert(`${player}, your role is: ${role}`);
+    
+    revealedCount++;
+    
+    if (revealedCount === 4) {
+        showMantri();
+    }
+}
+
+function showMantri() {
+    document.getElementById('roleReveal').style.display = 'none';
+    
+    const mantri = Object.keys(playerRoles).find(p => playerRoles[p] === 'Mantri');
+    document.getElementById('mantriName').textContent = `${mantri} is the Mantri!`;
+    document
