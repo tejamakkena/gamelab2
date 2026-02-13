@@ -359,7 +359,13 @@ function startGame() {
 }
 
 function leaveRoom() {
-    location.reload();
+    if (gameState.roomCode) {
+        socket.emit('leave_poker_room', {
+            room_code: gameState.roomCode
+        });
+    }
+    socket.disconnect();
+    setTimeout(() => location.reload(), 100);
 }
 
 function copyRoomCode() {

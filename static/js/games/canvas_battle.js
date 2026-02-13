@@ -188,7 +188,16 @@ const newGameBtn = document.getElementById('new-game-btn');
 
 if (nextRoundBtn) nextRoundBtn.addEventListener('click', nextRound);
 if (viewFinalResultsBtn) viewFinalResultsBtn.addEventListener('click', viewFinalResults);
-if (newGameBtn) newGameBtn.addEventListener('click', () => location.reload());
+if (newGameBtn) newGameBtn.addEventListener('click', () => {
+    // Clean up SocketIO state before reload
+    if (gameState.roomCode) {
+        socket.emit('leave_canvas_room', {
+            room_code: gameState.roomCode
+        });
+    }
+    socket.disconnect();
+    setTimeout(() => location.reload(), 100);
+});
 
 // Window resize handler
 window.addEventListener('resize', resizeCanvas);
@@ -271,7 +280,8 @@ function leaveRoom() {
     socket.emit('leave_canvas_room', {
         room_code: gameState.roomCode
     });
-    location.reload();
+    socket.disconnect();
+    setTimeout(() => location.reload(), 100);
 }
 
 function updatePlayersList(players) {
