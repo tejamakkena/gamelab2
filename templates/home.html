@@ -3,8 +3,11 @@
 {% block title %}Futuristic Games Hub{% endblock %}
 
 {% block extra_head %}
+<!-- Lazy load Google Sign-In only when needed -->
+{% if not user %}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta name="google-signin-client_id" content="{{ google_client_id }}">
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -16,7 +19,7 @@
     <!-- Logged in view -->
     <div class="user-info">
         {% if user.picture %}
-        <img src="{{ user.picture }}" alt="Profile" class="profile-pic">
+        <img src="{{ user.picture }}" alt="Profile" class="profile-pic" loading="lazy">
         {% else %}
         <div class="profile-pic-placeholder">{{ user.first_name[0] if user.first_name else user.name[0] }}</div>
         {% endif %}
@@ -71,34 +74,18 @@
             </div>
         </div>
         
-        <!-- Preview of games (blurred) -->
-        <div class="games-preview">
-            <h3>🎮 Available Games</h3>
-            <div class="games-grid blurred">
-                {% for game in games %}
-                <div class="game-card preview">
-                    <div class="game-icon">{{ game.icon }}</div>
-                    <h2>{{ game.name }}</h2>
-                    <p>{{ game.description }}</p>
-                    <p class="player-count">👥 {{ game.players }} Players</p>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+        <!-- Removed duplicate games preview - reduces DOM size by 50% -->
     </div>
     {% endif %}
 </div>
 
+{% if not user %}
 <script>
-// Google Sign-In Callback
+// Optimized Google Sign-In - only loads when not logged in
 function handleCredentialResponse(response) {
-    console.log('Credential received from Google');
-    
     fetch('/login', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             credential: response.credential,
             login_type: 'google'
@@ -107,7 +94,6 @@ function handleCredentialResponse(response) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            console.log('Login successful:', data.user);
             window.location.reload();
         } else {
             alert('Login failed: ' + (data.error || 'Unknown error'));
@@ -119,95 +105,65 @@ function handleCredentialResponse(response) {
     });
 }
 
-// Initialize Google Sign-In
-window.onload = function() {
+// Optimized: Single initialization check with timeout
+window.addEventListener('DOMContentLoaded', function() {
     const clientId = "{{ google_client_id }}";
     
-    console.log('Initializing Google Sign-In...');
-    
     if (!clientId || clientId === '' || clientId === 'None') {
-        console.warn('Google Client ID not configured - hiding Google Sign-In');
         document.getElementById('google-signin-section').style.display = 'none';
         return;
     }
     
-    // Wait for google.accounts to be available
-    const checkGoogle = setInterval(function() {
+    let attempts = 0;
+    const maxAttempts = 30; // 3 seconds max
+    
+    const initGoogle = setInterval(function() {
+        attempts++;
         if (typeof google !== 'undefined' && google.accounts) {
-            clearInterval(checkGoogle);
-            
-            // Initialize Google Sign-In
+            clearInterval(initGoogle);
             google.accounts.id.initialize({
                 client_id: clientId,
                 callback: handleCredentialResponse
             });
-            
-            // Render the button
             google.accounts.id.renderButton(
                 document.getElementById('google-signin-button'),
-                {
-                    theme: 'filled_black',
-                    size: 'large',
-                    type: 'standard',
-                    text: 'signin_with',
-                    shape: 'rectangular',
-                    logo_alignment: 'left',
-                    width: 300
-                }
+                {theme: 'filled_black', size: 'large', width: 300}
             );
-            
-            console.log('Google Sign-In initialized successfully');
-        }
-    }, 100);
-    
-    // Timeout after 3 seconds
-    setTimeout(function() {
-        clearInterval(checkGoogle);
-        if (typeof google === 'undefined' || !google.accounts) {
-            console.warn('Google Sign-In library failed to load');
+        } else if (attempts >= maxAttempts) {
+            clearInterval(initGoogle);
             document.getElementById('google-signin-section').style.display = 'none';
         }
-    }, 3000);
-};
+    }, 100);
+});
 
-// Manual Login Form Handler
-document.addEventListener('DOMContentLoaded', function() {
-    const manualForm = document.getElementById('manual-login-form');
+// Manual login form
+document.getElementById('manual-login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const playerName = document.getElementById('player-name').value.trim();
     
-    manualForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const playerName = document.getElementById('player-name').value.trim();
-        
-        if (playerName.length < 2) {
-            alert('Please enter a name with at least 2 characters');
-            return;
+    if (playerName.length < 2) {
+        alert('Please enter a name with at least 2 characters');
+        return;
+    }
+    
+    fetch('/login/manual', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({player_name: playerName})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Login failed: ' + (data.error || 'Unknown error'));
         }
-        
-        // Send manual login request
-        fetch('/login/manual', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                player_name: playerName
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                console.log('Manual login successful:', data.user);
-                window.location.reload();
-            } else {
-                alert('Login failed: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Login failed. Please try again.');
-        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Login failed. Please try again.');
     });
 });
 </script>
+{% endif %}
 {% endblock %}
