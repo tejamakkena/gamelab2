@@ -64,15 +64,35 @@ async function loadRooms() {
 
 function startRoomsPolling() {
     if (pollingInterval) return; // Already polling
-    pollingInterval = cleanup.addInterval(setInterval(loadRooms, 3000));
+    // Increased interval from 3000ms to 5000ms for better performance
+    pollingInterval = cleanup.addInterval(setInterval(loadRooms, 5000));
 }
 
 function stopRoomsPolling() {
     if (pollingInterval) {
-        cleanup.clearInterval(pollingInterval);
+        clearInterval(pollingInterval);
         pollingInterval = null;
     }
 }
+
+// Pause polling when tab is hidden to save resources
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Page is hidden, stop polling
+        if (pollingInterval) {
+            console.log('TicTacToe: Tab hidden, pausing room polling');
+            stopRoomsPolling();
+        }
+    } else {
+        // Page is visible again, restart polling if in lobby
+        const lobby = document.getElementById('lobby');
+        if (!pollingInterval && lobby && !lobby.classList.contains('hidden')) {
+            console.log('TicTacToe: Tab visible, resuming room polling');
+            startRoomsPolling();
+            loadRooms(); // Immediate refresh
+        }
+    }
+});
 
 async function createGame() {
     const response = await fetch('/tictactoe/create', {
@@ -302,7 +322,8 @@ function playAgain() {
 
 function startGamePolling() {
     if (pollingInterval) return; // Already polling
-    pollingInterval = cleanup.addInterval(setInterval(pollGameState, 1000));
+    // Increased interval from 1000ms to 2000ms for better performance
+    pollingInterval = cleanup.addInterval(setInterval(pollGameState, 2000));
 }
 
 function stopGamePolling() {
