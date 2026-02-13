@@ -4,6 +4,9 @@ console.log('User:', window.user);
 // Socket connection
 const socket = io();
 
+// Cleanup manager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Game state
 let gameState = {
     roomCode: null,
@@ -59,21 +62,22 @@ function initializeEventListeners() {
 }
 
 function setupSocketListeners() {
-    socket.on('connect', () => {
+    // Use safe socket handlers with error handling
+    safeSocketOn(socket, 'connect', () => {
         console.log('Socket connected:', socket.id);
     });
 
-    socket.on('room_created', (data) => {
+    safeSocketOn(socket, 'room_created', (data) => {
         console.log('Room created:', data);
         gameState.roomCode = data.room_code;
-        gameState.players = data.players || [];  // FIXED: Handle players
+        gameState.players = data.players || [];
         gameState.isHost = true;
         gameState.myColor = 'red';
         showWaitingRoom();
-        updatePlayersList();  // FIXED: Update list immediately
+        updatePlayersList();
     });
 
-    socket.on('room_joined', (data) => {
+    safeSocketOn(socket, 'room_joined', (data) => {
         console.log('Room joined:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players;
@@ -83,24 +87,24 @@ function setupSocketListeners() {
         updatePlayersList();
     });
 
-    socket.on('player_joined', (data) => {
+    safeSocketOn(socket, 'player_joined', (data) => {
         console.log('Player joined:', data);
         gameState.players = data.players;
         updatePlayersList();
     });
 
-    socket.on('player_left', (data) => {
+    safeSocketOn(socket, 'player_left', (data) => {
         console.log('Player left:', data);
         gameState.players = data.players;
         updatePlayersList();
         
         if (gameState.gameStarted && !gameState.gameOver) {
-            showMessage('Opponent left the game!');
+            showMessage('Opponent left the game!', 'warning');
             setTimeout(() => exitToMenu(), 2000);
         }
     });
 
-    socket.on('game_started', (data) => {
+    safeSocketOn(socket, 'game_started', (data) => {
         console.log('Game started:', data);
         gameState.gameStarted = true;
         gameState.currentTurn = data.current_turn;
@@ -110,7 +114,7 @@ function setupSocketListeners() {
         updateTurnDisplay();
     });
 
-    socket.on('move_made', (data) => {
+    safeSocketOn(socket, 'move_made', (data) => {
         console.log('Move made:', data);
         gameState.board = data.board;
         gameState.currentTurn = data.current_turn;
@@ -118,7 +122,7 @@ function setupSocketListeners() {
         updateTurnDisplay();
     });
 
-    socket.on('game_over', (data) => {
+    safeSocketOn(socket, 'game_over', (data) => {
         console.log('Game over:', data);
         gameState.gameOver = true;
         
@@ -131,9 +135,9 @@ function setupSocketListeners() {
         }, 1000);
     });
 
-    socket.on('error', (data) => {
+    safeSocketOn(socket, 'error', (data) => {
         console.error('Socket error:', data);
-        alert(data.message || 'An error occurred');
+        showMessage(data.message || 'An error occurred', 'error');
     });
 }
 
@@ -141,18 +145,15 @@ function createRoom() {
     console.log('Creating room...');
     console.log('User data:', window.user);
     
-    // FIXED: Better username extraction
-    const playerName = window.user?.name || 
-                      window.user?.username || 
-                      window.user?.first_name || 
-                      'Player 1';
-    
+    // Use shared utility for getting user name
+    const playerName = getUserName('Player');
     console.log('Player name:', playerName);
     
-    socket.emit('create_room', {
+    const createBtn = document.getElementById('create-room-btn');
+    emitWithLoading(socket, 'create_room', {
         game_type: 'connect4',
         player_name: playerName
-    });
+    }, createBtn);
 }
 
 function showJoinRoom() {
@@ -163,22 +164,20 @@ function showJoinRoom() {
 function joinRoom() {
     const roomCode = document.getElementById('room-code-input').value.trim().toUpperCase();
     
-    if (roomCode.length !== 6) {
-        alert('Please enter a valid 6-character room code');
+    if (!isValidRoomCode(roomCode)) {
+        showMessage('Please enter a valid 6-character room code', 'warning');
         return;
     }
     
-    // FIXED: Better username extraction
-    const playerName = window.user?.name || 
-                      window.user?.username || 
-                      window.user?.first_name || 
-                      'Player 2';
-    
+    // Use shared utility for getting user name
+    const playerName = getUserName('Player');
     console.log('Joining room:', roomCode, 'as', playerName);
-    socket.emit('join_room', {
+    
+    const joinBtn = document.getElementById('join-room-submit-btn');
+    emitWithLoading(socket, 'join_room', {
         room_code: roomCode,
         player_name: playerName
-    });
+    }, joinBtn);
 }
 
 function backToMode() {
@@ -241,35 +240,9 @@ function updatePlayersList() {
 function copyRoomCode() {
     const roomCode = gameState.roomCode;
     
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(roomCode).then(() => {
-            showCopyFeedback();
-        }).catch(() => {
-            // Fallback for older browsers
-            fallbackCopyToClipboard(roomCode);
-        });
-    } else {
-        fallbackCopyToClipboard(roomCode);
-    }
-}
-
-function fallbackCopyToClipboard(text) {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.select();
-    
-    try {
-        document.execCommand('copy');
-        showCopyFeedback();
-    } catch (err) {
-        console.error('Failed to copy:', err);
-        alert('Room code: ' + text);
-    }
-    
-    document.body.removeChild(textArea);
+    copyToClipboard(roomCode, showCopyFeedback, () => {
+        showMessage(`Room code: ${roomCode}`, 'info');
+    });
 }
 
 function showCopyFeedback() {
@@ -448,8 +421,25 @@ function showSection(sectionName) {
     }
 }
 
-function showMessage(message) {
-    alert(message);
-}
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    console.log('Cleaning up Connect4 resources...');
+    cleanup.cleanup();
+    if (gameState.roomCode && socket.connected) {
+        socket.emit('leave_room', { room_code: gameState.roomCode });
+    }
+    socket.disconnect();
+});
+
+// Handle visibility change (tab switching) - disconnect inactive games
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameState.roomCode) {
+        console.log('Page hidden, considering disconnect...');
+        // Could implement idle timeout here
+    } else if (!document.hidden) {
+        console.log('Page visible again');
+        // Reconnect logic if needed
+    }
+});
 
 console.log('Connect4 script loaded successfully');
