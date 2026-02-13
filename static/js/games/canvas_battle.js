@@ -239,8 +239,8 @@ if (newGameBtn) cleanup.addEventListener(newGameBtn, 'click', () => {
     setTimeout(() => location.reload(), 100);
 });
 
-// Window resize handler
-const resizeHandler = () => resizeCanvas();
+// Window resize handler with debouncing for performance
+const resizeHandler = debounce(() => resizeCanvas(), 300);
 cleanup.addEventListener(window, 'resize', resizeHandler);
 cleanup.addEventListener(window, 'orientationchange', resizeHandler);
 

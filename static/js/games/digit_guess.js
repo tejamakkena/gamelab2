@@ -1,6 +1,9 @@
 console.log('Digit Guess script loading...');
 console.log('User:', window.user);
 
+// Initialize CleanupManager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Socket connection
 const socket = io();
 
@@ -34,50 +37,51 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initializeEventListeners() {
-    // Mode selection
-    document.getElementById('create-room-btn').addEventListener('click', createRoom);
-    document.getElementById('join-room-btn-start').addEventListener('click', showJoinRoom);
+    // Mode selection - use cleanup manager
+    cleanup.addEventListener(document.getElementById('create-room-btn'), 'click', createRoom);
+    cleanup.addEventListener(document.getElementById('join-room-btn-start'), 'click', showJoinRoom);
     
     // Join room
-    document.getElementById('back-to-mode-btn').addEventListener('click', backToMode);
-    document.getElementById('join-room-submit-btn').addEventListener('click', joinRoom);
-    document.getElementById('room-code-input').addEventListener('keypress', (e) => {
+    cleanup.addEventListener(document.getElementById('back-to-mode-btn'), 'click', backToMode);
+    cleanup.addEventListener(document.getElementById('join-room-submit-btn'), 'click', joinRoom);
+    cleanup.addEventListener(document.getElementById('room-code-input'), 'keypress', (e) => {
         if (e.key === 'Enter') joinRoom();
     });
     
     // Waiting room
-    document.getElementById('copy-code-btn').addEventListener('click', copyRoomCode);
-    document.getElementById('start-game-btn').addEventListener('click', startGame);
-    document.getElementById('leave-room-btn').addEventListener('click', leaveRoom);
+    cleanup.addEventListener(document.getElementById('copy-code-btn'), 'click', copyRoomCode);
+    cleanup.addEventListener(document.getElementById('start-game-btn'), 'click', startGame);
+    cleanup.addEventListener(document.getElementById('leave-room-btn'), 'click', leaveRoom);
     
     // Set secret number
-    document.getElementById('submit-secret-btn').addEventListener('click', submitSecretNumber);
-    document.getElementById('secret-number-input').addEventListener('keypress', (e) => {
+    cleanup.addEventListener(document.getElementById('submit-secret-btn'), 'click', submitSecretNumber);
+    cleanup.addEventListener(document.getElementById('secret-number-input'), 'keypress', (e) => {
         if (e.key === 'Enter') submitSecretNumber();
     });
     
     // Game
-    document.getElementById('submit-guess-btn').addEventListener('click', submitGuess);
-    document.getElementById('guess-input').addEventListener('keypress', (e) => {
+    cleanup.addEventListener(document.getElementById('submit-guess-btn'), 'click', submitGuess);
+    cleanup.addEventListener(document.getElementById('guess-input'), 'keypress', (e) => {
         if (e.key === 'Enter') submitGuess();
     });
-    document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
+    cleanup.addEventListener(document.getElementById('leave-game-btn'), 'click', leaveGame);
     
     // Game over
-    document.getElementById('play-again-btn').addEventListener('click', playAgain);
-    document.getElementById('exit-game-btn').addEventListener('click', exitToMenu);
+    cleanup.addEventListener(document.getElementById('play-again-btn'), 'click', playAgain);
+    cleanup.addEventListener(document.getElementById('exit-game-btn'), 'click', exitToMenu);
     
     // Socket listeners
     setupSocketListeners();
 }
 
 function setupSocketListeners() {
-    socket.on('connect', () => {
+    // Use cleanup manager for socket handlers
+    cleanup.addSocketListener(socket, 'connect', () => {
         console.log('Socket connected:', socket.id);
         gameState.myPlayerId = socket.id;
     });
 
-    socket.on('room_created', (data) => {
+    cleanup.addSocketListener(socket, 'room_created', (data) => {
         console.log('Room created:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players || [];
@@ -87,7 +91,7 @@ function setupSocketListeners() {
         updatePlayersList();
     });
 
-    socket.on('room_joined', (data) => {
+    cleanup.addSocketListener(socket, 'room_joined', (data) => {
         console.log('Room joined:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players;
@@ -97,30 +101,30 @@ function setupSocketListeners() {
         updatePlayersList();
     });
 
-    socket.on('player_joined', (data) => {
+    cleanup.addSocketListener(socket, 'player_joined', (data) => {
         console.log('Player joined:', data);
         gameState.players = data.players;
         updatePlayersList();
     });
 
-    socket.on('player_left', (data) => {
+    cleanup.addSocketListener(socket, 'player_left', (data) => {
         console.log('Player left:', data);
         gameState.players = data.players;
         updatePlayersList();
         
         if (gameState.gameStarted && !gameState.gameOver) {
             showMessage('Opponent left the game!');
-            setTimeout(() => exitToMenu(), 2000);
+            const timeout = cleanup.addTimeout(setTimeout(() => exitToMenu(), 2000));
         }
     });
 
-    socket.on('game_started', (data) => {
+    cleanup.addSocketListener(socket, 'game_started', (data) => {
         console.log('Game started:', data);
         gameState.gameStarted = true;
         showSetNumberSection();
     });
 
-    socket.on('number_set', (data) => {
+    cleanup.addSocketListener(socket, 'number_set', (data) => {
         console.log('Number set:', data);
         if (data.all_ready) {
             // Both players ready, will receive guessing_phase_started
@@ -132,7 +136,7 @@ function setupSocketListeners() {
         }
     });
 
-    socket.on('guessing_phase_started', (data) => {
+    cleanup.addSocketListener(socket, 'guessing_phase_started', (data) => {
         console.log('Guessing phase started:', data);
         gameState.currentTurn = data.current_turn;
         gameState.players = data.players;
@@ -140,7 +144,7 @@ function setupSocketListeners() {
         updateTurnIndicator();
     });
 
-    socket.on('guess_made', (data) => {
+    cleanup.addSocketListener(socket, 'guess_made', (data) => {
         console.log('Guess made:', data);
         gameState.currentTurn = data.current_turn;
         gameState.guessHistory = data.guess_history;
@@ -153,17 +157,29 @@ function setupSocketListeners() {
         }
     });
 
-    socket.on('game_over', (data) => {
+    cleanup.addSocketListener(socket, 'game_over', (data) => {
         console.log('Game over:', data);
         gameState.gameOver = true;
         showGameOver(data);
     });
 
-    socket.on('error', (data) => {
+    cleanup.addSocketListener(socket, 'error', (data) => {
         console.error('Error:', data.message);
         showMessage(data.message);
     });
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    console.log('Digit Guess: Cleaning up resources...');
+    cleanup.cleanup();
+    if (gameState.roomCode && socket.connected) {
+        socket.emit('leave_room', { room_code: gameState.roomCode });
+    }
+    socket.disconnect();
+});
+
+console.log('✅ Digit Guess script loaded with CleanupManager');
 
 // UI Functions
 function showSection(section) {

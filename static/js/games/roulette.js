@@ -38,6 +38,9 @@ const canvas = document.getElementById('roulette-canvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 const ball = document.getElementById('ball');
 
+// Performance optimization: Cache wheel rendering
+let cachedWheelCanvas = null;
+
 // Initialize
 function init() {
     console.log('🎰 Initializing Roulette Casino...');
@@ -151,73 +154,114 @@ function updateDisplay() {
     document.getElementById('round-total').textContent = `$${totalBets}`;
 }
 
-function drawWheel() {
-    if (!ctx) return;
+/**
+ * Cache static wheel rendering for performance optimization
+ * Only called once or when wheel needs to be regenerated
+ */
+function cacheWheelRendering() {
+    if (!canvas) return;
+    
+    // Create offscreen canvas for caching
+    cachedWheelCanvas = document.createElement('canvas');
+    cachedWheelCanvas.width = canvas.width;
+    cachedWheelCanvas.height = canvas.height;
+    const cacheCtx = cachedWheelCanvas.getContext('2d');
     
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = 220;
     
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
     // Draw outer rim
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + 20, 0, Math.PI * 2);
-    ctx.strokeStyle = '#00f5ff';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fill();
+    cacheCtx.beginPath();
+    cacheCtx.arc(centerX, centerY, radius + 20, 0, Math.PI * 2);
+    cacheCtx.strokeStyle = '#00f5ff';
+    cacheCtx.lineWidth = 4;
+    cacheCtx.stroke();
+    cacheCtx.fillStyle = '#0a0a0a';
+    cacheCtx.fill();
     
     // Draw wheel segments
     const segmentAngle = (Math.PI * 2) / rouletteNumbers.length;
     
     rouletteNumbers.forEach((item, index) => {
-        const startAngle = index * segmentAngle + gameState.wheelRotation;
+        const startAngle = index * segmentAngle;
         const endAngle = startAngle + segmentAngle;
         
         // Draw segment
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-        ctx.closePath();
+        cacheCtx.beginPath();
+        cacheCtx.moveTo(centerX, centerY);
+        cacheCtx.arc(centerX, centerY, radius, startAngle, endAngle);
+        cacheCtx.closePath();
         
         // Fill color
         if (item.color === 'green') {
-            ctx.fillStyle = '#00ff00';
+            cacheCtx.fillStyle = '#00ff00';
         } else if (item.color === 'red') {
-            ctx.fillStyle = '#ff0000';
+            cacheCtx.fillStyle = '#ff0000';
         } else {
-            ctx.fillStyle = '#000000';
+            cacheCtx.fillStyle = '#000000';
         }
-        ctx.fill();
+        cacheCtx.fill();
         
         // Draw border
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        cacheCtx.strokeStyle = '#FFD700';
+        cacheCtx.lineWidth = 2;
+        cacheCtx.stroke();
         
         // Draw number
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(startAngle + segmentAngle / 2);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText(item.num, radius * 0.75, 0);
-        ctx.restore();
+        cacheCtx.save();
+        cacheCtx.translate(centerX, centerY);
+        cacheCtx.rotate(startAngle + segmentAngle / 2);
+        cacheCtx.textAlign = 'center';
+        cacheCtx.textBaseline = 'middle';
+        cacheCtx.fillStyle = 'white';
+        cacheCtx.font = 'bold 16px Arial';
+        cacheCtx.fillText(item.num, radius * 0.75, 0);
+        cacheCtx.restore();
     });
     
     // Draw center circle
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 40, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fill();
-    ctx.strokeStyle = '#00f5ff';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    cacheCtx.beginPath();
+    cacheCtx.arc(centerX, centerY, 40, 0, Math.PI * 2);
+    cacheCtx.fillStyle = '#1a1a1a';
+    cacheCtx.fill();
+    cacheCtx.strokeStyle = '#00f5ff';
+    cacheCtx.lineWidth = 3;
+    cacheCtx.stroke();
+    
+    console.log('✅ Wheel rendering cached for performance');
+}
+
+/**
+ * Optimized drawWheel - uses cached rendering and rotation transform
+ */
+function drawWheel() {
+    if (!ctx) return;
+    
+    // Create cache if doesn't exist
+    if (!cachedWheelCanvas) {
+        cacheWheelRendering();
+    }
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Save context state
+    ctx.save();
+    
+    // Translate to center, rotate, then translate back
+    ctx.translate(centerX, centerY);
+    ctx.rotate(gameState.wheelRotation);
+    ctx.translate(-centerX, -centerY);
+    
+    // Draw cached wheel
+    ctx.drawImage(cachedWheelCanvas, 0, 0);
+    
+    // Restore context state
+    ctx.restore();
 }
 
 function spinWheel() {

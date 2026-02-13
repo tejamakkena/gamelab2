@@ -443,11 +443,12 @@ function createCardElement(card) {
     return cardEl;
 }
 
+/**
+ * Optimized renderPlayerSeats - updates only changed elements instead of full rebuild
+ */
 function renderPlayerSeats() {
     const container = document.getElementById('player-seats-container');
     if (!container) return;
-    
-    container.innerHTML = '';
     
     const seatPositions = [
         'seat-bottom',
@@ -460,6 +461,9 @@ function renderPlayerSeats() {
         'seat-bottom-right'
     ];
     
+    // Get existing seats or create container structure
+    let existingSeats = container.querySelectorAll('.player-seat');
+    
     let seatIndex = 0;
     gameState.players.forEach((player, index) => {
         // Skip rendering myself - I'm in the bottom panel
@@ -469,10 +473,6 @@ function renderPlayerSeats() {
         
         const isDealer = index === 0;
         const isActive = index === gameState.currentTurn;
-        
-        const seatDiv = document.createElement('div');
-        seatDiv.className = `player-seat ${seatPositions[seatIndex]} ${isActive ? 'active-turn' : ''}`;
-        seatIndex++;
         
         let statusClass = 'status-waiting';
         let statusText = 'Waiting';
@@ -488,31 +488,71 @@ function renderPlayerSeats() {
             statusText = `Bet: $${player.bet}`;
         }
         
-        seatDiv.innerHTML = `
-            <div class="player-name-tag">
-                ${isDealer ? '<span class="dealer-button">D</span>' : ''}
-                ${player.name}
-            </div>
-            
-            <div class="player-chips-display">
-                <span class="chip-label">💰 Chips:</span>
-                <span class="chip-amount">$${player.chips}</span>
-            </div>
-            
-            <div class="player-cards-container">
-                ${!player.folded ? `
-                    <div class="card back"></div>
-                    <div class="card back"></div>
-                ` : ''}
-            </div>
-            
-            <div class="player-status ${statusClass}">
-                ${statusText}
-            </div>
-        `;
+        // Try to reuse existing seat element
+        let seatDiv = existingSeats[seatIndex];
         
-        container.appendChild(seatDiv);
+        if (!seatDiv || seatDiv.dataset.playerId !== player.id.toString()) {
+            // Create new seat if doesn't exist or player changed
+            if (seatDiv) {
+                seatDiv.remove();
+            }
+            
+            seatDiv = document.createElement('div');
+            seatDiv.className = `player-seat ${seatPositions[seatIndex]}`;
+            seatDiv.dataset.playerId = player.id;
+            
+            seatDiv.innerHTML = `
+                <div class="player-name-tag"></div>
+                <div class="player-chips-display">
+                    <span class="chip-label">💰 Chips:</span>
+                    <span class="chip-amount"></span>
+                </div>
+                <div class="player-cards-container"></div>
+                <div class="player-status"></div>
+            `;
+            
+            container.appendChild(seatDiv);
+        }
+        
+        // Update classes
+        seatDiv.className = `player-seat ${seatPositions[seatIndex]} ${isActive ? 'active-turn' : ''}`;
+        
+        // Update content only if changed (reduces DOM manipulation)
+        const nameTag = seatDiv.querySelector('.player-name-tag');
+        const newNameContent = `${isDealer ? '<span class="dealer-button">D</span>' : ''}${player.name}`;
+        if (nameTag.innerHTML !== newNameContent) {
+            nameTag.innerHTML = newNameContent;
+        }
+        
+        const chipAmount = seatDiv.querySelector('.chip-amount');
+        const newChipText = `$${player.chips}`;
+        if (chipAmount.textContent !== newChipText) {
+            chipAmount.textContent = newChipText;
+        }
+        
+        const cardsContainer = seatDiv.querySelector('.player-cards-container');
+        const newCardsHTML = !player.folded ? `
+            <div class="card back"></div>
+            <div class="card back"></div>
+        ` : '';
+        if (cardsContainer.innerHTML !== newCardsHTML) {
+            cardsContainer.innerHTML = newCardsHTML;
+        }
+        
+        const statusEl = seatDiv.querySelector('.player-status');
+        statusEl.className = `player-status ${statusClass}`;
+        if (statusEl.textContent !== statusText) {
+            statusEl.textContent = statusText;
+        }
+        
+        seatIndex++;
     });
+    
+    // Remove extra seats if players left
+    while (seatIndex < existingSeats.length) {
+        existingSeats[seatIndex].remove();
+        seatIndex++;
+    }
 }
 
 function updateDisplay() {
