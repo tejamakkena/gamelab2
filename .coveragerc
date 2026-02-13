@@ -1,0 +1,13 @@
+[run]
+omit =
+    */venv/*
+    */tests/*
+    # Exclude socket event handlers (require WebSocket integration tests)
+    */socket_events.py
+    # Exclude unused auth module (flask_login not installed)
+    utils/auth.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
