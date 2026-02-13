@@ -1,5 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, session, request, jsonify
 from flask_socketio import SocketIO
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import config
 from functools import wraps
 from google.oauth2 import id_token
@@ -13,6 +15,17 @@ def create_app(config_name='default'):
 
     # Initialize Socket.IO
     socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+    # Initialize Rate Limiter
+    # Default limits: 200 requests/day, 50 requests/hour per IP
+    # Critical endpoints (login) have stricter limits (5/minute)
+    # Game pages limited to 100 requests/minute to prevent abuse
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://"
+    )
 
     # Debug: Print Google Client ID (first 20 chars only for security)
     # client_id = app.config.get('GOOGLE_CLIENT_ID', 'NOT SET')
@@ -71,6 +84,7 @@ def create_app(config_name='default'):
 
     # Main routes
     @app.route("/")
+    @limiter.limit("100 per minute")
     def home():
         games_list = [
             {
@@ -180,6 +194,7 @@ def create_app(config_name='default'):
             google_client_id=app.config.get('GOOGLE_CLIENT_ID'))
 
     @app.route("/login", methods=['POST'])
+    @limiter.limit("5 per minute")
     def login():
         """Google OAuth login"""
         token = request.json.get('credential')
@@ -207,6 +222,7 @@ def create_app(config_name='default'):
             return jsonify({'success': False, 'error': str(e)}), 400
 
     @app.route("/login/manual", methods=['POST'])
+    @limiter.limit("5 per minute")
     def manual_login():
         """Manual name-based login"""
         data = request.json
