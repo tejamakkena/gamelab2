@@ -117,13 +117,15 @@ function updateBetDisplay(betType) {
     }
 }
 
-function clearBets() {
+function clearBets(refund = true) {
     if (gameState.isSpinning) return;
     
-    // Refund all bets
-    Object.values(gameState.bets).forEach(amount => {
-        gameState.totalMoney += amount;
-    });
+    // Only refund if explicitly clearing (not after a spin)
+    if (refund) {
+        Object.values(gameState.bets).forEach(amount => {
+            gameState.totalMoney += amount;
+        });
+    }
     
     gameState.bets = {};
     
@@ -138,7 +140,7 @@ function clearBets() {
     spinBtn.classList.remove('btn-spin-ready');
     
     updateDisplay();
-    console.log('🗑️ All bets cleared');
+    console.log(refund ? '🗑️ All bets cleared and refunded' : '🗑️ Bets cleared for new round');
 }
 
 function updateDisplay() {
@@ -321,6 +323,7 @@ function finishSpin(winningNumber) {
         }
     });
     
+    // Add winnings to total money
     gameState.totalMoney += totalWin;
     
     // Show result
@@ -343,8 +346,8 @@ function finishSpin(winningNumber) {
         showMessage(resultMessage, 'info');
     }
     
-    // Reset for next round
-    clearBets();
+    // Reset for next round (don't refund - bets were already deducted!)
+    clearBets(false);
     updateDisplay();
     
     console.log(`🎲 Result: ${winningNumber.num} (${winningNumber.color}) - Net: $${netResult}`);
