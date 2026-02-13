@@ -243,9 +243,10 @@ function spinWheel() {
     const segmentAngle = (Math.PI * 2) / rouletteNumbers.length;
     const extraSpins = 5; // Number of full rotations before stopping
     
-    // Calculate target: rotate to position winning segment at top (270° or -π/2)
+    // Calculate target: rotate to position winning segment CENTER at top (270° or -π/2)
     // Account for current rotation and add extra spins
-    const targetAngle = (Math.PI * 2 * extraSpins) - (winningIndex * segmentAngle) + (Math.PI / 2);
+    // Subtract half segment angle to align segment CENTER with ball
+    const targetAngle = (Math.PI * 2 * extraSpins) - (winningIndex * segmentAngle) - (segmentAngle / 2) + (Math.PI / 2);
     const startRotation = gameState.wheelRotation % (Math.PI * 2);
     const targetRotation = startRotation + targetAngle;
     
