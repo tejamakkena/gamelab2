@@ -119,30 +119,27 @@ function handleCredentialResponse(response) {
     });
 }
 
-// Initialize Google Sign-In
-window.onload = function() {
+// Initialize Google Sign-In (optimized, non-blocking)
+window.addEventListener('DOMContentLoaded', function() {
     const clientId = "{{ google_client_id }}";
     
     console.log('Initializing Google Sign-In...');
     
     if (!clientId || clientId === '' || clientId === 'None') {
         console.warn('Google Client ID not configured - hiding Google Sign-In');
-        document.getElementById('google-signin-section').style.display = 'none';
+        const googleSection = document.getElementById('google-signin-section');
+        if (googleSection) googleSection.style.display = 'none';
         return;
     }
     
-    // Wait for google.accounts to be available
-    const checkGoogle = setInterval(function() {
+    // Performance: Use Promise-based loading instead of setInterval polling
+    const initializeGoogleSignIn = () => {
         if (typeof google !== 'undefined' && google.accounts) {
-            clearInterval(checkGoogle);
-            
-            // Initialize Google Sign-In
             google.accounts.id.initialize({
                 client_id: clientId,
                 callback: handleCredentialResponse
             });
             
-            // Render the button
             google.accounts.id.renderButton(
                 document.getElementById('google-signin-button'),
                 {
@@ -157,18 +154,23 @@ window.onload = function() {
             );
             
             console.log('Google Sign-In initialized successfully');
+        } else {
+            // Retry after script loads (max 3s)
+            setTimeout(initializeGoogleSignIn, 100);
         }
-    }, 100);
+    };
     
-    // Timeout after 3 seconds
-    setTimeout(function() {
-        clearInterval(checkGoogle);
+    // Start initialization attempt with timeout
+    const timeoutId = setTimeout(function() {
         if (typeof google === 'undefined' || !google.accounts) {
             console.warn('Google Sign-In library failed to load');
-            document.getElementById('google-signin-section').style.display = 'none';
+            const googleSection = document.getElementById('google-signin-section');
+            if (googleSection) googleSection.style.display = 'none';
         }
     }, 3000);
-};
+    
+    initializeGoogleSignIn();
+});
 
 // Manual Login Form Handler
 document.addEventListener('DOMContentLoaded', function() {

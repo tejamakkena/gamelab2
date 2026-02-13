@@ -197,6 +197,9 @@ button *,
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: var(--spacing-lg);
     padding: var(--spacing-lg) 0;
+    /* Performance: Enable GPU acceleration */
+    transform: translateZ(0);
+    will-change: scroll-position;
 }
 
 .game-mode-btn,
@@ -259,6 +262,11 @@ button *,
             rgba(0, 245, 255, 0.02) 10px,
             rgba(0, 245, 255, 0.02) 20px
         );
+    /* Performance: Lazy rendering for off-screen cards */
+    content-visibility: auto;
+    contain-intrinsic-size: 320px;
+    /* Performance: Hint browser about hover animations */
+    will-change: transform, box-shadow;
 }
 
 .game-card::before {
