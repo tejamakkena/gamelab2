@@ -20,11 +20,13 @@ def create_app(config_name='default'):
     # Default limits: 200 requests/day, 50 requests/hour per IP
     # Critical endpoints (login) have stricter limits (5/minute)
     # Game endpoints limited to 100 requests/hour to prevent abuse
+    # Configurable via RATE_LIMIT environment variable
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
         default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://"
+        storage_uri=app.config.get('RATELIMIT_STORAGE_URL', 'memory://'),
+        headers_enabled=app.config.get('RATELIMIT_HEADERS_ENABLED', True)
     )
 
     # Debug: Print Google Client ID (first 20 chars only for security)
@@ -51,15 +53,16 @@ def create_app(config_name='default'):
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
     
-    # Apply rate limiting to all game blueprints (100 requests/hour per IP)
-    limiter.limit("100 per hour")(tictactoe_bp)
-    limiter.limit("100 per hour")(trivia_bp)
-    limiter.limit("100 per hour")(snake_ladder_bp)
-    limiter.limit("100 per hour")(roulette_bp)
-    limiter.limit("100 per hour")(poker_bp)
-    limiter.limit("100 per hour")(canvas_battle_bp)
-    limiter.limit("100 per hour")(connect4_bp)
-    limiter.limit("100 per hour")(digit_guess_bp)
+    # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
+    game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
+    limiter.limit(game_rate_limit)(tictactoe_bp)
+    limiter.limit(game_rate_limit)(trivia_bp)
+    limiter.limit(game_rate_limit)(snake_ladder_bp)
+    limiter.limit(game_rate_limit)(roulette_bp)
+    limiter.limit(game_rate_limit)(poker_bp)
+    limiter.limit(game_rate_limit)(canvas_battle_bp)
+    limiter.limit(game_rate_limit)(connect4_bp)
+    limiter.limit(game_rate_limit)(digit_guess_bp)
     
 
 
@@ -94,7 +97,7 @@ def create_app(config_name='default'):
 
     # Main routes
     @app.route("/")
-    @limiter.limit("100 per hour")
+    @limiter.limit(lambda: app.config.get('RATELIMIT_DEFAULT', '100 per hour'))
     def home():
         games_list = [
             {
