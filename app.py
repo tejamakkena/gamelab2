@@ -26,6 +26,7 @@ def create_app(config_name='default'):
     from games.poker.routes import poker_bp  # ADD THIS
     from games.canvas_battle.routes import canvas_battle_bp
     from games.connect4.routes import connect4_bp
+    from games.digit_guess.routes import digit_guess_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -35,6 +36,7 @@ def create_app(config_name='default'):
     app.register_blueprint(poker_bp, url_prefix='/poker')  # ADD THIS
     app.register_blueprint(canvas_battle_bp, url_prefix='/canvas-battle')
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
+    app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
     
 
 
@@ -46,6 +48,7 @@ def create_app(config_name='default'):
     from games.poker.socket_events import register_poker_events
     from games.canvas_battle.socket_events import register_canvas_battle_events
     from games.connect4.socket_events import register_connect4_events
+    from games.digit_guess.socket_events import register_digit_guess_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -54,6 +57,7 @@ def create_app(config_name='default'):
     register_roulette_events(socketio)
     register_canvas_battle_events(socketio)
     register_connect4_events(socketio)
+    register_digit_guess_events(socketio)
 
 
     # Login required decorator
@@ -82,6 +86,13 @@ def create_app(config_name='default'):
                 'icon': '🔴🟡', 
                 'players': '2',
                 'description': 'Strategic dropping game. Connect four to win!'
+            },
+            {
+                'name': 'Digit Guess',
+                'url': '/digit-guess',
+                'icon': '🔢🎯',
+                'players': '2',
+                'description': 'Crack your opponent\'s 4-digit code! Like Mastermind!'
             },
             {
                 'name': 'Snake & Ladder',
