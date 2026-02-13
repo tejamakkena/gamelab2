@@ -35,39 +35,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initializeEventListeners() {
     // Mode selection
-    document.getElementById('create-room-btn').addEventListener('click', createRoom);
-    document.getElementById('join-room-btn-start').addEventListener('click', showJoinRoom);
+    cleanup.addEventListener(document.getElementById('create-room-btn'), 'click', createRoom);
+    cleanup.addEventListener(document.getElementById('join-room-btn-start'), 'click', showJoinRoom);
     
     // Join room
-    document.getElementById('back-to-mode-btn').addEventListener('click', backToMode);
-    document.getElementById('join-room-submit-btn').addEventListener('click', joinRoom);
-    document.getElementById('room-code-input').addEventListener('keypress', (e) => {
+    const roomCodeInput = document.getElementById('room-code-input');
+    const enterHandler = (e) => {
         if (e.key === 'Enter') joinRoom();
-    });
+    };
+    cleanup.addEventListener(document.getElementById('back-to-mode-btn'), 'click', backToMode);
+    cleanup.addEventListener(document.getElementById('join-room-submit-btn'), 'click', joinRoom);
+    cleanup.addEventListener(roomCodeInput, 'keypress', enterHandler);
     
     // Waiting room
-    document.getElementById('copy-code-btn').addEventListener('click', copyRoomCode);
-    document.getElementById('start-game-btn').addEventListener('click', startGame);
-    document.getElementById('leave-room-btn').addEventListener('click', leaveRoom);
+    cleanup.addEventListener(document.getElementById('copy-code-btn'), 'click', copyRoomCode);
+    cleanup.addEventListener(document.getElementById('start-game-btn'), 'click', startGame);
+    cleanup.addEventListener(document.getElementById('leave-room-btn'), 'click', leaveRoom);
     
     // Game
-    document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
+    cleanup.addEventListener(document.getElementById('leave-game-btn'), 'click', leaveGame);
     
     // Game over
-    document.getElementById('play-again-btn').addEventListener('click', playAgain);
-    document.getElementById('exit-game-btn').addEventListener('click', exitToMenu);
+    cleanup.addEventListener(document.getElementById('play-again-btn'), 'click', playAgain);
+    cleanup.addEventListener(document.getElementById('exit-game-btn'), 'click', exitToMenu);
     
     // Socket listeners
     setupSocketListeners();
 }
 
 function setupSocketListeners() {
-    // Use safe socket handlers with error handling
-    safeSocketOn(socket, 'connect', () => {
+    // Use cleanup manager for socket handlers with error handling
+    const connectHandler = () => {
         console.log('Socket connected:', socket.id);
-    });
+    };
+    cleanup.addSocketListener(socket, 'connect', connectHandler);
 
-    safeSocketOn(socket, 'room_created', (data) => {
+    const roomCreatedHandler = (data) => {
         console.log('Room created:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players || [];
@@ -75,9 +78,10 @@ function setupSocketListeners() {
         gameState.myColor = 'red';
         showWaitingRoom();
         updatePlayersList();
-    });
+    };
+    cleanup.addSocketListener(socket, 'room_created', roomCreatedHandler);
 
-    safeSocketOn(socket, 'room_joined', (data) => {
+    const roomJoinedHandler = (data) => {
         console.log('Room joined:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players;
@@ -85,26 +89,29 @@ function setupSocketListeners() {
         gameState.isHost = data.is_host;
         showWaitingRoom();
         updatePlayersList();
-    });
+    };
+    cleanup.addSocketListener(socket, 'room_joined', roomJoinedHandler);
 
-    safeSocketOn(socket, 'player_joined', (data) => {
+    const playerJoinedHandler = (data) => {
         console.log('Player joined:', data);
         gameState.players = data.players;
         updatePlayersList();
-    });
+    };
+    cleanup.addSocketListener(socket, 'player_joined', playerJoinedHandler);
 
-    safeSocketOn(socket, 'player_left', (data) => {
+    const playerLeftHandler = (data) => {
         console.log('Player left:', data);
         gameState.players = data.players;
         updatePlayersList();
         
         if (gameState.gameStarted && !gameState.gameOver) {
             showMessage('Opponent left the game!', 'warning');
-            setTimeout(() => exitToMenu(), 2000);
+            const timeout = cleanup.addTimeout(setTimeout(() => exitToMenu(), 2000));
         }
-    });
+    };
+    cleanup.addSocketListener(socket, 'player_left', playerLeftHandler);
 
-    safeSocketOn(socket, 'game_started', (data) => {
+    const gameStartedHandler = (data) => {
         console.log('Game started:', data);
         gameState.gameStarted = true;
         gameState.currentTurn = data.current_turn;
@@ -112,17 +119,19 @@ function setupSocketListeners() {
         showGameScreen();
         renderBoard();
         updateTurnDisplay();
-    });
+    };
+    cleanup.addSocketListener(socket, 'game_started', gameStartedHandler);
 
-    safeSocketOn(socket, 'move_made', (data) => {
+    const moveMadeHandler = (data) => {
         console.log('Move made:', data);
         gameState.board = data.board;
         gameState.currentTurn = data.current_turn;
         renderBoard();
         updateTurnDisplay();
-    });
+    };
+    cleanup.addSocketListener(socket, 'move_made', moveMadeHandler);
 
-    safeSocketOn(socket, 'game_over', (data) => {
+    const gameOverHandler = (data) => {
         console.log('Game over:', data);
         gameState.gameOver = true;
         
@@ -130,15 +139,17 @@ function setupSocketListeners() {
             highlightWinningCells(data.winning_cells);
         }
         
-        setTimeout(() => {
+        const timeout = cleanup.addTimeout(setTimeout(() => {
             showGameOver(data.winner, data.reason);
-        }, 1000);
-    });
+        }, 1000));
+    };
+    cleanup.addSocketListener(socket, 'game_over', gameOverHandler);
 
-    safeSocketOn(socket, 'error', (data) => {
+    const errorHandler = (data) => {
         console.error('Socket error:', data);
         showMessage(data.message || 'An error occurred', 'error');
-    });
+    };
+    cleanup.addSocketListener(socket, 'error', errorHandler);
 }
 
 function createRoom() {
@@ -252,11 +263,11 @@ function showCopyFeedback() {
     btn.style.background = 'linear-gradient(135deg, #00ff00, #00cc00)';
     btn.style.color = 'black';
     
-    setTimeout(() => {
+    const timeout = cleanup.addTimeout(setTimeout(() => {
         btn.textContent = originalText;
         btn.style.background = '';
         btn.style.color = '';
-    }, 2000);
+    }, 2000));
 }
 
 function startGame() {

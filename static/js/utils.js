@@ -251,17 +251,24 @@ function throttle(func, limit) {
 // =====================================================
 
 /**
- * Cleanup manager for intervals, timeouts, and event listeners
+ * Enhanced Cleanup Manager for intervals, timeouts, event listeners, and more
+ * Prevents memory leaks by tracking and cleaning up all resources
  */
 class CleanupManager {
     constructor() {
         this.intervals = [];
         this.timeouts = [];
         this.eventListeners = [];
+        this.socketListeners = [];
+        this.canvasContexts = [];
+        this.animationFrames = [];
+        this.domObservers = [];
     }
     
     /**
      * Register an interval for cleanup
+     * @param {number} interval - Interval ID
+     * @returns {number} The interval ID
      */
     addInterval(interval) {
         this.intervals.push(interval);
@@ -270,6 +277,8 @@ class CleanupManager {
     
     /**
      * Register a timeout for cleanup
+     * @param {number} timeout - Timeout ID
+     * @returns {number} The timeout ID
      */
     addTimeout(timeout) {
         this.timeouts.push(timeout);
@@ -278,29 +287,206 @@ class CleanupManager {
     
     /**
      * Register an event listener for cleanup
+     * @param {HTMLElement} element - DOM element
+     * @param {string} event - Event name
+     * @param {Function} handler - Event handler
+     * @param {object} options - Event options
      */
     addEventListener(element, event, handler, options) {
+        if (!element) {
+            console.warn('CleanupManager: Attempted to add listener to null element');
+            return;
+        }
         element.addEventListener(event, handler, options);
         this.eventListeners.push({ element, event, handler, options });
+    }
+    
+    /**
+     * Register multiple event listeners at once
+     * @param {Array} listeners - Array of {element, event, handler, options}
+     */
+    addEventListeners(listeners) {
+        listeners.forEach(({ element, event, handler, options }) => {
+            this.addEventListener(element, event, handler, options);
+        });
+    }
+    
+    /**
+     * Register a socket event listener for cleanup
+     * @param {object} socket - Socket.IO instance
+     * @param {string} event - Event name
+     * @param {Function} handler - Event handler
+     */
+    addSocketListener(socket, event, handler) {
+        socket.on(event, handler);
+        this.socketListeners.push({ socket, event, handler });
+    }
+    
+    /**
+     * Register a canvas context for cleanup
+     * @param {HTMLCanvasElement} canvas - Canvas element
+     */
+    addCanvas(canvas) {
+        if (canvas && canvas.getContext) {
+            this.canvasContexts.push(canvas);
+        }
+    }
+    
+    /**
+     * Register an animation frame for cleanup
+     * @param {number} frameId - Animation frame ID
+     */
+    addAnimationFrame(frameId) {
+        this.animationFrames.push(frameId);
+    }
+    
+    /**
+     * Register a DOM observer for cleanup
+     * @param {MutationObserver|IntersectionObserver|ResizeObserver} observer
+     */
+    addObserver(observer) {
+        this.domObservers.push(observer);
+    }
+    
+    /**
+     * Clear a specific interval and remove from tracking
+     * @param {number} interval - Interval ID
+     */
+    clearInterval(interval) {
+        clearInterval(interval);
+        this.intervals = this.intervals.filter(i => i !== interval);
+    }
+    
+    /**
+     * Clear a specific timeout and remove from tracking
+     * @param {number} timeout - Timeout ID
+     */
+    clearTimeout(timeout) {
+        clearTimeout(timeout);
+        this.timeouts = this.timeouts.filter(t => t !== timeout);
+    }
+    
+    /**
+     * Remove a specific event listener and remove from tracking
+     * @param {HTMLElement} element
+     * @param {string} event
+     * @param {Function} handler
+     */
+    removeEventListener(element, event, handler) {
+        element.removeEventListener(event, handler);
+        this.eventListeners = this.eventListeners.filter(
+            l => !(l.element === element && l.event === event && l.handler === handler)
+        );
     }
     
     /**
      * Clean up all registered resources
      */
     cleanup() {
+        console.log('🧹 CleanupManager: Starting cleanup...', {
+            intervals: this.intervals.length,
+            timeouts: this.timeouts.length,
+            eventListeners: this.eventListeners.length,
+            socketListeners: this.socketListeners.length,
+            canvases: this.canvasContexts.length,
+            animationFrames: this.animationFrames.length,
+            observers: this.domObservers.length
+        });
+        
         // Clear intervals
-        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.forEach(interval => {
+            try {
+                clearInterval(interval);
+            } catch (e) {
+                console.warn('Failed to clear interval:', e);
+            }
+        });
         this.intervals = [];
         
         // Clear timeouts
-        this.timeouts.forEach(timeout => clearTimeout(timeout));
+        this.timeouts.forEach(timeout => {
+            try {
+                clearTimeout(timeout);
+            } catch (e) {
+                console.warn('Failed to clear timeout:', e);
+            }
+        });
         this.timeouts = [];
         
         // Remove event listeners
         this.eventListeners.forEach(({ element, event, handler, options }) => {
-            element.removeEventListener(event, handler, options);
+            try {
+                if (element && element.removeEventListener) {
+                    element.removeEventListener(event, handler, options);
+                }
+            } catch (e) {
+                console.warn('Failed to remove event listener:', e);
+            }
         });
         this.eventListeners = [];
+        
+        // Remove socket listeners
+        this.socketListeners.forEach(({ socket, event, handler }) => {
+            try {
+                if (socket && socket.off) {
+                    socket.off(event, handler);
+                }
+            } catch (e) {
+                console.warn('Failed to remove socket listener:', e);
+            }
+        });
+        this.socketListeners = [];
+        
+        // Clear canvas contexts
+        this.canvasContexts.forEach(canvas => {
+            try {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            } catch (e) {
+                console.warn('Failed to clear canvas:', e);
+            }
+        });
+        this.canvasContexts = [];
+        
+        // Cancel animation frames
+        this.animationFrames.forEach(frameId => {
+            try {
+                cancelAnimationFrame(frameId);
+            } catch (e) {
+                console.warn('Failed to cancel animation frame:', e);
+            }
+        });
+        this.animationFrames = [];
+        
+        // Disconnect observers
+        this.domObservers.forEach(observer => {
+            try {
+                observer.disconnect();
+            } catch (e) {
+                console.warn('Failed to disconnect observer:', e);
+            }
+        });
+        this.domObservers = [];
+        
+        console.log('✅ CleanupManager: Cleanup complete');
+    }
+    
+    /**
+     * Get current resource counts (for debugging)
+     * @returns {object} Resource counts
+     */
+    getStats() {
+        return {
+            intervals: this.intervals.length,
+            timeouts: this.timeouts.length,
+            eventListeners: this.eventListeners.length,
+            socketListeners: this.socketListeners.length,
+            canvases: this.canvasContexts.length,
+            animationFrames: this.animationFrames.length,
+            observers: this.domObservers.length
+        };
     }
 }
 
