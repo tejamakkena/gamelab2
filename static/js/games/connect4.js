@@ -4,6 +4,9 @@ console.log('User:', window.user);
 // Socket connection
 const socket = io();
 
+// Cleanup manager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Game state
 let gameState = {
     roomCode: null,
@@ -32,48 +35,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initializeEventListeners() {
     // Mode selection
-    document.getElementById('create-room-btn').addEventListener('click', createRoom);
-    document.getElementById('join-room-btn-start').addEventListener('click', showJoinRoom);
+    cleanup.addEventListener(document.getElementById('create-room-btn'), 'click', createRoom);
+    cleanup.addEventListener(document.getElementById('join-room-btn-start'), 'click', showJoinRoom);
     
     // Join room
-    document.getElementById('back-to-mode-btn').addEventListener('click', backToMode);
-    document.getElementById('join-room-submit-btn').addEventListener('click', joinRoom);
-    document.getElementById('room-code-input').addEventListener('keypress', (e) => {
+    const roomCodeInput = document.getElementById('room-code-input');
+    const enterHandler = (e) => {
         if (e.key === 'Enter') joinRoom();
-    });
+    };
+    cleanup.addEventListener(document.getElementById('back-to-mode-btn'), 'click', backToMode);
+    cleanup.addEventListener(document.getElementById('join-room-submit-btn'), 'click', joinRoom);
+    cleanup.addEventListener(roomCodeInput, 'keypress', enterHandler);
     
     // Waiting room
-    document.getElementById('copy-code-btn').addEventListener('click', copyRoomCode);
-    document.getElementById('start-game-btn').addEventListener('click', startGame);
-    document.getElementById('leave-room-btn').addEventListener('click', leaveRoom);
+    cleanup.addEventListener(document.getElementById('copy-code-btn'), 'click', copyRoomCode);
+    cleanup.addEventListener(document.getElementById('start-game-btn'), 'click', startGame);
+    cleanup.addEventListener(document.getElementById('leave-room-btn'), 'click', leaveRoom);
     
     // Game
-    document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
+    cleanup.addEventListener(document.getElementById('leave-game-btn'), 'click', leaveGame);
     
     // Game over
-    document.getElementById('play-again-btn').addEventListener('click', playAgain);
-    document.getElementById('exit-game-btn').addEventListener('click', exitToMenu);
+    cleanup.addEventListener(document.getElementById('play-again-btn'), 'click', playAgain);
+    cleanup.addEventListener(document.getElementById('exit-game-btn'), 'click', exitToMenu);
     
     // Socket listeners
     setupSocketListeners();
 }
 
 function setupSocketListeners() {
-    socket.on('connect', () => {
+    // Use cleanup manager for socket handlers with error handling
+    const connectHandler = () => {
         console.log('Socket connected:', socket.id);
-    });
+    };
+    cleanup.addSocketListener(socket, 'connect', connectHandler);
 
-    socket.on('room_created', (data) => {
+    const roomCreatedHandler = (data) => {
         console.log('Room created:', data);
         gameState.roomCode = data.room_code;
-        gameState.players = data.players || [];  // FIXED: Handle players
+        gameState.players = data.players || [];
         gameState.isHost = true;
         gameState.myColor = 'red';
         showWaitingRoom();
-        updatePlayersList();  // FIXED: Update list immediately
-    });
+        updatePlayersList();
+    };
+    cleanup.addSocketListener(socket, 'room_created', roomCreatedHandler);
 
-    socket.on('room_joined', (data) => {
+    const roomJoinedHandler = (data) => {
         console.log('Room joined:', data);
         gameState.roomCode = data.room_code;
         gameState.players = data.players;
@@ -81,26 +89,29 @@ function setupSocketListeners() {
         gameState.isHost = data.is_host;
         showWaitingRoom();
         updatePlayersList();
-    });
+    };
+    cleanup.addSocketListener(socket, 'room_joined', roomJoinedHandler);
 
-    socket.on('player_joined', (data) => {
+    const playerJoinedHandler = (data) => {
         console.log('Player joined:', data);
         gameState.players = data.players;
         updatePlayersList();
-    });
+    };
+    cleanup.addSocketListener(socket, 'player_joined', playerJoinedHandler);
 
-    socket.on('player_left', (data) => {
+    const playerLeftHandler = (data) => {
         console.log('Player left:', data);
         gameState.players = data.players;
         updatePlayersList();
         
         if (gameState.gameStarted && !gameState.gameOver) {
-            showMessage('Opponent left the game!');
-            setTimeout(() => exitToMenu(), 2000);
+            showMessage('Opponent left the game!', 'warning');
+            const timeout = cleanup.addTimeout(setTimeout(() => exitToMenu(), 2000));
         }
-    });
+    };
+    cleanup.addSocketListener(socket, 'player_left', playerLeftHandler);
 
-    socket.on('game_started', (data) => {
+    const gameStartedHandler = (data) => {
         console.log('Game started:', data);
         gameState.gameStarted = true;
         gameState.currentTurn = data.current_turn;
@@ -108,17 +119,19 @@ function setupSocketListeners() {
         showGameScreen();
         renderBoard();
         updateTurnDisplay();
-    });
+    };
+    cleanup.addSocketListener(socket, 'game_started', gameStartedHandler);
 
-    socket.on('move_made', (data) => {
+    const moveMadeHandler = (data) => {
         console.log('Move made:', data);
         gameState.board = data.board;
         gameState.currentTurn = data.current_turn;
         renderBoard();
         updateTurnDisplay();
-    });
+    };
+    cleanup.addSocketListener(socket, 'move_made', moveMadeHandler);
 
-    socket.on('game_over', (data) => {
+    const gameOverHandler = (data) => {
         console.log('Game over:', data);
         gameState.gameOver = true;
         
@@ -126,33 +139,32 @@ function setupSocketListeners() {
             highlightWinningCells(data.winning_cells);
         }
         
-        setTimeout(() => {
+        const timeout = cleanup.addTimeout(setTimeout(() => {
             showGameOver(data.winner, data.reason);
-        }, 1000);
-    });
+        }, 1000));
+    };
+    cleanup.addSocketListener(socket, 'game_over', gameOverHandler);
 
-    socket.on('error', (data) => {
+    const errorHandler = (data) => {
         console.error('Socket error:', data);
-        alert(data.message || 'An error occurred');
-    });
+        showMessage(data.message || 'An error occurred', 'error');
+    };
+    cleanup.addSocketListener(socket, 'error', errorHandler);
 }
 
 function createRoom() {
     console.log('Creating room...');
     console.log('User data:', window.user);
     
-    // FIXED: Better username extraction
-    const playerName = window.user?.name || 
-                      window.user?.username || 
-                      window.user?.first_name || 
-                      'Player 1';
-    
+    // Use shared utility for getting user name
+    const playerName = getUserName('Player');
     console.log('Player name:', playerName);
     
-    socket.emit('create_room', {
+    const createBtn = document.getElementById('create-room-btn');
+    emitWithLoading(socket, 'create_room', {
         game_type: 'connect4',
         player_name: playerName
-    });
+    }, createBtn);
 }
 
 function showJoinRoom() {
@@ -163,22 +175,20 @@ function showJoinRoom() {
 function joinRoom() {
     const roomCode = document.getElementById('room-code-input').value.trim().toUpperCase();
     
-    if (roomCode.length !== 6) {
-        alert('Please enter a valid 6-character room code');
+    if (!isValidRoomCode(roomCode)) {
+        showMessage('Please enter a valid 6-character room code', 'warning');
         return;
     }
     
-    // FIXED: Better username extraction
-    const playerName = window.user?.name || 
-                      window.user?.username || 
-                      window.user?.first_name || 
-                      'Player 2';
-    
+    // Use shared utility for getting user name
+    const playerName = getUserName('Player');
     console.log('Joining room:', roomCode, 'as', playerName);
-    socket.emit('join_room', {
+    
+    const joinBtn = document.getElementById('join-room-submit-btn');
+    emitWithLoading(socket, 'join_room', {
         room_code: roomCode,
         player_name: playerName
-    });
+    }, joinBtn);
 }
 
 function backToMode() {
@@ -241,35 +251,9 @@ function updatePlayersList() {
 function copyRoomCode() {
     const roomCode = gameState.roomCode;
     
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(roomCode).then(() => {
-            showCopyFeedback();
-        }).catch(() => {
-            // Fallback for older browsers
-            fallbackCopyToClipboard(roomCode);
-        });
-    } else {
-        fallbackCopyToClipboard(roomCode);
-    }
-}
-
-function fallbackCopyToClipboard(text) {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.select();
-    
-    try {
-        document.execCommand('copy');
-        showCopyFeedback();
-    } catch (err) {
-        console.error('Failed to copy:', err);
-        alert('Room code: ' + text);
-    }
-    
-    document.body.removeChild(textArea);
+    copyToClipboard(roomCode, showCopyFeedback, () => {
+        showMessage(`Room code: ${roomCode}`, 'info');
+    });
 }
 
 function showCopyFeedback() {
@@ -279,11 +263,11 @@ function showCopyFeedback() {
     btn.style.background = 'linear-gradient(135deg, #00ff00, #00cc00)';
     btn.style.color = 'black';
     
-    setTimeout(() => {
+    const timeout = cleanup.addTimeout(setTimeout(() => {
         btn.textContent = originalText;
         btn.style.background = '';
         btn.style.color = '';
-    }, 2000);
+    }, 2000));
 }
 
 function startGame() {
@@ -448,8 +432,25 @@ function showSection(sectionName) {
     }
 }
 
-function showMessage(message) {
-    alert(message);
-}
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    console.log('Cleaning up Connect4 resources...');
+    cleanup.cleanup();
+    if (gameState.roomCode && socket.connected) {
+        socket.emit('leave_room', { room_code: gameState.roomCode });
+    }
+    socket.disconnect();
+});
+
+// Handle visibility change (tab switching) - disconnect inactive games
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameState.roomCode) {
+        console.log('Page hidden, considering disconnect...');
+        // Could implement idle timeout here
+    } else if (!document.hidden) {
+        console.log('Page visible again');
+        // Reconnect logic if needed
+    }
+});
 
 console.log('Connect4 script loaded successfully');
