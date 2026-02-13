@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Digit Guess - Futuristic Games Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        margin: 0;
+        padding: 0;
+    }
+
+    html, body {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        position: fixed;
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    nav, .navbar, header, footer {
+        display: none !important;
+    }
+
+    .digit-guess-container {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        overflow: hidden;
+        position: relative;
+    }
+
+    .game-section {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 20px 15px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    .game-section.hidden {
+        display: none !important;
+    }
+
+    h1 {
+        color: white;
+        font-size: 2em;
+        margin-bottom: 10px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    p {
+        color: #aaa;
+        font-size: 1em;
+        text-align: center;
+        flex-shrink: 0;
+        margin-bottom: 20px;
+    }
+
+    /* Mode Selection */
+    .mode-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .mode-btn {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        border: 3px solid #00f5ff;
+        border-radius: 20px;
+        padding: 35px 25px;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-align: center;
+        color: white;
+        font-size: 1.1em;
+        font-weight: 600;
+        min-height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 8px 24px rgba(0, 245, 255, 0.2);
+    }
+
+    .mode-btn:active {
+        transform: scale(0.95);
+        box-shadow: 0 4px 12px rgba(0, 245, 255, 0.3);
+    }
+
+    .mode-btn .icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+
+    /* Input Section */
+    .input-section {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(0, 245, 255, 0.3);
+        border-radius: 15px;
+        padding: 25px;
+        width: 100%;
+        max-width: 400px;
+        margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1em;
+        border: 2px solid #00f5ff;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        text-align: center;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+    }
+
+    input[type="text"]::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 15px 35px;
+        font-size: 1em;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: white;
+        margin: 8px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #00f5ff, #0088ff);
+        box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
+    }
+
+    .btn-primary:active {
+        transform: scale(0.95);
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Waiting Room */
+    .room-info {
+        background: rgba(0, 245, 255, 0.1);
+        border: 2px solid #00f5ff;
+        border-radius: 15px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .room-code {
+        font-size: 2em;
+        font-weight: bold;
+        color: #00f5ff;
+        letter-spacing: 5px;
+        margin: 10px 0;
+    }
+
+    .players-list {
+        margin: 20px 0;
+        color: white;
+    }
+
+    .player-item {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        margin: 8px 0;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .player-status {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-left: 10px;
+    }
+
+    .player-status.ready {
+        background: #00ff00;
+    }
+
+    .player-status.not-ready {
+        background: #ff6b6b;
+    }
+
+    /* Number Setting Phase */
+    .secret-number-section {
+        text-align: center;
+        max-width: 500px;
+    }
+
+    .number-input {
+        font-size: 2em;
+        letter-spacing: 15px;
+        padding: 20px;
+        text-align: center;
+        max-width: 350px;
+    }
+
+    /* Game Screen */
+    .game-board {
+        width: 100%;
+        max-width: 600px;
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .turn-indicator {
+        background: rgba(0, 245, 255, 0.2);
+        border: 2px solid #00f5ff;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+        text-align: center;
+        color: white;
+        font-size: 1.2em;
+        font-weight: 600;
+    }
+
+    .guess-history {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(0, 245, 255, 0.3);
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .guess-item {
+        background: rgba(255, 255, 255, 0.1);
+        border-left: 4px solid #00f5ff;
+        padding: 12px;
+        margin: 8px 0;
+        border-radius: 5px;
+        color: white;
+    }
+
+    .guess-item.my-guess {
+        border-left-color: #00ff88;
+    }
+
+    .guess-item.opponent-guess {
+        border-left-color: #ff6b6b;
+    }
+
+    .guess-number {
+        font-size: 1.5em;
+        font-weight: bold;
+        letter-spacing: 8px;
+        color: #00f5ff;
+    }
+
+    .guess-feedback {
+        margin-top: 8px;
+        font-size: 0.95em;
+        color: #aaa;
+    }
+
+    .feedback-stat {
+        display: inline-block;
+        background: rgba(0, 245, 255, 0.2);
+        padding: 5px 12px;
+        border-radius: 5px;
+        margin: 3px;
+    }
+
+    .guess-input-section {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(0, 245, 255, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    /* Game Over */
+    .game-over-screen {
+        text-align: center;
+        max-width: 500px;
+    }
+
+    .winner-announcement {
+        font-size: 2.5em;
+        color: #00ff88;
+        margin: 20px 0;
+        text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+    }
+
+    .secret-reveal {
+        background: rgba(0, 245, 255, 0.1);
+        border: 2px solid #00f5ff;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+        color: white;
+    }
+
+    .secret-number-display {
+        font-size: 2em;
+        font-weight: bold;
+        letter-spacing: 10px;
+        color: #00f5ff;
+        margin: 10px 0;
+    }
+
+    /* Message Toast */
+    .message-toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 107, 107, 0.95);
+        color: white;
+        padding: 15px 30px;
+        border-radius: 10px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        display: none;
+        max-width: 90%;
+        text-align: center;
+    }
+
+    .message-toast.show {
+        display: block;
+        animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 480px) {
+        h1 {
+            font-size: 1.5em;
+        }
+
+        .mode-btn {
+            min-height: 140px;
+            padding: 25px 15px;
+        }
+
+        .room-code {
+            font-size: 1.5em;
+            letter-spacing: 3px;
+        }
+
+        .guess-number {
+            font-size: 1.2em;
+            letter-spacing: 5px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="digit-guess-container">
+    <!-- Message Toast -->
+    <div id="message-toast" class="message-toast"></div>
+
+    <!-- Mode Selection -->
+    <div id="mode-selection" class="game-section">
+        <h1>🔢 Digit Guess</h1>
+        <p>Crack your opponent's 4-digit code!</p>
+        <div class="mode-buttons">
+            <button class="mode-btn" id="create-room-btn">
+                <div class="icon">🎮</div>
+                <div>Create New Room</div>
+            </button>
+            <button class="mode-btn" id="join-room-btn-start">
+                <div class="icon">🔗</div>
+                <div>Join Existing Room</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Join Room -->
+    <div id="join-room-section" class="game-section hidden">
+        <h1>Join Room</h1>
+        <div class="input-section">
+            <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
+            <button class="btn btn-primary" id="join-room-submit-btn">Join Room</button>
+        </div>
+        <button class="btn btn-secondary" id="back-to-mode-btn">Back</button>
+    </div>
+
+    <!-- Waiting Room -->
+    <div id="waiting-room" class="game-section hidden">
+        <h1>Waiting Room</h1>
+        <div class="room-info">
+            <div>Room Code:</div>
+            <div class="room-code" id="display-room-code">------</div>
+            <button class="btn btn-secondary" id="copy-code-btn">📋 Copy Code</button>
+        </div>
+        <div class="players-list">
+            <h3 style="color: white; margin-bottom: 15px;">Players</h3>
+            <div id="players-list-container"></div>
+        </div>
+        <div>
+            <button class="btn btn-primary" id="start-game-btn">Start Game</button>
+            <button class="btn btn-secondary" id="leave-room-btn">Leave Room</button>
+        </div>
+    </div>
+
+    <!-- Set Secret Number -->
+    <div id="set-number-section" class="game-section hidden">
+        <div class="secret-number-section">
+            <h1>Set Your Secret Number</h1>
+            <p>Choose a 4-digit number for your opponent to guess</p>
+            <div class="input-section">
+                <input type="text" class="number-input" id="secret-number-input" 
+                       placeholder="####" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+                <button class="btn btn-primary" id="submit-secret-btn">Confirm Number</button>
+            </div>
+            <p id="waiting-opponent-msg" style="display: none; color: #00f5ff; font-size: 1.1em;">
+                ⏳ Waiting for opponent to set their number...
+            </p>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="game-section hidden">
+        <div class="game-board">
+            <div class="turn-indicator" id="turn-indicator">
+                Your Turn
+            </div>
+
+            <div class="guess-history">
+                <h3 style="color: white; margin-bottom: 15px;">Guess History</h3>
+                <div id="guess-history-container">
+                    <p style="color: #aaa; text-align: center;">No guesses yet</p>
+                </div>
+            </div>
+
+            <div class="guess-input-section">
+                <h3 style="color: white; margin-bottom: 15px;">Make Your Guess</h3>
+                <input type="text" class="number-input" id="guess-input" 
+                       placeholder="####" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+                <button class="btn btn-primary" id="submit-guess-btn">Submit Guess</button>
+            </div>
+        </div>
+        <button class="btn btn-secondary" id="leave-game-btn">Leave Game</button>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over-section" class="game-section hidden">
+        <div class="game-over-screen">
+            <h1 id="game-over-title">Game Over!</h1>
+            <div class="winner-announcement" id="winner-announcement">🎉</div>
+            <div class="secret-reveal">
+                <h3 style="color: white;">Secret Numbers Revealed:</h3>
+                <div id="secrets-container"></div>
+            </div>
+            <div>
+                <button class="btn btn-primary" id="play-again-btn">Play Again</button>
+                <button class="btn btn-secondary" id="exit-game-btn">Exit to Menu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/games/digit_guess.js') }}"></script>
+{% endblock %}
