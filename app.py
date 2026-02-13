@@ -19,7 +19,7 @@ def create_app(config_name='default'):
     # Initialize Rate Limiter
     # Default limits: 200 requests/day, 50 requests/hour per IP
     # Critical endpoints (login) have stricter limits (5/minute)
-    # Game pages limited to 100 requests/minute to prevent abuse
+    # Game endpoints limited to 100 requests/hour to prevent abuse
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
@@ -50,6 +50,16 @@ def create_app(config_name='default'):
     app.register_blueprint(canvas_battle_bp, url_prefix='/canvas-battle')
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
+    
+    # Apply rate limiting to all game blueprints (100 requests/hour per IP)
+    limiter.limit("100 per hour")(tictactoe_bp)
+    limiter.limit("100 per hour")(trivia_bp)
+    limiter.limit("100 per hour")(snake_ladder_bp)
+    limiter.limit("100 per hour")(roulette_bp)
+    limiter.limit("100 per hour")(poker_bp)
+    limiter.limit("100 per hour")(canvas_battle_bp)
+    limiter.limit("100 per hour")(connect4_bp)
+    limiter.limit("100 per hour")(digit_guess_bp)
     
 
 
@@ -84,7 +94,7 @@ def create_app(config_name='default'):
 
     # Main routes
     @app.route("/")
-    @limiter.limit("100 per minute")
+    @limiter.limit("100 per hour")
     def home():
         games_list = [
             {
