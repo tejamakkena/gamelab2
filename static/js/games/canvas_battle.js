@@ -7,6 +7,9 @@ if (typeof io === 'undefined') {
     console.log('✅ Socket.IO loaded');
 }
 
+// Initialize CleanupManager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Initialize Socket.IO
 const socket = io();
 
@@ -27,6 +30,15 @@ const gameState = {
 
 // DOM Elements - these might not exist yet
 let canvas, ctx;
+let canvasHandlers = {
+    mousedown: null,
+    mousemove: null,
+    mouseup: null,
+    mouseout: null,
+    touchstart: null,
+    touchmove: null,
+    touchend: null
+};
 
 // Initialize canvas when drawing screen is shown
 function initializeCanvas() {
@@ -45,13 +57,19 @@ function initializeCanvas() {
 function setupCanvasEvents() {
     if (!canvas) return;
 
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
+    // Store handlers for cleanup
+    canvasHandlers.mousedown = startDrawing;
+    canvasHandlers.mousemove = draw;
+    canvasHandlers.mouseup = stopDrawing;
+    canvasHandlers.mouseout = stopDrawing;
+
+    cleanup.addEventListener(canvas, 'mousedown', canvasHandlers.mousedown);
+    cleanup.addEventListener(canvas, 'mousemove', canvasHandlers.mousemove);
+    cleanup.addEventListener(canvas, 'mouseup', canvasHandlers.mouseup);
+    cleanup.addEventListener(canvas, 'mouseout', canvasHandlers.mouseout);
 
     // Touch support
-    canvas.addEventListener('touchstart', (e) => {
+    canvasHandlers.touchstart = (e) => {
         e.preventDefault();
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
@@ -60,9 +78,9 @@ function setupCanvasEvents() {
             clientY: touch.clientY
         });
         canvas.dispatchEvent(mouseEvent);
-    });
+    };
 
-    canvas.addEventListener('touchmove', (e) => {
+    canvasHandlers.touchmove = (e) => {
         e.preventDefault();
         const touch = e.touches[0];
         const mouseEvent = new MouseEvent('mousemove', {
@@ -70,13 +88,34 @@ function setupCanvasEvents() {
             clientY: touch.clientY
         });
         canvas.dispatchEvent(mouseEvent);
-    });
+    };
 
-    canvas.addEventListener('touchend', (e) => {
+    canvasHandlers.touchend = (e) => {
         e.preventDefault();
         const mouseEvent = new MouseEvent('mouseup', {});
         canvas.dispatchEvent(mouseEvent);
-    });
+    };
+
+    cleanup.addEventListener(canvas, 'touchstart', canvasHandlers.touchstart);
+    cleanup.addEventListener(canvas, 'touchmove', canvasHandlers.touchmove);
+    cleanup.addEventListener(canvas, 'touchend', canvasHandlers.touchend);
+}
+
+function cleanupCanvasEvents() {
+    if (canvas) {
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        canvasHandlers = {
+            mousedown: null,
+            mousemove: null,
+            mouseup: null,
+            mouseout: null,
+            touchstart: null,
+            touchmove: null,
+            touchend: null
+        };
+    }
 }
 
 function resizeCanvas() {
@@ -112,30 +151,30 @@ const joinRoomSubmitBtn = document.getElementById('join-room-submit-btn');
 const roomCodeInput = document.getElementById('room-code-input');
 
 if (createRoomBtn) {
-    createRoomBtn.addEventListener('click', createRoom);
+    cleanup.addEventListener(createRoomBtn, 'click', createRoom);
     console.log('✅ Create room button attached');
 }
 
 if (joinRoomBtnStart) {
-    joinRoomBtnStart.addEventListener('click', () => {
+    cleanup.addEventListener(joinRoomBtnStart, 'click', () => {
         modeSelection.classList.add('hidden');
         joinRoomSection.classList.remove('hidden');
     });
 }
 
 if (backToModeBtn) {
-    backToModeBtn.addEventListener('click', () => {
+    cleanup.addEventListener(backToModeBtn, 'click', () => {
         joinRoomSection.classList.add('hidden');
         modeSelection.classList.remove('hidden');
     });
 }
 
 if (joinRoomSubmitBtn) {
-    joinRoomSubmitBtn.addEventListener('click', joinRoom);
+    cleanup.addEventListener(joinRoomSubmitBtn, 'click', joinRoom);
 }
 
 if (roomCodeInput) {
-    roomCodeInput.addEventListener('keypress', (e) => {
+    cleanup.addEventListener(roomCodeInput, 'keypress', (e) => {
         if (e.key === 'Enter') joinRoom();
     });
 }
@@ -146,10 +185,10 @@ const readyBtn = document.getElementById('ready-btn');
 const startGameBtn = document.getElementById('start-game-btn');
 const leaveRoomBtn = document.getElementById('leave-room-btn');
 
-if (copyCodeBtn) copyCodeBtn.addEventListener('click', copyRoomCode);
-if (readyBtn) readyBtn.addEventListener('click', markReady);
-if (startGameBtn) startGameBtn.addEventListener('click', startGame);
-if (leaveRoomBtn) leaveRoomBtn.addEventListener('click', leaveRoom);
+if (copyCodeBtn) cleanup.addEventListener(copyCodeBtn, 'click', copyRoomCode);
+if (readyBtn) cleanup.addEventListener(readyBtn, 'click', markReady);
+if (startGameBtn) cleanup.addEventListener(startGameBtn, 'click', startGame);
+if (leaveRoomBtn) cleanup.addEventListener(leaveRoomBtn, 'click', leaveRoom);
 
 // Drawing - Initialize when needed
 const colorPicker = document.getElementById('color-picker');
@@ -158,50 +197,62 @@ const clearCanvasBtn = document.getElementById('clear-canvas-btn');
 const submitDrawingBtn = document.getElementById('submit-drawing-btn');
 
 if (colorPicker) {
-    colorPicker.addEventListener('change', (e) => {
+    cleanup.addEventListener(colorPicker, 'change', (e) => {
         gameState.currentColor = e.target.value;
     });
 }
 
 if (brushSize) {
-    brushSize.addEventListener('input', (e) => {
+    cleanup.addEventListener(brushSize, 'input', (e) => {
         gameState.brushSize = parseInt(e.target.value);
     });
 }
 
-if (clearCanvasBtn) clearCanvasBtn.addEventListener('click', clearCanvas);
-if (submitDrawingBtn) submitDrawingBtn.addEventListener('click', submitDrawing);
+if (clearCanvasBtn) cleanup.addEventListener(clearCanvasBtn, 'click', clearCanvas);
+if (submitDrawingBtn) cleanup.addEventListener(submitDrawingBtn, 'click', submitDrawing);
 
 // Tool buttons
 document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
-    btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+    cleanup.addEventListener(btn, 'click', () => selectTool(btn.dataset.tool));
 });
 
 // Voting
 const submitVoteBtn = document.getElementById('submit-vote-btn');
-if (submitVoteBtn) submitVoteBtn.addEventListener('click', submitVote);
+if (submitVoteBtn) cleanup.addEventListener(submitVoteBtn, 'click', submitVote);
 
 // Results
 const nextRoundBtn = document.getElementById('next-round-btn');
 const viewFinalResultsBtn = document.getElementById('view-final-results-btn');
 const newGameBtn = document.getElementById('new-game-btn');
 
-if (nextRoundBtn) nextRoundBtn.addEventListener('click', nextRound);
-if (viewFinalResultsBtn) viewFinalResultsBtn.addEventListener('click', viewFinalResults);
-if (newGameBtn) newGameBtn.addEventListener('click', () => {
+if (nextRoundBtn) cleanup.addEventListener(nextRoundBtn, 'click', nextRound);
+if (viewFinalResultsBtn) cleanup.addEventListener(viewFinalResultsBtn, 'click', viewFinalResults);
+if (newGameBtn) cleanup.addEventListener(newGameBtn, 'click', () => {
     // Clean up SocketIO state before reload
     if (gameState.roomCode) {
         socket.emit('leave_canvas_room', {
             room_code: gameState.roomCode
         });
     }
+    cleanup.destroy();
     socket.disconnect();
     setTimeout(() => location.reload(), 100);
 });
 
 // Window resize handler
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', resizeCanvas);
+const resizeHandler = () => resizeCanvas();
+cleanup.addEventListener(window, 'resize', resizeHandler);
+cleanup.addEventListener(window, 'orientationchange', resizeHandler);
+
+// Cleanup on page unload
+cleanup.addEventListener(window, 'beforeunload', () => {
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
+    cleanupCanvasEvents();
+    cleanup.destroy();
+});
 
 // Functions
 function createRoom() {
@@ -254,9 +305,10 @@ function copyRoomCode() {
     navigator.clipboard.writeText(roomCode).then(() => {
         const btn = copyCodeBtn;
         btn.textContent = '✅ Copied!';
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             btn.textContent = '📋 Copy Code';
         }, 2000);
+        cleanup.addTimeout(timeoutId);
     });
 }
 
@@ -280,8 +332,18 @@ function leaveRoom() {
     socket.emit('leave_canvas_room', {
         room_code: gameState.roomCode
     });
+    
+    // Clean up properly
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
+    cleanupCanvasEvents();
+    cleanup.destroy();
     socket.disconnect();
-    setTimeout(() => location.reload(), 100);
+    
+    const timeoutId = setTimeout(() => location.reload(), 100);
+    // Don't track this timeout since we're reloading anyway
 }
 
 function updatePlayersList(players) {
@@ -461,7 +523,8 @@ function displaySubmissions(submissions, theme) {
 
         // Can't vote for yourself
         if (submission.player_id !== gameState.playerId) {
-            card.addEventListener('click', () => selectSubmission(card, submission.player_id));
+            const clickHandler = () => selectSubmission(card, submission.player_id);
+            cleanup.addEventListener(card, 'click', clickHandler);
         } else {
             card.style.opacity = '0.5';
             card.style.cursor = 'not-allowed';
@@ -495,13 +558,14 @@ function submitVote() {
     }
 
     // Auto end voting after 3 seconds
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
         if (gameState.isHost) {
             socket.emit('end_voting', {
                 room_code: gameState.roomCode
             });
         }
     }, 3000);
+    cleanup.addTimeout(timeoutId);
 }
 
 function displayResults(results, isRound) {
@@ -550,6 +614,7 @@ function startTimer(seconds) {
 
     if (gameState.timerInterval) {
         clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
     }
 
     gameState.timerInterval = setInterval(() => {
@@ -558,12 +623,16 @@ function startTimer(seconds) {
 
         if (gameState.timeLeft <= 0) {
             clearInterval(gameState.timerInterval);
+            gameState.timerInterval = null;
             // Auto submit if not submitted
             if (submitDrawingBtn && !submitDrawingBtn.disabled) {
                 submitDrawing();
             }
         }
     }, 1000);
+    
+    // Track interval for cleanup
+    cleanup.addInterval(gameState.timerInterval);
 }
 
 function updateTimerDisplay() {
@@ -581,8 +650,8 @@ function updateTimerDisplay() {
     }
 }
 
-// Socket Events
-socket.on('canvas_room_created', (data) => {
+// Socket Events - Register with CleanupManager
+cleanup.addSocketListener(socket, 'canvas_room_created', (data) => {
     console.log('✅ Room created:', data);
     gameState.roomCode = data.room_code;
     gameState.playerId = data.player_id;
@@ -597,7 +666,7 @@ socket.on('canvas_room_created', (data) => {
     if (waitingRoom) waitingRoom.classList.remove('hidden');
 });
 
-socket.on('canvas_room_joined', (data) => {
+cleanup.addSocketListener(socket, 'canvas_room_joined', (data) => {
     console.log('✅ Room joined:', data);
     gameState.roomCode = data.room_code;
     gameState.playerId = data.player_id;
@@ -612,17 +681,17 @@ socket.on('canvas_room_joined', (data) => {
     if (waitingRoom) waitingRoom.classList.remove('hidden');
 });
 
-socket.on('canvas_player_joined', (data) => {
+cleanup.addSocketListener(socket, 'canvas_player_joined', (data) => {
     console.log('Player joined:', data);
     updatePlayersList(data.players);
 });
 
-socket.on('canvas_player_ready_update', (data) => {
+cleanup.addSocketListener(socket, 'canvas_player_ready_update', (data) => {
     console.log('Player ready update:', data);
     updatePlayersList(data.players);
 });
 
-socket.on('drawing_round_start', (data) => {
+cleanup.addSocketListener(socket, 'drawing_round_start', (data) => {
     console.log('🎨 Drawing round started:', data);
     
     // Initialize canvas now
@@ -645,15 +714,16 @@ socket.on('drawing_round_start', (data) => {
     startTimer(data.time_limit);
 });
 
-socket.on('canvas_submission_update', (data) => {
+cleanup.addSocketListener(socket, 'canvas_submission_update', (data) => {
     console.log('Submission update:', data);
 });
 
-socket.on('voting_round_start', (data) => {
+cleanup.addSocketListener(socket, 'voting_round_start', (data) => {
     console.log('🗳️ Voting round started:', data);
     
     if (gameState.timerInterval) {
         clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
     }
 
     displaySubmissions(data.submissions, data.theme);
@@ -668,7 +738,7 @@ socket.on('voting_round_start', (data) => {
     gameState.selectedSubmission = null;
 });
 
-socket.on('round_results', (data) => {
+cleanup.addSocketListener(socket, 'round_results', (data) => {
     console.log('📊 Round results:', data);
     
     displayResults(data.results, true);
@@ -685,7 +755,7 @@ socket.on('round_results', (data) => {
     }
 });
 
-socket.on('game_over', (data) => {
+cleanup.addSocketListener(socket, 'game_over', (data) => {
     console.log('🎉 Game over:', data);
     
     displayResults(data.final_results, false);
@@ -694,15 +764,16 @@ socket.on('game_over', (data) => {
     if (viewFinalResultsBtn) viewFinalResultsBtn.classList.remove('hidden');
 });
 
-socket.on('canvas_player_left', (data) => {
+cleanup.addSocketListener(socket, 'canvas_player_left', (data) => {
     console.log('Player left:', data);
     updatePlayersList(data.players);
 });
 
-socket.on('canvas_error', (data) => {
+cleanup.addSocketListener(socket, 'canvas_error', (data) => {
     console.error('❌ Canvas error:', data);
     alert(data.message);
 });
 
-console.log('✅ Canvas Battle initialized');
+console.log('✅ Canvas Battle initialized with CleanupManager');
 console.log('User info:', window.user);
+console.log('CleanupManager stats:', cleanup.getStats());
