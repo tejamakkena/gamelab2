@@ -327,6 +327,12 @@ function makeMove(col) {
     if (gameState.gameOver) return;
     if (gameState.currentTurn !== gameState.myColor) return;
     
+    // Check if column is full
+    if (gameState.board[0][col] !== null) {
+        console.log('Column', col, 'is full');
+        return;
+    }
+    
     console.log('Making move in column:', col);
     socket.emit('make_move', {
         room_code: gameState.roomCode,
