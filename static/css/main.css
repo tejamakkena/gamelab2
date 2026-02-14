@@ -1,6 +1,6 @@
 /* ==================== CSS VARIABLES ==================== */
 :root {
-    /* Color Variables */
+    /* Dark Theme (Default) */
     --primary-color: #00f5ff;
     --secondary-color: #ff00ff;
     --accent-color: #0066ff;
@@ -10,6 +10,8 @@
     --text-light: #e0e0e0;
     --text-muted: #b0b0b0;
     --text-dark: #a0a0a0;
+    --shadow-glow: rgba(0, 245, 255, 0.3);
+    --particle-opacity: 0.4;
     
     /* Spacing */
     --spacing-xs: 10px;
@@ -22,6 +24,27 @@
     --radius-sm: 10px;
     --radius-md: 15px;
     --radius-lg: 20px;
+}
+
+/* Light Theme Override */
+.theme-light {
+    --primary-color: #0099cc;
+    --secondary-color: #cc0099;
+    --accent-color: #0066ff;
+    --bg-dark-1: #f5f5f5;
+    --bg-dark-2: #ffffff;
+    --bg-dark-3: #e8e8e8;
+    --text-light: #2a2a2a;
+    --text-muted: #666666;
+    --text-dark: #444444;
+    --shadow-glow: rgba(0, 153, 204, 0.2);
+    --particle-opacity: 0.15;
+}
+
+/* Smooth theme transition */
+.theme-transitioning,
+.theme-transitioning * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
 }
 
 /* ==================== GLOBAL RESET ==================== */
@@ -2253,5 +2276,83 @@ textarea::placeholder,
     
     .spin-controls {
         flex-direction: column;
+    }
+}
+/* ==================== THEME TOGGLE BUTTON ==================== */
+.theme-toggle-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: 2px solid var(--primary-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8em;
+    box-shadow: 0 4px 15px var(--shadow-glow);
+    transition: all 0.3s ease;
+    z-index: 9998;
+    animation: theme-toggle-intro 0.5s ease;
+}
+
+.theme-toggle-btn:hover {
+    transform: scale(1.1) rotate(15deg);
+    box-shadow: 0 6px 25px var(--shadow-glow);
+}
+
+.theme-toggle-btn:active {
+    transform: scale(0.95);
+}
+
+.theme-toggle-btn .theme-icon {
+    transition: transform 0.3s ease;
+}
+
+.theme-transitioning .theme-toggle-btn .theme-icon {
+    animation: icon-spin 0.6s ease;
+}
+
+@keyframes theme-toggle-intro {
+    from {
+        transform: scale(0) rotate(-180deg);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1) rotate(0);
+        opacity: 1;
+    }
+}
+
+@keyframes icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Light theme body adjustments */
+.theme-light body {
+    background: linear-gradient(135deg, #f5f5f5, #ffffff, #e8e8e8, #ffffff, #f5f5f5);
+}
+
+.theme-light body::before {
+    background-image: 
+        radial-gradient(2px 2px at 20% 30%, rgba(0, 153, 204, 0.15), transparent),
+        radial-gradient(2px 2px at 60% 70%, rgba(204, 0, 153, 0.12), transparent),
+        radial-gradient(1px 1px at 50% 50%, rgba(0, 153, 204, 0.2), transparent),
+        radial-gradient(1px 1px at 80% 10%, rgba(204, 0, 153, 0.15), transparent),
+        radial-gradient(3px 3px at 40% 80%, rgba(0, 102, 255, 0.12), transparent);
+}
+
+/* Responsive theme toggle */
+@media (max-width: 768px) {
+    .theme-toggle-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5em;
+        top: 15px;
+        right: 15px;
     }
 }
