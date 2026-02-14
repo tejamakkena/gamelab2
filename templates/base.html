@@ -10,6 +10,9 @@
 <body {% if user %}data-user='{{ user|tojson }}'{% endif %}>
     {% block content %}{% endblock %}
     
+    <!-- Theme Toggle -->
+    <script src="{{ url_for('static', filename='/js/theme-toggle.js') }}"></script>
+    
     <!-- Scripts should be at the end of body -->
     {% block extra_js %}{% endblock %}
 </body>
