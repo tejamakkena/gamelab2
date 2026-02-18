@@ -812,4 +812,12 @@ function showWinner(winner, pot, hands) {
     }, 5000);
 }
 
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    cleanup.cleanup();
+    if (socket && socket.connected) {
+        socket.disconnect();
+    }
+});
+
 console.log('✅ Poker JS fully loaded and ready');

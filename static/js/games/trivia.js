@@ -613,5 +613,8 @@ function changeTopic() {
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
     cleanup.cleanup();
+    if (socket && socket.connected) {
+        socket.disconnect();
+    }
 });
 window.joinRoomFromList = joinRoomFromList;

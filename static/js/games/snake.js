@@ -1034,4 +1034,7 @@ console.log('=== SNAKE-LADDER.JS FILE END ===');
 // Cleanup on page unload to prevent memory leaks
 window.addEventListener('beforeunload', () => {
     cleanup.cleanup();
+    if (socket && socket.connected) {
+        socket.disconnect();
+    }
 });
