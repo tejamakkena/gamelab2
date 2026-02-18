@@ -232,7 +232,7 @@ def create_app(config_name='default'):
             return jsonify({'success': True, 'user': session['user']})
         except ValueError as e:
             print(f"❌ Google login error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 400
+            return jsonify({'success': False, 'error': 'Invalid login credentials'}), 400
 
     @app.route("/login/manual", methods=['POST'])
     @limiter.limit("5 per minute")
@@ -280,7 +280,8 @@ def create_app(config_name='default'):
         try:
             return render_template('500.html'), 500
         except Exception as e:
-            return f'<h1>500 - Internal Server Error</h1><p>{e}</p><a href="/">Go Home</a>', 500
+            print(f"500 error handler exception: {e}")
+            return '<h1>500 - Internal Server Error</h1><p>An unexpected error occurred.</p><a href="/">Go Home</a>', 500
 
     return app, socketio
 

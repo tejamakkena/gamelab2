@@ -76,5 +76,5 @@ def generate_questions():
         print(f"Error generating questions: {e}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to generate trivia questions. Please try again.'
         }), 500
