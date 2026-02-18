@@ -1,0 +1,280 @@
+/* ==================== ENHANCED GAME CARDS - Issue #1 Improvements ==================== */
+
+/* Improved game card hover effects with 3D tilt and better depth */
+.game-card {
+    /* Existing styles maintained, adding enhancements */
+    transform-style: preserve-3d;
+    perspective: 1000px;
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.game-card:hover {
+    transform: translateY(-15px) scale(1.03) rotateX(2deg);
+    box-shadow: 
+        0 25px 70px rgba(0, 245, 255, 0.4),
+        0 10px 40px rgba(0, 245, 255, 0.3),
+        0 0 60px rgba(0, 245, 255, 0.2),
+        inset 0 0 30px rgba(0, 245, 255, 0.15);
+}
+
+/* Enhanced gradient border animation */
+.game-card::before {
+    animation: gradient-rotate 3s linear infinite;
+    opacity: 0;
+    transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.game-card:hover::before {
+    opacity: 1;
+}
+
+/* Improved ripple effect on hover */
+.game-card::after {
+    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.game-card:hover::after {
+    width: 600px;
+    height: 600px;
+    opacity: 0.6;
+}
+
+/* Enhanced icon animation with better glow */
+.game-icon {
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.game-card:hover .game-icon {
+    filter: 
+        drop-shadow(0 0 40px rgba(0, 245, 255, 1))
+        drop-shadow(0 0 60px rgba(0, 102, 255, 0.9))
+        drop-shadow(0 0 80px rgba(255, 0, 255, 0.6));
+    transform: scale(1.15) translateZ(20px);
+}
+
+/* Improved title glow on hover */
+.game-card h2 {
+    transition: all 0.4s ease;
+}
+
+.game-card:hover h2 {
+    color: white;
+    text-shadow: 
+        0 0 30px rgba(0, 245, 255, 1),
+        0 0 50px rgba(0, 245, 255, 0.8),
+        0 0 70px rgba(0, 102, 255, 0.6),
+        0 0 90px rgba(255, 0, 255, 0.4);
+    transform: translateZ(10px);
+}
+
+/* Enhanced description text visibility on hover */
+.game-card p {
+    transition: all 0.3s ease;
+}
+
+.game-card:hover p {
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Better player count styling */
+.player-count {
+    transition: all 0.4s ease;
+}
+
+.game-card:hover .player-count {
+    color: white;
+    border-top-color: rgba(0, 245, 255, 0.8);
+    text-shadow: 0 0 15px rgba(0, 245, 255, 1);
+    transform: translateZ(10px);
+}
+
+/* Loading skeleton for game cards */
+.game-card.loading {
+    pointer-events: none;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* ==================== ENHANCED LOGIN SCREEN - Issue #1 ==================== */
+
+/* Improved input field styling */
+input[type="text"],
+input[type="email"],
+.name-input {
+    border-radius: 12px;
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        inset 0 1px 3px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+input:focus,
+.name-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 
+        0 0 30px rgba(0, 245, 255, 0.6),
+        0 5px 15px rgba(0, 245, 255, 0.3),
+        inset 0 1px 3px rgba(0, 245, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Enhanced button styling */
+.btn-primary {
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 
+        0 4px 15px rgba(0, 245, 255, 0.4),
+        0 0 30px rgba(0, 245, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.btn-primary:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 
+        0 8px 25px rgba(0, 245, 255, 0.6),
+        0 0 50px rgba(0, 245, 255, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(-1px) scale(1.01);
+}
+
+/* Improved login card */
+.login-card {
+    box-shadow: 
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(0, 245, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.login-card:hover {
+    box-shadow: 
+        0 15px 50px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(0, 245, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== MOBILE OPTIMIZATIONS - Issue #1 ==================== */
+
+/* Better touch targets for mobile */
+@media (max-width: 768px) {
+    /* Ensure buttons are at least 44x44px for touch */
+    button,
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 12px 24px;
+    }
+    
+    /* Stack game cards in single column */
+    .games-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    /* Reduce animation complexity on mobile for performance */
+    .game-card::before,
+    .game-card::after {
+        display: none;
+    }
+    
+    .game-card:hover {
+        transform: translateY(-5px) scale(1.01);
+        box-shadow: 0 15px 40px rgba(0, 245, 255, 0.3);
+    }
+    
+    /* Optimize icon size */
+    .game-icon {
+        font-size: 3.5em;
+    }
+    
+    .game-card:hover .game-icon {
+        transform: scale(1.1);
+    }
+    
+    /* Better input field sizing */
+    input[type="text"],
+    input[type="email"],
+    .name-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 16px 20px;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    h1 {
+        font-size: 2.5em;
+    }
+    
+    .subtitle {
+        font-size: 1em;
+    }
+    
+    .game-card h2 {
+        font-size: 1.3em;
+    }
+    
+    .game-card p {
+        font-size: 0.9em;
+    }
+}
+
+/* ==================== ACCESSIBILITY IMPROVEMENTS ==================== */
+
+/* Better focus indicators for keyboard navigation */
+*:focus-visible {
+    outline: 3px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Improved contrast for text readability */
+.game-card p {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.subtitle {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* Reduced motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
