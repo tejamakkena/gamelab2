@@ -1,0 +1,342 @@
+/* ==================== MOBILE RESPONSIVENESS IMPROVEMENTS ====================
+ * Issue #4: Comprehensive mobile optimization
+ * Analysis: Ollama Mistral
+ * Focus: Touch targets, spacing, readability, performance
+ * ========================================================================== */
+
+/* ==================== 1. Touch Target Minimum Sizes ==================== */
+button,
+.button,
+.interactive-element,
+.game-card,
+.btn,
+input[type="button"],
+input[type="submit"],
+.cell,
+.game-tile,
+.menu-toggle,
+a.button-link {
+    min-width: 44px;
+    min-height: 44px;
+    /* Ensure clickable area meets accessibility standards */
+}
+
+/* ==================== 2. Enhanced Button Sizing on Mobile ==================== */
+@media only screen and (max-width: 768px) {
+    button,
+    .button,
+    .btn,
+    input[type="button"],
+    input[type="submit"] {
+        min-width: 50px;
+        min-height: 50px;
+        padding: 12px 20px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
+
+@media only screen and (max-width: 480px) {
+    button,
+    .button,
+    .btn {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+}
+
+/* ==================== 3. Improved Grid Spacing on Mobile ==================== */
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+@media only screen and (max-width: 768px) {
+    .games-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 10px;
+    }
+}
+
+@media only screen and (max-width: 480px) {
+    .games-grid {
+        gap: 10px;
+        padding: 5px;
+    }
+}
+
+/* ==================== 4. Enhanced Text Readability ==================== */
+/* Base font size for better scaling */
+html {
+    font-size: 62.5%; /* 10px base */
+}
+
+body {
+    font-size: 1.6rem; /* 16px */
+}
+
+h1 {
+    font-size: 4rem; /* 40px */
+}
+
+h2 {
+    font-size: 3rem; /* 30px */
+}
+
+h3 {
+    font-size: 2.4rem; /* 24px */
+}
+
+p {
+    font-size: 1.6rem; /* 16px */
+    line-height: 1.6;
+}
+
+@media only screen and (max-width: 768px) {
+    h1 {
+        font-size: 3rem; /* 30px */
+    }
+    
+    h2 {
+        font-size: 2.4rem; /* 24px */
+    }
+    
+    h3 {
+        font-size: 2rem; /* 20px */
+    }
+    
+    p {
+        font-size: 1.6rem; /* 16px */
+        line-height: 1.5;
+    }
+}
+
+@media only screen and (max-width: 480px) {
+    h1 {
+        font-size: 2.4rem; /* 24px */
+    }
+    
+    h2 {
+        font-size: 2rem; /* 20px */
+    }
+    
+    p {
+        font-size: 1.4rem; /* 14px */
+    }
+}
+
+/* ==================== 5. Animation Performance Optimization ==================== */
+/* Use transform and opacity for better performance */
+.animated-element {
+    animation: fadeInUp 0.5s ease;
+    will-change: transform, opacity;
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Disable animations on mobile for better performance */
+@media only screen and (max-width: 768px) {
+    body::before,
+    body::after {
+        animation: none;
+    }
+    
+    .animated-element {
+        animation-duration: 0.3s;
+    }
+}
+
+/* ==================== 6. Form Input Optimization ==================== */
+label,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea {
+    width: 100%;
+    font-size: 16px; /* Prevents iOS zoom */
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+@media only screen and (max-width: 768px) {
+    label,
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    textarea {
+        padding: 14px;
+        font-size: 16px; /* Critical: prevents iOS zoom */
+        border-radius: var(--radius-sm, 10px);
+    }
+}
+
+/* ==================== 7. Navigation Accessibility ==================== */
+.menu-toggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    z-index: 1000;
+    display: none;
+}
+
+@media only screen and (max-width: 768px) {
+    .menu-toggle {
+        display: block;
+    }
+    
+    .nav-menu {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 80%;
+        height: 100vh;
+        background: var(--bg-dark-2, #0a0a0a);
+        transition: left 0.3s ease;
+        padding: 60px 20px 20px;
+        z-index: 999;
+    }
+    
+    .menu-open .nav-menu {
+        left: 0;
+    }
+}
+
+/* ==================== 8. Landscape Orientation Handling ==================== */
+@media only screen and (orientation: landscape) and (max-height: 500px) {
+    body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 2.4rem;
+        margin-bottom: 10px;
+    }
+    
+    .games-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+    }
+    
+    .game-card {
+        min-height: auto;
+    }
+}
+
+/* ==================== 9. Safe Area Insets for Notched Devices ==================== */
+:root {
+    --safe-area-top: env(safe-area-inset-top);
+    --safe-area-bottom: env(safe-area-inset-bottom);
+    --safe-area-left: env(safe-area-inset-left);
+    --safe-area-right: env(safe-area-inset-right);
+}
+
+body {
+    padding-top: max(var(--spacing-sm, 20px), var(--safe-area-top));
+    padding-bottom: max(var(--spacing-sm, 20px), var(--safe-area-bottom));
+    padding-left: max(var(--spacing-sm, 20px), var(--safe-area-left));
+    padding-right: max(var(--spacing-sm, 20px), var(--safe-area-right));
+}
+
+.container {
+    padding-left: max(15px, var(--safe-area-left));
+    padding-right: max(15px, var(--safe-area-right));
+}
+
+/* ==================== 10. Reduced Motion Preferences ==================== */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    body::before,
+    body::after {
+        animation: none !important;
+    }
+}
+
+/* ==================== Additional Mobile Optimizations ==================== */
+
+/* Prevent horizontal scrolling */
+body {
+    overflow-x: hidden;
+}
+
+.container {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Improve tap highlighting */
+* {
+    -webkit-tap-highlight-color: rgba(0, 245, 255, 0.2);
+}
+
+/* Better touch scrolling */
+body,
+.scrollable-area {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Game cards responsive improvements */
+@media only screen and (max-width: 768px) {
+    .game-card {
+        padding: 15px;
+        margin: 0;
+    }
+    
+    .game-card:hover {
+        transform: scale(1.02); /* Reduced scale for mobile */
+    }
+}
+
+/* Modal/Dialog improvements for mobile */
+@media only screen and (max-width: 768px) {
+    .modal,
+    .dialog {
+        width: 95%;
+        max-width: 95%;
+        margin: 10px auto;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+}
+
+/* Table responsiveness */
+@media only screen and (max-width: 768px) {
+    table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Sticky elements on mobile */
+@media only screen and (max-width: 768px) {
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--bg-dark-1, #000000);
+        padding-top: var(--safe-area-top);
+    }
+}
