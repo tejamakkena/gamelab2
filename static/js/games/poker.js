@@ -9,6 +9,9 @@ if (typeof io === 'undefined') {
     var socket = io();
 }
 
+// Initialize CleanupManager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Game State
 let gameState = {
     roomCode: null,
@@ -87,7 +90,7 @@ function initializeEventListeners() {
     
     // Starting chips selection
     document.querySelectorAll('.chip-option-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        cleanup.addEventListener(btn, 'click', function() {
             document.querySelectorAll('.chip-option-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             gameState.startingChips = parseInt(this.dataset.chips);
@@ -96,66 +99,84 @@ function initializeEventListeners() {
     });
     
     // Mode selection
-    document.getElementById('create-room-btn')?.addEventListener('click', createRoom);
-    document.getElementById('join-room-btn-start')?.addEventListener('click', () => {
+    const createRoomBtn = document.getElementById('create-room-btn');
+    const joinRoomBtnStart = document.getElementById('join-room-btn-start');
+    if (createRoomBtn) cleanup.addEventListener(createRoomBtn, 'click', createRoom);
+    if (joinRoomBtnStart) cleanup.addEventListener(joinRoomBtnStart, 'click', () => {
         modeSelection.classList.add('hidden');
         joinRoomSection.classList.remove('hidden');
     });
     
     // Join room
-    document.getElementById('join-room-submit-btn')?.addEventListener('click', joinRoom);
-    document.getElementById('back-to-mode-btn')?.addEventListener('click', () => {
+    const joinRoomSubmitBtn = document.getElementById('join-room-submit-btn');
+    const backToModeBtn = document.getElementById('back-to-mode-btn');
+    if (joinRoomSubmitBtn) cleanup.addEventListener(joinRoomSubmitBtn, 'click', joinRoom);
+    if (backToModeBtn) cleanup.addEventListener(backToModeBtn, 'click', () => {
         joinRoomSection.classList.add('hidden');
         modeSelection.classList.remove('hidden');
     });
     
     // Waiting room
-    document.getElementById('copy-code-btn')?.addEventListener('click', copyRoomCode);
-    document.getElementById('start-game-btn')?.addEventListener('click', startGame);
-    document.getElementById('leave-room-btn')?.addEventListener('click', leaveRoom);
+    const copyCodeBtn = document.getElementById('copy-code-btn');
+    const startGameBtn = document.getElementById('start-game-btn');
+    const leaveRoomBtn = document.getElementById('leave-room-btn');
+    if (copyCodeBtn) cleanup.addEventListener(copyCodeBtn, 'click', copyRoomCode);
+    if (startGameBtn) cleanup.addEventListener(startGameBtn, 'click', startGame);
+    if (leaveRoomBtn) cleanup.addEventListener(leaveRoomBtn, 'click', leaveRoom);
     
     // Game actions
-    document.getElementById('fold-btn')?.addEventListener('click', () => {
+    const foldBtn = document.getElementById('fold-btn');
+    const checkBtn = document.getElementById('check-btn');
+    const callBtn = document.getElementById('call-btn');
+    const raiseBtn = document.getElementById('raise-btn');
+    const allinBtn = document.getElementById('allin-btn');
+    
+    if (foldBtn) cleanup.addEventListener(foldBtn, 'click', () => {
         console.log('Fold clicked');
         playerAction('fold');
     });
     
-    document.getElementById('check-btn')?.addEventListener('click', () => {
+    if (checkBtn) cleanup.addEventListener(checkBtn, 'click', () => {
         console.log('Check clicked');
         playerAction('check');
     });
     
-    document.getElementById('call-btn')?.addEventListener('click', () => {
+    if (callBtn) cleanup.addEventListener(callBtn, 'click', () => {
         console.log('Call clicked');
         playerAction('call');
     });
     
-    document.getElementById('raise-btn')?.addEventListener('click', () => {
+    if (raiseBtn) cleanup.addEventListener(raiseBtn, 'click', () => {
         console.log('Raise clicked');
         showRaiseControls();
     });
     
-    document.getElementById('allin-btn')?.addEventListener('click', () => {
+    if (allinBtn) cleanup.addEventListener(allinBtn, 'click', () => {
         console.log('All-in clicked');
         playerAction('allin');
     });
     
     // Raise controls
-    document.getElementById('raise-slider')?.addEventListener('input', function() {
+    const raiseSlider = document.getElementById('raise-slider');
+    const confirmRaiseBtn = document.getElementById('confirm-raise-btn');
+    const cancelRaiseBtn = document.getElementById('cancel-raise-btn');
+    
+    if (raiseSlider) cleanup.addEventListener(raiseSlider, 'input', function() {
         document.getElementById('raise-amount-display').textContent = `$${this.value}`;
     });
     
-    document.getElementById('confirm-raise-btn')?.addEventListener('click', confirmRaise);
-    document.getElementById('cancel-raise-btn')?.addEventListener('click', hideRaiseControls);
+    if (confirmRaiseBtn) cleanup.addEventListener(confirmRaiseBtn, 'click', confirmRaise);
+    if (cancelRaiseBtn) cleanup.addEventListener(cancelRaiseBtn, 'click', hideRaiseControls);
     
     // New hand
-    document.getElementById('new-hand-btn')?.addEventListener('click', dealNewHand);
+    const newHandBtn = document.getElementById('new-hand-btn');
+    if (newHandBtn) cleanup.addEventListener(newHandBtn, 'click', dealNewHand);
 }
 
 function initializeSocketEvents() {
     console.log('Setting up socket events...');
     
-    socket.on('poker_room_created', (data) => {
+    cleanup.addSocketListener(socket, 'poker_room_created', (data) => {
         console.log('✅ Room created:', data);
         gameState.roomCode = data.room_code;
         gameState.playerId = data.player_id;
@@ -173,7 +194,7 @@ function initializeSocketEvents() {
         showMessage('Room created! Share the code with friends.', 'success');
     });
     
-    socket.on('poker_room_joined', (data) => {
+    cleanup.addSocketListener(socket, 'poker_room_joined', (data) => {
         console.log('✅ Room joined:', data);
         gameState.roomCode = data.room_code;
         gameState.playerId = data.player_id;
@@ -188,14 +209,14 @@ function initializeSocketEvents() {
         showMessage('Joined room successfully!', 'success');
     });
     
-    socket.on('poker_player_joined', (data) => {
+    cleanup.addSocketListener(socket, 'poker_player_joined', (data) => {
         console.log('Player joined:', data);
         gameState.players = data.players;
         updatePlayersList(data.players);
         showMessage(`${data.player_name} joined the game!`, 'info');
     });
     
-    socket.on('hand_dealt', (data) => {
+    cleanup.addSocketListener(socket, 'hand_dealt', (data) => {
         console.log('✅ Hand dealt:', data);
         
         gameState.myHand = data.hand;
@@ -233,7 +254,7 @@ function initializeSocketEvents() {
         }
     });
     
-    socket.on('player_action', (data) => {
+    cleanup.addSocketListener(socket, 'player_action', (data) => {
         console.log('👤 Player action:', data);
         gameState.pot = data.pot;
         gameState.players = data.players;
@@ -256,7 +277,7 @@ function initializeSocketEvents() {
         showMessage(`${actionEmoji[data.action] || ''} ${data.player} ${data.action}${data.amount ? ' $' + data.amount : ''}`, 'info');
     });
     
-    socket.on('next_turn', (data) => {
+    cleanup.addSocketListener(socket, 'next_turn', (data) => {
         console.log('⏭️ Next turn:', data);
         gameState.currentTurn = data.current_turn;
         gameState.pot = data.pot;
@@ -274,7 +295,7 @@ function initializeSocketEvents() {
         }
     });
     
-    socket.on('next_phase', (data) => {
+    cleanup.addSocketListener(socket, 'next_phase', (data) => {
         console.log('🎴 Next phase:', data);
         gameState.phase = data.phase;
         gameState.communityCards = data.community_cards;
@@ -294,7 +315,7 @@ function initializeSocketEvents() {
         }
     });
     
-    socket.on('showdown', (data) => {
+    cleanup.addSocketListener(socket, 'showdown', (data) => {
         console.log('🏆 Showdown:', data);
         gameState.players = data.players;
         
@@ -305,7 +326,7 @@ function initializeSocketEvents() {
         disableActionButtons();
     });
     
-    socket.on('hand_complete', (data) => {
+    cleanup.addSocketListener(socket, 'hand_complete', (data) => {
         console.log('✅ Hand complete:', data);
         gameState.players = data.players;
         
@@ -316,7 +337,7 @@ function initializeSocketEvents() {
         disableActionButtons();
     });
     
-    socket.on('poker_error', (data) => {
+    cleanup.addSocketListener(socket, 'poker_error', (data) => {
         console.error('❌ Poker error:', data.message);
         showMessage(data.message, 'error');
     });
