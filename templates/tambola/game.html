@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambola (Housie) - GameLab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <style>
+        .ticket-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 5px;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        .ticket-cell {
+            aspect-ratio: 1;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            background: #fff;
+        }
+        .ticket-cell.empty {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+        .ticket-cell.marked {
+            background: #4CAF50;
+            color: white;
+        }
+        .called-numbers {
+            margin: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .number-display {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #2196F3;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Tambola (Housie)</h1>
+        
+        <div id="lobby">
+            <button id="createGame">Create Game (Host)</button>
+            <input type="text" id="gameIdInput" placeholder="Game ID">
+            <button id="joinGame">Join Game</button>
+        </div>
+
+        <div id="gameArea" style="display: none;">
+            <div class="number-display" id="currentNumber">--</div>
+            
+            <div id="hostControls" style="display: none;">
+                <button id="callNumber">Call Next Number</button>
+            </div>
+
+            <h3>Your Ticket</h3>
+            <div class="ticket-grid" id="ticketGrid"></div>
+
+            <div class="controls">
+                <button onclick="claimWin('early_5')">Claim Early 5</button>
+                <button onclick="claimWin('top_line')">Claim Top Line</button>
+                <button onclick="claimWin('middle_line')">Claim Middle Line</button>
+                <button onclick="claimWin('bottom_line')">Claim Bottom Line</button>
+                <button onclick="claimWin('full_house')">Claim Full House</button>
+            </div>
+
+            <div class="called-numbers">
+                <h4>Called Numbers:</h4>
+                <div id="calledList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/tambola.js') }}"></script>
+</body>
+</html>
