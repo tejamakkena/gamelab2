@@ -504,6 +504,5 @@
     window.user = {{ user | tojson | safe }};
     console.log('User data loaded:', window.user);
 </script>
-<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/games/digit_guess.js') }}"></script>
 {% endblock %}
