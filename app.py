@@ -146,20 +146,6 @@ def create_app(config_name='default'):
                 'description': 'High stakes poker showdown!'
             },
             {
-                'name': 'Memory Game', 
-                'url': '/memory', 
-                'icon': '🧠💭', 
-                'players': '1-4',
-                'description': 'Test your memory with matching cards!'
-            },
-            {
-                'name': 'Pictionary', 
-                'url': '/pictionary', 
-                'icon': '🎨✏️', 
-                'players': '2+',
-                'description': 'Draw and guess! Creative multiplayer fun!'
-            },
-            {
                 'name': 'Trivia',
                 'url': '/trivia',
                 'icon': '❓🏆',
@@ -172,19 +158,6 @@ def create_app(config_name='default'):
                 'icon': '🎨🖼️',
                 'players': '2-6',
                 'description': 'Draw on a theme and vote for the best art!'
-            },{
-                'name': 'Mafia', 
-                'url': '/mafia', 
-                'icon': '🕵️🔪', 
-                'players': '4+',
-                'description': 'Social deduction game. Find the mafia members!'
-            },
-            {
-                'name': 'Tambola', 
-                'url': '/tambola', 
-                'icon': '🎲🎟️', 
-                'players': '2+',
-                'description': 'Indian bingo game. Mark your numbers and win!'
             },
             {
                 'name': 'Raja Mantri', 
@@ -192,13 +165,6 @@ def create_app(config_name='default'):
                 'icon': '👑🗡️', 
                 'players': '4',
                 'description': 'Classic 4-player guessing game!'
-            },
-            {
-                'name': 'Roulette', 
-                'url': '/roulette', 
-                'icon': '🎰🎲', 
-                'players': '1+',
-                'description': 'Place your bets and spin the wheel! Try your luck!'
             }
         ]
 

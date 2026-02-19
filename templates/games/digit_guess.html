@@ -497,5 +497,13 @@
 </div>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.user = {{ user | tojson | safe }};
+    console.log('User data loaded:', window.user);
+</script>
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/games/digit_guess.js') }}"></script>
 {% endblock %}
