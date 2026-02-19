@@ -46,6 +46,7 @@ def create_app(config_name='default'):
     from games.memory.routes import memory_bp
     from games.pictionary.routes import pictionary_bp
     from games.mafia.routes import mafia_bp
+    from games.tambola.routes import tambola_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -60,6 +61,7 @@ def create_app(config_name='default'):
     app.register_blueprint(memory_bp, url_prefix='/memory')
     app.register_blueprint(pictionary_bp, url_prefix='/pictionary')
     app.register_blueprint(mafia_bp, url_prefix='/mafia')
+    app.register_blueprint(tambola_bp, url_prefix='/tambola')
     
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -75,6 +77,7 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(memory_bp)
     limiter.limit(game_rate_limit)(pictionary_bp)
     limiter.limit(game_rate_limit)(mafia_bp)
+    limiter.limit(game_rate_limit)(tambola_bp)
     
 
 
