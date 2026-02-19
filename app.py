@@ -44,6 +44,7 @@ def create_app(config_name='default'):
     from games.digit_guess.routes import digit_guess_bp
     from games.raja_mantri.routes import raja_mantri_bp
     from games.memory.routes import memory_bp
+    from games.pictionary.routes import pictionary_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -56,6 +57,7 @@ def create_app(config_name='default'):
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
     app.register_blueprint(raja_mantri_bp, url_prefix='/raja-mantri')
     app.register_blueprint(memory_bp, url_prefix='/memory')
+    app.register_blueprint(pictionary_bp, url_prefix='/pictionary')
     
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -69,6 +71,7 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(digit_guess_bp)
     limiter.limit(game_rate_limit)(raja_mantri_bp)
     limiter.limit(game_rate_limit)(memory_bp)
+    limiter.limit(game_rate_limit)(pictionary_bp)
     
 
 
@@ -81,6 +84,7 @@ def create_app(config_name='default'):
     from games.canvas_battle.socket_events import register_canvas_battle_events
     from games.connect4.socket_events import register_connect4_events
     from games.digit_guess.socket_events import register_digit_guess_events
+    from games.pictionary.socket_events import register_pictionary_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -90,6 +94,7 @@ def create_app(config_name='default'):
     register_canvas_battle_events(socketio)
     register_connect4_events(socketio)
     register_digit_guess_events(socketio)
+    register_pictionary_events(socketio)
 
 
     # Login required decorator
