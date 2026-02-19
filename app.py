@@ -92,6 +92,7 @@ def create_app(config_name='default'):
     from games.digit_guess.socket_events import register_digit_guess_events
     from games.pictionary.socket_events import register_pictionary_events
     from games.mafia.routes import register_mafia_handlers
+    from games.tambola.socket_events import register_tambola_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -103,6 +104,7 @@ def create_app(config_name='default'):
     register_digit_guess_events(socketio)
     register_pictionary_events(socketio)
     register_mafia_handlers(socketio)
+    register_tambola_events(socketio)
 
 
     # Login required decorator
