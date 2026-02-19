@@ -212,6 +212,10 @@
         </div>
     </div>
 
+    <!-- Load utilities FIRST (CleanupManager, etc.) -->
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    
+    <!-- Load game script -->
     <script src="{{ url_for('static', filename='js/games/roulette.js') }}"></script>
 </body>
 </html>

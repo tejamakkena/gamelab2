@@ -42,7 +42,10 @@ def create_app(config_name='default'):
     from games.canvas_battle.routes import canvas_battle_bp
     from games.connect4.routes import connect4_bp
     from games.digit_guess.routes import digit_guess_bp
+    from games.raja_mantri.routes import raja_mantri_bp
     from games.memory.routes import memory_bp
+    from games.pictionary.routes import pictionary_bp
+    from games.mafia.routes import mafia_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -53,7 +56,10 @@ def create_app(config_name='default'):
     app.register_blueprint(canvas_battle_bp, url_prefix='/canvas-battle')
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
+    app.register_blueprint(raja_mantri_bp, url_prefix='/raja-mantri')
     app.register_blueprint(memory_bp, url_prefix='/memory')
+    app.register_blueprint(pictionary_bp, url_prefix='/pictionary')
+    app.register_blueprint(mafia_bp, url_prefix='/mafia')
     
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -65,6 +71,10 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(canvas_battle_bp)
     limiter.limit(game_rate_limit)(connect4_bp)
     limiter.limit(game_rate_limit)(digit_guess_bp)
+    limiter.limit(game_rate_limit)(raja_mantri_bp)
+    limiter.limit(game_rate_limit)(memory_bp)
+    limiter.limit(game_rate_limit)(pictionary_bp)
+    limiter.limit(game_rate_limit)(mafia_bp)
     
 
 
@@ -77,6 +87,8 @@ def create_app(config_name='default'):
     from games.canvas_battle.socket_events import register_canvas_battle_events
     from games.connect4.socket_events import register_connect4_events
     from games.digit_guess.socket_events import register_digit_guess_events
+    from games.pictionary.socket_events import register_pictionary_events
+    from games.mafia.routes import register_mafia_handlers
 
     # After creating socketio
     register_poker_events(socketio)
@@ -86,6 +98,8 @@ def create_app(config_name='default'):
     register_canvas_battle_events(socketio)
     register_connect4_events(socketio)
     register_digit_guess_events(socketio)
+    register_pictionary_events(socketio)
+    register_mafia_handlers(socketio)
 
 
     # Login required decorator
@@ -171,7 +185,8 @@ def create_app(config_name='default'):
                 'icon': '🎨🖼️',
                 'players': '2-6',
                 'description': 'Draw on a theme and vote for the best art!'
-            },{
+            },
+            {
                 'name': 'Mafia', 
                 'url': '/mafia', 
                 'icon': '🕵️🔪', 
@@ -191,13 +206,6 @@ def create_app(config_name='default'):
                 'icon': '👑🗡️', 
                 'players': '4',
                 'description': 'Classic 4-player guessing game!'
-            },
-            {
-                'name': 'Roulette', 
-                'url': '/roulette', 
-                'icon': '🎰🎲', 
-                'players': '1+',
-                'description': 'Place your bets and spin the wheel! Try your luck!'
             }
         ]
 
@@ -301,4 +309,4 @@ if __name__ == "__main__":
     print("   ✅ Canvas Battle")
     print("   ✅ Connect 4")
     print()
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

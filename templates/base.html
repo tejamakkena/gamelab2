@@ -11,6 +11,9 @@
 <body {% if user %}data-user='{{ user|tojson }}'{% endif %}>
     {% block content %}{% endblock %}
     
+    <!-- Load utilities FIRST (CleanupManager, etc.) -->
+    <script src="{{ url_for('static', filename='/js/utils.js') }}"></script>
+    
     <!-- Theme Toggle -->
     <script src="{{ url_for('static', filename='/js/theme-toggle.js') }}"></script>
     
