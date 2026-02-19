@@ -125,4 +125,66 @@ function showMantri() {
     
     const mantri = Object.keys(playerRoles).find(p => playerRoles[p] === 'Mantri');
     document.getElementById('mantriName').textContent = `${mantri} is the Mantri!`;
-    document
+    document.getElementById('mantriSection').style.display = 'block';
+    
+    setTimeout(showGuessingPhase, 3000);
+}
+
+function showGuessingPhase() {
+    document.getElementById('mantriSection').style.display = 'none';
+    
+    const sipahi = Object.keys(playerRoles).find(p => playerRoles[p] === 'Sipahi');
+    document.getElementById('sipahiName').textContent = `${sipahi}, you are the Sipahi!`;
+    
+    const guessContainer = document.getElementById('guessButtons');
+    guessContainer.innerHTML = '';
+    
+    players.forEach(player => {
+        if (player !== sipahi) {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-warning m-2';
+            btn.textContent = player;
+            btn.onclick = () => submitGuess(player);
+            guessContainer.appendChild(btn);
+        }
+    });
+    
+    document.getElementById('guessSection').style.display = 'block';
+}
+
+function submitGuess(guess) {
+    document.getElementById('guessSection').style.display = 'none';
+    
+    const chor = Object.keys(playerRoles).find(p => playerRoles[p] === 'Chor');
+    const sipahi = Object.keys(playerRoles).find(p => playerRoles[p] === 'Sipahi');
+    const isCorrect = guess === chor;
+    
+    let resultsHTML = '<h4>Final Scores:</h4><ul>';
+    
+    players.forEach(player => {
+        const role = playerRoles[player];
+        let score = 0;
+        
+        if (role === 'Raja') {
+            score = 1000;
+        } else if (role === 'Mantri') {
+            score = 800;
+        } else if (role === 'Sipahi') {
+            score = isCorrect ? 500 : 0;
+        } else if (role === 'Chor') {
+            score = isCorrect ? -500 : 0;
+        }
+        
+        resultsHTML += `<li><strong>${player}</strong> (${role}): ${score} points</li>`;
+    });
+    
+    resultsHTML += '</ul>';
+    resultsHTML += `<p class="mt-3"><strong>Sipahi's Guess:</strong> ${guess}</p>`;
+    resultsHTML += `<p><strong>Actual Chor:</strong> ${chor}</p>`;
+    resultsHTML += `<p class="lead"><strong>${isCorrect ? '✅ Correct Guess!' : '❌ Wrong Guess!'}</strong></p>`;
+    
+    document.getElementById('results').innerHTML = resultsHTML;
+    document.getElementById('resultsSection').style.display = 'block';
+}
+</script>
+{% endblock %}

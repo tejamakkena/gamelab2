@@ -1,6 +1,9 @@
 // Socket.IO connection
 const socket = io();
 
+// Initialize cleanup manager for proper memory management
+const cleanup = new CleanupManager();
+
 // Game State
 let gameState = {
     mode: null, // 'solo' or 'multiplayer'
@@ -31,7 +34,7 @@ const gameScreen = document.getElementById('game-screen');
 const resultsScreen = document.getElementById('results-screen');
 
 // Wait for DOM to be ready
-document.addEventListener('DOMContentLoaded', function() {
+cleanup.addEventListener(document, 'DOMContentLoaded', function() {
     console.log('Trivia game initialized');
     
     // Mode Selection
@@ -39,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const multiplayerModeBtn = document.getElementById('multiplayer-mode-btn');
     
     if (soloModeBtn) {
-        soloModeBtn.addEventListener('click', () => {
+        cleanup.addEventListener(soloModeBtn, 'click', () => {
             console.log('Solo mode selected');
             gameState.mode = 'solo';
             modeSelection.classList.add('hidden');
@@ -48,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     if (multiplayerModeBtn) {
-        multiplayerModeBtn.addEventListener('click', () => {
+        cleanup.addEventListener(multiplayerModeBtn, 'click', () => {
             console.log('Multiplayer mode selected');
             gameState.mode = 'multiplayer';
             modeSelection.classList.add('hidden');
@@ -60,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Back buttons
     const backToModeBtn = document.getElementById('back-to-mode-btn');
     if (backToModeBtn) {
-        backToModeBtn.addEventListener('click', () => {
+        cleanup.addEventListener(backToModeBtn, 'click', () => {
             multiplayerLobby.classList.add('hidden');
             modeSelection.classList.remove('hidden');
         });
@@ -68,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const backToModeSoloBtn = document.getElementById('back-to-mode-solo-btn');
     if (backToModeSoloBtn) {
-        backToModeSoloBtn.addEventListener('click', () => {
+        cleanup.addEventListener(backToModeSoloBtn, 'click', () => {
             topicSelection.classList.add('hidden');
             modeSelection.classList.remove('hidden');
         });
@@ -77,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create Room
     const createRoomBtn = document.getElementById('create-room-btn');
     if (createRoomBtn) {
-        createRoomBtn.addEventListener('click', () => {
+        cleanup.addEventListener(createRoomBtn, 'click', () => {
             console.log('Creating room...');
             const playerName = getUserName();
             socket.emit('create_trivia_room', { player_name: playerName });
@@ -87,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Join Room
     const joinRoomBtn = document.getElementById('join-room-btn');
     if (joinRoomBtn) {
-        joinRoomBtn.addEventListener('click', () => {
+        cleanup.addEventListener(joinRoomBtn, 'click', () => {
             const roomCode = document.getElementById('room-code-input').value.toUpperCase();
             const playerName = getUserName();
             
@@ -103,13 +106,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Refresh Rooms
     const refreshRoomsBtn = document.getElementById('refresh-rooms-btn');
     if (refreshRoomsBtn) {
-        refreshRoomsBtn.addEventListener('click', loadRooms);
+        cleanup.addEventListener(refreshRoomsBtn, 'click', loadRooms);
     }
     
     // Leave Room
     const leaveRoomBtn = document.getElementById('leave-room-btn');
     if (leaveRoomBtn) {
-        leaveRoomBtn.addEventListener('click', () => {
+        cleanup.addEventListener(leaveRoomBtn, 'click', () => {
             if (gameState.roomCode) {
                 socket.emit('leave_trivia_room', { room_code: gameState.roomCode });
             }
@@ -122,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start Multiplayer Game
     const startMultiplayerBtn = document.getElementById('start-multiplayer-btn');
     if (startMultiplayerBtn) {
-        startMultiplayerBtn.addEventListener('click', () => {
+        cleanup.addEventListener(startMultiplayerBtn, 'click', () => {
             const settings = {
                 room_code: gameState.roomCode,
                 topic: document.getElementById('waiting-topic').value,
@@ -138,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Copy Room Code
     const copyCodeBtn = document.getElementById('copy-code-btn');
     if (copyCodeBtn) {
-        copyCodeBtn.addEventListener('click', () => {
+        cleanup.addEventListener(copyCodeBtn, 'click', () => {
             const code = document.getElementById('waiting-room-code').textContent;
             navigator.clipboard.writeText(code).then(() => {
                 copyCodeBtn.textContent = '✅ Copied!';
@@ -156,14 +159,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const questionCountInput = document.getElementById('question-count');
     
     if (topicDropdown) {
-        topicDropdown.addEventListener('change', function() {
+        cleanup.addEventListener(topicDropdown, 'change', function() {
             startGameBtn.disabled = this.value === '';
         });
     }
     
     if (difficultyBtns.length > 0) {
         difficultyBtns.forEach(btn => {
-            btn.addEventListener('click', function() {
+            cleanup.addEventListener(btn, 'click', function() {
                 difficultyBtns.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 gameState.difficulty = this.dataset.difficulty;
@@ -172,31 +175,31 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     if (startGameBtn) {
-        startGameBtn.addEventListener('click', startSoloGame);
+        cleanup.addEventListener(startGameBtn, 'click', startSoloGame);
     }
     
     const skipQuestionBtn = document.getElementById('skip-question-btn');
     if (skipQuestionBtn) {
-        skipQuestionBtn.addEventListener('click', skipQuestion);
+        cleanup.addEventListener(skipQuestionBtn, 'click', skipQuestion);
     }
     
     const playAgainBtn = document.getElementById('play-again-btn');
     if (playAgainBtn) {
-        playAgainBtn.addEventListener('click', playAgain);
+        cleanup.addEventListener(playAgainBtn, 'click', playAgain);
     }
     
     const changeTopicBtn = document.getElementById('change-topic-btn');
     if (changeTopicBtn) {
-        changeTopicBtn.addEventListener('click', changeTopic);
+        cleanup.addEventListener(changeTopicBtn, 'click', changeTopic);
     }
 });
 
 // Socket.IO Events
-socket.on('connect', () => {
+cleanup.addSocketListener(socket, 'connect', () => {
     console.log('Connected to server');
 });
 
-socket.on('room_created', (data) => {
+cleanup.addSocketListener(socket, 'room_created', (data) => {
     console.log('Room created:', data);
     gameState.roomCode = data.room_code;
     gameState.isHost = true;
@@ -209,7 +212,7 @@ socket.on('room_created', (data) => {
     updatePlayersList(data.players);
 });
 
-socket.on('room_joined', (data) => {
+cleanup.addSocketListener(socket, 'room_joined', (data) => {
     console.log('Room joined:', data);
     gameState.roomCode = data.room_code;
     gameState.isHost = false;
@@ -222,17 +225,17 @@ socket.on('room_joined', (data) => {
     updatePlayersList(data.players);
 });
 
-socket.on('player_joined', (data) => {
+cleanup.addSocketListener(socket, 'player_joined', (data) => {
     console.log('Player joined:', data);
     updatePlayersList(data.players);
 });
 
-socket.on('player_left', (data) => {
+cleanup.addSocketListener(socket, 'player_left', (data) => {
     console.log('Player left:', data);
     updatePlayersList(data.players);
 });
 
-socket.on('game_starting', (data) => {
+cleanup.addSocketListener(socket, 'game_starting', (data) => {
     console.log('Game starting:', data);
     gameState.topic = data.topic;
     gameState.difficulty = data.difficulty;
@@ -254,27 +257,27 @@ socket.on('game_starting', (data) => {
     displayQuestion();
 });
 
-socket.on('score_update', (data) => {
+cleanup.addSocketListener(socket, 'score_update', (data) => {
     console.log('Score update:', data);
     updateLiveLeaderboard(data.scores);
 });
 
-socket.on('game_ended', (data) => {
+cleanup.addSocketListener(socket, 'game_ended', (data) => {
     console.log('Game ended:', data);
     showMultiplayerResults(data.final_scores);
 });
 
-socket.on('rooms_list', (data) => {
+cleanup.addSocketListener(socket, 'rooms_list', (data) => {
     console.log('Rooms list:', data);
     displayRooms(data.rooms);
 });
 
-socket.on('error', (data) => {
+cleanup.addSocketListener(socket, 'error', (data) => {
     console.error('Socket error:', data);
     alert(data.message);
 });
 
-socket.on('disconnect', () => {
+cleanup.addSocketListener(socket, 'disconnect', () => {
     console.log('Disconnected from server');
 });
 
@@ -429,7 +432,7 @@ function displayQuestion() {
         const answerBtn = document.createElement('button');
         answerBtn.className = 'answer-btn';
         answerBtn.textContent = option;
-        answerBtn.addEventListener('click', () => selectAnswer(index));
+        cleanup.addEventListener(answerBtn, 'click', () => selectAnswer(index));
         answersGrid.appendChild(answerBtn);
     });
     
@@ -606,4 +609,12 @@ function changeTopic() {
 }
 
 // Global function for clicking on room items
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    cleanup.cleanup();
+    if (socket && socket.connected) {
+        socket.disconnect();
+    }
+});
 window.joinRoomFromList = joinRoomFromList;

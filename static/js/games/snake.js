@@ -9,6 +9,9 @@ if (typeof io === 'undefined') {
     var socket = io();
 }
 
+// Initialize CleanupManager for proper resource cleanup
+const cleanup = new CleanupManager();
+
 // Game Configuration
 const BOARD_SIZE = 100;
 const SNAKES = {
@@ -46,7 +49,7 @@ let modeSelection, soloSetup, multiplayerLobby, waitingRoom, gameScreen, results
 // Wait for DOM
 if (document.readyState === 'loading') {
     console.log('⏳ Waiting for DOM...');
-    document.addEventListener('DOMContentLoaded', init);
+    cleanup.addEventListener(document, 'DOMContentLoaded', init);
 } else {
     console.log('✅ DOM ready, initializing...');
     init();
@@ -95,7 +98,7 @@ function initializeModeSelection() {
     
     if (soloBtn) {
         console.log('✅ Adding solo button listener');
-        soloBtn.addEventListener('click', function(e) {
+        cleanup.addEventListener(soloBtn, 'click', function(e) {
             console.log('🤖 SOLO BUTTON CLICKED!');
             e.preventDefault();
             gameState.mode = 'solo';
@@ -106,7 +109,7 @@ function initializeModeSelection() {
     
     if (multiBtn) {
         console.log('✅ Adding multiplayer button listener');
-        multiBtn.addEventListener('click', function(e) {
+        cleanup.addEventListener(multiBtn, 'click', function(e) {
             console.log('👥 MULTIPLAYER BUTTON CLICKED!');
             e.preventDefault();
             gameState.mode = 'multiplayer';
@@ -122,7 +125,7 @@ function initializeSoloSetup() {
     
     // AI Count buttons
     document.querySelectorAll('.count-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
+        cleanup.addEventListener(btn, 'click', function(e) {
             e.stopPropagation();
             console.log('AI count selected:', this.dataset.count);
             document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
@@ -133,7 +136,7 @@ function initializeSoloSetup() {
     
     // Difficulty buttons
     document.querySelectorAll('.diff-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
+        cleanup.addEventListener(btn, 'click', function(e) {
             e.stopPropagation();
             console.log('Difficulty selected:', this.dataset.diff);
             document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
@@ -146,7 +149,7 @@ function initializeSoloSetup() {
     const startSoloBtn = document.getElementById('start-solo-btn');
     if (startSoloBtn) {
         console.log('✅ Adding start solo button listener');
-        startSoloBtn.addEventListener('click', function(e) {
+        cleanup.addEventListener(startSoloBtn, 'click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             console.log('🎮 START SOLO GAME CLICKED!');
@@ -157,7 +160,7 @@ function initializeSoloSetup() {
     // Back button
     const backFromSolo = document.getElementById('back-from-solo-btn');
     if (backFromSolo) {
-        backFromSolo.addEventListener('click', function() {
+        cleanup.addEventListener(backFromSolo, 'click', function() {
             console.log('⬅️ Back from solo');
             if (soloSetup) soloSetup.style.display = 'none';
             if (modeSelection) modeSelection.style.display = 'block';
@@ -177,19 +180,19 @@ function initializeMultiplayerLobby() {
     const copyRoomCodeBtn = document.getElementById('copy-room-code-btn');
     
     if (createRoomBtn) {
-        createRoomBtn.addEventListener('click', createRoom);
+        cleanup.addEventListener(createRoomBtn, 'click', createRoom);
     }
     
     if (joinRoomBtn) {
-        joinRoomBtn.addEventListener('click', joinRoom);
+        cleanup.addEventListener(joinRoomBtn, 'click', joinRoom);
     }
     
     if (refreshRoomsBtn) {
-        refreshRoomsBtn.addEventListener('click', loadRooms);
+        cleanup.addEventListener(refreshRoomsBtn, 'click', loadRooms);
     }
     
     if (backFromLobby) {
-        backFromLobby.addEventListener('click', function() {
+        cleanup.addEventListener(backFromLobby, 'click', function() {
             console.log('⬅️ Back from lobby');
             if (multiplayerLobby) multiplayerLobby.style.display = 'none';
             if (modeSelection) modeSelection.style.display = 'block';
@@ -197,15 +200,15 @@ function initializeMultiplayerLobby() {
     }
     
     if (leaveRoomBtn) {
-        leaveRoomBtn.addEventListener('click', leaveRoom);
+        cleanup.addEventListener(leaveRoomBtn, 'click', leaveRoom);
     }
     
     if (startMultiplayerBtn) {
-        startMultiplayerBtn.addEventListener('click', startMultiplayerGame);
+        cleanup.addEventListener(startMultiplayerBtn, 'click', startMultiplayerGame);
     }
     
     if (copyRoomCodeBtn) {
-        copyRoomCodeBtn.addEventListener('click', copyRoomCode);
+        cleanup.addEventListener(copyRoomCodeBtn, 'click', copyRoomCode);
     }
 }
 
@@ -214,17 +217,17 @@ function initializeGameControls() {
     
     const rollDiceBtn = document.getElementById('roll-dice-btn');
     if (rollDiceBtn) {
-        rollDiceBtn.addEventListener('click', rollDice);
+        cleanup.addEventListener(rollDiceBtn, 'click', rollDice);
     }
     
     const playAgainBtn = document.getElementById('play-again-btn');
     if (playAgainBtn) {
-        playAgainBtn.addEventListener('click', playAgain);
+        cleanup.addEventListener(playAgainBtn, 'click', playAgain);
     }
     
     const newGameBtn = document.getElementById('new-game-btn');
     if (newGameBtn) {
-        newGameBtn.addEventListener('click', newGame);
+        cleanup.addEventListener(newGameBtn, 'click', newGame);
     }
 }
 
@@ -937,15 +940,15 @@ function initializeSocketEvents() {
     
     console.log('🔌 Initializing socket events...');
     
-    socket.on('connect', () => {
+    cleanup.addSocketListener(socket, 'connect', () => {
         console.log('✅ Connected to server');
     });
     
-    socket.on('disconnect', () => {
+    cleanup.addSocketListener(socket, 'disconnect', () => {
         console.log('⚠️ Disconnected from server');
     });
     
-    socket.on('snake_room_created', (data) => {
+    cleanup.addSocketListener(socket, 'snake_room_created', (data) => {
         console.log('✅ Room created:', data);
         gameState.roomCode = data.room_code;
         gameState.isHost = true;
@@ -962,7 +965,7 @@ function initializeSocketEvents() {
         updateWaitingRoom(data.players);
     });
     
-    socket.on('snake_room_joined', (data) => {
+    cleanup.addSocketListener(socket, 'snake_room_joined', (data) => {
         console.log('✅ Joined room:', data);
         gameState.roomCode = data.room_code;
         gameState.isHost = false;
@@ -979,47 +982,47 @@ function initializeSocketEvents() {
         updateWaitingRoom(data.players);
     });
     
-    socket.on('snake_player_joined', (data) => {
+    cleanup.addSocketListener(socket, 'snake_player_joined', (data) => {
         console.log('👥 Player joined event received:', data);
         updateWaitingRoom(data.players);
     });
     
-    socket.on('snake_player_left', (data) => {
+    cleanup.addSocketListener(socket, 'snake_player_left', (data) => {
         console.log('👋 Player left:', data);
         updateWaitingRoom(data.players);
     });
     
-    socket.on('snake_game_started', (data) => {
+    cleanup.addSocketListener(socket, 'snake_game_started', (data) => {
         console.log('🎮 Game started:', data);
         startMultiplayerGameplay(data);
     });
     
-    socket.on('snake_dice_rolled', (data) => {
+    cleanup.addSocketListener(socket, 'snake_dice_rolled', (data) => {
         console.log('🎲 Dice rolled:', data);
         handleRemoteDiceRoll(data);
     });
     
-    socket.on('snake_player_moved', (data) => {
+    cleanup.addSocketListener(socket, 'snake_player_moved', (data) => {
         console.log('📍 Player moved:', data);
         handleRemotePlayerMove(data);
     });
     
-    socket.on('snake_turn_changed', (data) => {
+    cleanup.addSocketListener(socket, 'snake_turn_changed', (data) => {
         console.log('🔄 Turn changed:', data);
         handleTurnChange(data);
     });
     
-    socket.on('snake_game_ended', (data) => {
+    cleanup.addSocketListener(socket, 'snake_game_ended', (data) => {
         console.log('🏁 Game ended:', data);
         handleGameEnd(data);
     });
     
-    socket.on('snake_rooms_list', (data) => {
+    cleanup.addSocketListener(socket, 'snake_rooms_list', (data) => {
         console.log('📋 Rooms list:', data);
         displayRoomsList(data.rooms);
     });
     
-    socket.on('snake_error', (data) => {
+    cleanup.addSocketListener(socket, 'snake_error', (data) => {
         console.error('❌ Error:', data.message);
         alert(data.message);
     });
@@ -1028,3 +1031,10 @@ function initializeSocketEvents() {
 }
 
 console.log('=== SNAKE-LADDER.JS FILE END ===');
+// Cleanup on page unload to prevent memory leaks
+window.addEventListener('beforeunload', () => {
+    cleanup.cleanup();
+    if (socket && socket.connected) {
+        socket.disconnect();
+    }
+});

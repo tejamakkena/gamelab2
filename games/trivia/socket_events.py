@@ -187,10 +187,10 @@ def register_trivia_events(socketio):
             print(f"🎮 Game started in room {room_code}")
 
         except Exception as e:
+            print(f"Error generating questions in room {room_code}: {e}")
             emit(
                 'error', {
-                    'message': f'Failed to generate questions: {
-                        str(e)}'}, room=room_code)
+                    'message': 'Failed to generate questions. Please try again.'}, room=room_code)
             room['status'] = 'waiting'
 
     @socketio.on('answer_submitted')
