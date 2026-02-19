@@ -42,6 +42,7 @@ def create_app(config_name='default'):
     from games.canvas_battle.routes import canvas_battle_bp
     from games.connect4.routes import connect4_bp
     from games.digit_guess.routes import digit_guess_bp
+    from games.raja_mantri.routes import raja_mantri_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -52,6 +53,7 @@ def create_app(config_name='default'):
     app.register_blueprint(canvas_battle_bp, url_prefix='/canvas-battle')
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
+    app.register_blueprint(raja_mantri_bp, url_prefix='/raja-mantri')
     
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -63,6 +65,7 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(canvas_battle_bp)
     limiter.limit(game_rate_limit)(connect4_bp)
     limiter.limit(game_rate_limit)(digit_guess_bp)
+    limiter.limit(game_rate_limit)(raja_mantri_bp)
     
 
 
@@ -299,4 +302,4 @@ if __name__ == "__main__":
     print("   ✅ Canvas Battle")
     print("   ✅ Connect 4")
     print()
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
