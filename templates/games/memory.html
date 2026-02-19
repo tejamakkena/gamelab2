@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Memory Game - Futuristic Games Hub{% endblock %}
+
+{% block extra_head %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<meta name="google-signin-client_id" content="{{ google_client_id }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/games/memory.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header with Back Button -->
+    <div class="game-header">
+        <a href="/" class="btn btn-secondary back-btn">⬅️ Home</a>
+        <h1>🧠💭 Memory Game</h1>
+        <div class="spacer"></div>
+    </div>
+    
+    <div id="lobby">
+        <div class="game-controls">
+            <button id="create-game-btn" class="btn btn-primary">Create New Game</button>
+            <div class="input-group">
+                <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
+                <button id="join-game-btn" class="btn">Join Game</button>
+            </div>
+        </div>
+        
+        <div class="rooms-container">
+            <div class="rooms-header">
+                <h2>🎮 Active Rooms</h2>
+                <button id="refresh-rooms-btn" class="refresh-btn">🔄 Refresh</button>
+            </div>
+            <div id="rooms-list" class="rooms-list">
+                <div class="empty-rooms">Loading rooms...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="game-area" class="hidden">
+        <div id="room-info" class="room-info-box">
+            <div id="room-code-display"></div>
+            <div id="game-status"></div>
+        </div>
+        
+        <div id="scoreboard" class="scoreboard">
+            <!-- Players and scores will be injected here -->
+        </div>
+        
+        <div id="memory-grid" class="memory-grid">
+            <!-- Cards will be generated here -->
+        </div>
+        
+        <button id="back-to-lobby" class="btn btn-secondary">⬅️ Back to Lobby</button>
+    </div>
+</div>
+
+<!-- Game End Modal -->
+<div id="game-end-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div id="modal-icon">🏆</div>
+            <h2 id="modal-title"></h2>
+        </div>
+        <div class="modal-body">
+            <p id="modal-message"></p>
+            <div id="final-scores" class="final-scores">
+                <!-- Final scores will be injected here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="play-again-btn" class="btn btn-primary">🔄 Play Again</button>
+            <button id="exit-to-lobby-btn" class="btn btn-secondary">⬅️ Exit to Lobby</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/games/memory.js') }}"></script>
+{% endblock %}

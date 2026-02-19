@@ -43,6 +43,7 @@ def create_app(config_name='default'):
     from games.connect4.routes import connect4_bp
     from games.digit_guess.routes import digit_guess_bp
     from games.raja_mantri.routes import raja_mantri_bp
+    from games.memory.routes import memory_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -54,6 +55,7 @@ def create_app(config_name='default'):
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
     app.register_blueprint(raja_mantri_bp, url_prefix='/raja-mantri')
+    app.register_blueprint(memory_bp, url_prefix='/memory')
     
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -66,6 +68,7 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(connect4_bp)
     limiter.limit(game_rate_limit)(digit_guess_bp)
     limiter.limit(game_rate_limit)(raja_mantri_bp)
+    limiter.limit(game_rate_limit)(memory_bp)
     
 
 
