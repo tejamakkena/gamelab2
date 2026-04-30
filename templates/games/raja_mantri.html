@@ -175,8 +175,13 @@ function createRoleButtons() {
     players.forEach(player => {
         const col = document.createElement('div');
         col.className = 'col-md-6 mb-2';
-        col.innerHTML = `<button class="btn btn-outline-primary w-100"
-            onclick="revealRole('${player}')">${player} — Click to See Role</button>`;
+
+        const button = document.createElement('button');
+        button.className = 'btn btn-outline-primary w-100';
+        button.textContent = `${player} — Click to See Role`;
+        button.addEventListener('click', () => revealRole(player));
+
+        col.appendChild(button);
         container.appendChild(col);
     });
 }
