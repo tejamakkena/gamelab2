@@ -223,17 +223,45 @@ function localSubmitGuess(guess) {
     const chor = Object.keys(playerRoles).find(p => playerRoles[p] === 'Chor');
     const sipahi = Object.keys(playerRoles).find(p => playerRoles[p] === 'Sipahi');
     const isCorrect = guess === chor;
-    let html = '<h4>Final Scores:</h4><ul>';
+
+    const resultsEl = document.getElementById('results');
+    resultsEl.innerHTML = '';
+
+    const title = document.createElement('h4');
+    title.textContent = 'Final Scores:';
+    resultsEl.appendChild(title);
+
+    const list = document.createElement('ul');
     players.forEach(player => {
         const r = playerRoles[player];
         let score = r === 'Raja' ? 1000 : r === 'Mantri' ? 800
             : r === 'Sipahi' ? (isCorrect ? 500 : 0)
             : (isCorrect ? -500 : 0);
-        html += `<li><strong>${player}</strong> (${r}): ${score} pts</li>`;
+
+        const li = document.createElement('li');
+        const strong = document.createElement('strong');
+        strong.textContent = player;
+        li.appendChild(strong);
+        li.appendChild(document.createTextNode(` (${r}): ${score} pts`));
+        list.appendChild(li);
     });
-    html += `</ul><p>Sipahi guessed: ${guess}</p><p>Actual Chor: ${chor}</p>`;
-    html += `<p class="lead"><strong>${isCorrect ? '✅ Correct!' : '❌ Wrong!'}</strong></p>`;
-    document.getElementById('results').innerHTML = html;
+    resultsEl.appendChild(list);
+
+    const sipahiGuess = document.createElement('p');
+    sipahiGuess.textContent = `Sipahi guessed: ${guess}`;
+    resultsEl.appendChild(sipahiGuess);
+
+    const actualChor = document.createElement('p');
+    actualChor.textContent = `Actual Chor: ${chor}`;
+    resultsEl.appendChild(actualChor);
+
+    const verdict = document.createElement('p');
+    verdict.className = 'lead';
+    const verdictStrong = document.createElement('strong');
+    verdictStrong.textContent = isCorrect ? '✅ Correct!' : '❌ Wrong!';
+    verdict.appendChild(verdictStrong);
+    resultsEl.appendChild(verdict);
+
     document.getElementById('resultsSection').style.display = 'block';
 }
 
