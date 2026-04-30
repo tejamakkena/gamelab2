@@ -43,10 +43,171 @@ let animationFrameId = null;
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
 
+// ─── Multiplayer state ───────────────────────────────────────────────────────
+let mpSocket = null;
+let mpRoomCode = null;
+let mpPlayerId = null;
+let mpIsHost = false;
+let mpChipValue = 10;
+
+function initMultiplayer() {
+    mpSocket = io();
+
+    // UI references
+    const lobby       = document.getElementById('multiplayer-lobby');
+    const waiting     = document.getElementById('multiplayer-waiting');
+    const mpGame      = document.getElementById('multiplayer-game');
+    const modeSelEl   = document.getElementById('mode-selection');
+
+    document.getElementById('multiplayer-mode-btn').addEventListener('click', () => {
+        modeSelEl.classList.add('hidden');
+        lobby.classList.remove('hidden');
+    });
+
+    document.getElementById('mp-back-btn').addEventListener('click', () => {
+        lobby.classList.add('hidden');
+        modeSelEl.classList.remove('hidden');
+    });
+
+    document.getElementById('mp-create-btn').addEventListener('click', () => {
+        const name = document.getElementById('mp-player-name').value.trim() || 'Player';
+        mpSocket.emit('create_roulette_room', { player_name: name });
+    });
+
+    document.getElementById('mp-join-btn').addEventListener('click', () => {
+        const name = document.getElementById('mp-player-name').value.trim() || 'Player';
+        const code = document.getElementById('mp-room-code').value.trim().toUpperCase();
+        if (!code) { alert('Enter a room code'); return; }
+        mpSocket.emit('join_roulette_room', { player_name: name, room_code: code });
+    });
+
+    document.getElementById('mp-start-spin-btn').addEventListener('click', () => {
+        lobby.classList.add('hidden');
+        waiting.classList.add('hidden');
+        mpGame.classList.remove('hidden');
+        document.getElementById('mp-room-label').textContent = mpRoomCode;
+    });
+
+    document.getElementById('mp-spin-btn').addEventListener('click', () => {
+        mpSocket.emit('spin_wheel', { room_code: mpRoomCode });
+    });
+
+    // Chip selection (multiplayer)
+    document.querySelectorAll('.mp-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mp-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            mpChipValue = parseInt(btn.dataset.value);
+        });
+    });
+
+    // Bet buttons (multiplayer)
+    document.querySelectorAll('.mp-bet-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            mpSocket.emit('place_bet', {
+                room_code: mpRoomCode,
+                bet_type: btn.dataset.type,
+                bet_amount: mpChipValue
+            });
+        });
+    });
+
+    // ── Socket events ──────────────────────────────────────────────────────────
+
+    mpSocket.on('roulette_room_created', data => {
+        mpRoomCode = data.room_code;
+        mpPlayerId = data.player_id;
+        mpIsHost = true;
+        lobby.classList.add('hidden');
+        waiting.classList.remove('hidden');
+        document.getElementById('mp-room-display').textContent = mpRoomCode;
+        document.getElementById('mp-start-spin-btn').classList.remove('hidden');
+        document.getElementById('mp-waiting-msg').textContent = 'Share this code with friends!';
+        renderMpPlayers(data.players, waiting);
+    });
+
+    mpSocket.on('roulette_room_joined', data => {
+        mpRoomCode = data.room_code;
+        mpPlayerId = data.player_id;
+        mpIsHost = false;
+        lobby.classList.add('hidden');
+        waiting.classList.remove('hidden');
+        document.getElementById('mp-room-display').textContent = mpRoomCode;
+        document.getElementById('mp-waiting-msg').textContent = 'Waiting for host to start…';
+        renderMpPlayers(data.players, waiting);
+    });
+
+    mpSocket.on('roulette_player_joined', data => {
+        renderMpPlayers(data.players, waiting);
+    });
+
+    mpSocket.on('roulette_player_left', data => {
+        renderMpPlayers(data.players, waiting.classList.contains('hidden') ? mpGame : waiting);
+    });
+
+    mpSocket.on('bet_placed', data => {
+        if (data.player_id === mpPlayerId) {
+            document.getElementById('mp-my-chips').textContent = '$' + data.remaining_chips;
+        }
+        renderMpChipsBar(data.players);
+    });
+
+    mpSocket.on('wheel_result', data => {
+        const colorEmoji = data.color === 'red' ? '🔴' : data.color === 'green' ? '🟢' : '⚫';
+        const myResult = data.player_results[mpPlayerId];
+        const banner = document.getElementById('mp-result-banner');
+
+        if (myResult) {
+            const net = myResult.won > 0 ? `+$${myResult.won}` : 'No win';
+            banner.textContent = `${colorEmoji} Number ${data.result} (${data.color.toUpperCase()}) — ${net}`;
+            banner.className = 'result-message ' + (myResult.won > 0 ? 'result-success' : 'result-error');
+            banner.classList.remove('hidden');
+            document.getElementById('mp-my-chips').textContent = '$' + myResult.chips;
+            setTimeout(() => banner.classList.add('hidden'), 5000);
+        }
+
+        renderMpChipsBar(data.players);
+    });
+
+    mpSocket.on('roulette_error', data => {
+        alert('⚠️ ' + data.message);
+    });
+}
+
+function renderMpPlayers(players, container) {
+    const list = container.id === 'multiplayer-waiting'
+        ? document.getElementById('mp-players-list')
+        : null;
+    if (!list) return;
+    list.innerHTML = '';
+    players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'mp-player-row';
+        row.innerHTML = `<span>${p.name}${p.is_host ? ' 👑' : ''}</span><span>$${p.chips}</span>`;
+        list.appendChild(row);
+    });
+}
+
+function renderMpChipsBar(players) {
+    const bar = document.getElementById('mp-players-chips');
+    if (!bar) return;
+    bar.innerHTML = '';
+    players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'mp-chip-row';
+        row.style.background = p.id === mpPlayerId ? '#0f3460' : '#1a1a2e';
+        row.innerHTML = `<span>${p.name}</span><span>$${p.chips}</span>`;
+        bar.appendChild(row);
+    });
+}
+// ─── End multiplayer ─────────────────────────────────────────────────────────
+
 function init() {
     try {
         console.log('🎰 Initializing Roulette Casino...');
-        
+
+        initMultiplayer();
+
         // Cache DOM elements
         modeSelection = document.getElementById('mode-selection');
         rouletteGame = document.getElementById('roulette-game');

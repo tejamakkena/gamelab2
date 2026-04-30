@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎰 Roulette - GameLab</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        .mp-input { width: 100%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #00f5ff44; background: #0a0a1a; color: #eee; box-sizing: border-box; font-size: 1rem; }
+        #mp-players-list .mp-player-row, #mp-players-chips .mp-chip-row { background: #1a1a2e; border-radius: 6px; padding: 8px 14px; margin: 4px 0; display: flex; justify-content: space-between; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -37,7 +41,7 @@
                     <div class="trivia-icon">🎰</div>
                     <h2>Welcome to Roulette Casino</h2>
                     <p class="subtitle-text">You start with $1,000. Place your bets and spin the wheel!</p>
-                    
+
                     <div class="mode-buttons">
                         <button id="solo-mode-btn" class="mode-btn">
                             <div class="mode-icon">🤖</div>
@@ -49,6 +53,97 @@
                             <h3>Multiplayer</h3>
                             <p>Compete with friends</p>
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multiplayer Lobby -->
+            <div id="multiplayer-lobby" class="hidden">
+                <div class="trivia-card">
+                    <div class="trivia-icon">👥</div>
+                    <h2>Multiplayer Roulette</h2>
+                    <input type="text" id="mp-player-name" placeholder="Your name" class="mp-input" maxlength="20">
+                    <div class="mode-buttons" style="margin-top:16px;">
+                        <button id="mp-create-btn" class="mode-btn">
+                            <div class="mode-icon">➕</div>
+                            <h3>Create Room</h3>
+                            <p>Host a new game</p>
+                        </button>
+                        <div class="mode-btn" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                            <div class="mode-icon">🚪</div>
+                            <h3>Join Room</h3>
+                            <input type="text" id="mp-room-code" placeholder="Room code" class="mp-input" maxlength="6" style="text-transform:uppercase;">
+                            <button id="mp-join-btn" class="mode-btn" style="width:100%;margin:0;">Join</button>
+                        </div>
+                    </div>
+                    <button id="mp-back-btn" class="btn btn-secondary" style="margin-top:16px;">← Back</button>
+                </div>
+            </div>
+
+            <!-- Multiplayer Waiting Room -->
+            <div id="multiplayer-waiting" class="hidden">
+                <div class="trivia-card">
+                    <h2>Waiting Room</h2>
+                    <p>Room Code: <strong id="mp-room-display" style="font-size:1.5rem;color:#00f5ff;letter-spacing:4px;"></strong></p>
+                    <div id="mp-players-list" style="margin:16px 0;"></div>
+                    <button id="mp-start-spin-btn" class="btn btn-primary hidden">▶ Start Game</button>
+                    <p id="mp-waiting-msg" style="color:#aaa;">Waiting for more players…</p>
+                </div>
+            </div>
+
+            <!-- Multiplayer Game -->
+            <div id="multiplayer-game" class="hidden">
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-label">💰 Your Chips</span>
+                        <span class="stat-value" id="mp-my-chips">$1,000</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🏠 Room</span>
+                        <span class="stat-value" id="mp-room-label">—</span>
+                    </div>
+                </div>
+                <div id="mp-result-banner" class="result-message hidden" style="font-size:1.2rem;text-align:center;margin:12px 0;"></div>
+                <div id="mp-players-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;"></div>
+                <div id="mp-bet-section">
+                    <h3 style="color:#00f5ff;">Place Your Bets</h3>
+                    <div class="chip-selector">
+                        <button class="chip-btn mp-chip active" data-value="10"><span class="chip-value">$10</span></button>
+                        <button class="chip-btn mp-chip" data-value="25"><span class="chip-value">$25</span></button>
+                        <button class="chip-btn mp-chip" data-value="50"><span class="chip-value">$50</span></button>
+                        <button class="chip-btn mp-chip" data-value="100"><span class="chip-value">$100</span></button>
+                        <button class="chip-btn mp-chip" data-value="500"><span class="chip-value">$500</span></button>
+                    </div>
+                    <div class="bet-categories" style="margin-top:12px;">
+                        <div class="bet-category">
+                            <h4>Colors</h4>
+                            <div class="bet-group">
+                                <button class="bet-btn color-red mp-bet-btn" data-type="red">🔴 Red (2x)</button>
+                                <button class="bet-btn color-black mp-bet-btn" data-type="black">⚫ Black (2x)</button>
+                                <button class="bet-btn color-green mp-bet-btn" data-type="zero">🟢 Zero (36x)</button>
+                            </div>
+                        </div>
+                        <div class="bet-category">
+                            <h4>Even / Odd &amp; High / Low</h4>
+                            <div class="bet-group">
+                                <button class="bet-btn mp-bet-btn" data-type="even">2️⃣ Even (2x)</button>
+                                <button class="bet-btn mp-bet-btn" data-type="odd">1️⃣ Odd (2x)</button>
+                                <button class="bet-btn mp-bet-btn" data-type="low">📉 1-18 (2x)</button>
+                                <button class="bet-btn mp-bet-btn" data-type="high">📈 19-36 (2x)</button>
+                            </div>
+                        </div>
+                        <div class="bet-category">
+                            <h4>Dozens</h4>
+                            <div class="bet-group">
+                                <button class="bet-btn mp-bet-btn" data-type="first12">1-12 (3x)</button>
+                                <button class="bet-btn mp-bet-btn" data-type="second12">13-24 (3x)</button>
+                                <button class="bet-btn mp-bet-btn" data-type="third12">25-36 (3x)</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <button id="mp-spin-btn" class="btn btn-primary hidden">🎰 Spin Wheel!</button>
+                        <p id="mp-bet-status" style="color:#aaa;text-align:center;">Waiting for host to spin…</p>
                     </div>
                 </div>
             </div>
@@ -214,7 +309,8 @@
 
     <!-- Load utilities FIRST (CleanupManager, etc.) -->
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
     <!-- Load game script -->
     <script src="{{ url_for('static', filename='js/games/roulette.js') }}"></script>
 </body>

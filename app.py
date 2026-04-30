@@ -93,6 +93,7 @@ def create_app(config_name='default'):
     from games.pictionary.socket_events import register_pictionary_events
     from games.mafia.routes import register_mafia_handlers
     from games.tambola.socket_events import register_tambola_events
+    from games.raja_mantri.socket_events import register_raja_mantri_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -105,6 +106,7 @@ def create_app(config_name='default'):
     register_pictionary_events(socketio)
     register_mafia_handlers(socketio)
     register_tambola_events(socketio)
+    register_raja_mantri_events(socketio)
 
 
     # Login required decorator
