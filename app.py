@@ -47,6 +47,7 @@ def create_app(config_name='default'):
     from games.pictionary.routes import pictionary_bp
     from games.mafia.routes import mafia_bp
     from games.tambola.routes import tambola_bp
+    from games.hangman.routes import hangman_bp
 
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
@@ -62,7 +63,8 @@ def create_app(config_name='default'):
     app.register_blueprint(pictionary_bp, url_prefix='/pictionary')
     app.register_blueprint(mafia_bp, url_prefix='/mafia')
     app.register_blueprint(tambola_bp, url_prefix='/tambola')
-    
+    app.register_blueprint(hangman_bp, url_prefix='/hangman')
+
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
     limiter.limit(game_rate_limit)(tictactoe_bp)
@@ -78,7 +80,7 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(pictionary_bp)
     limiter.limit(game_rate_limit)(mafia_bp)
     limiter.limit(game_rate_limit)(tambola_bp)
-    
+    limiter.limit(game_rate_limit)(hangman_bp)
 
 
 
@@ -94,6 +96,7 @@ def create_app(config_name='default'):
     from games.mafia.routes import register_mafia_handlers
     from games.tambola.socket_events import register_tambola_events
     from games.raja_mantri.socket_events import register_raja_mantri_events
+    from games.hangman.socket_events import register_hangman_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -107,6 +110,7 @@ def create_app(config_name='default'):
     register_mafia_handlers(socketio)
     register_tambola_events(socketio)
     register_raja_mantri_events(socketio)
+    register_hangman_events(socketio)
 
 
     # Login required decorator
@@ -208,11 +212,18 @@ def create_app(config_name='default'):
                 'description': 'Indian bingo game. Mark your numbers and win!'
             },
             {
-                'name': 'Raja Mantri', 
-                'url': '/raja-mantri', 
-                'icon': '👑🗡️', 
+                'name': 'Raja Mantri',
+                'url': '/raja-mantri',
+                'icon': '👑🗡️',
                 'players': '4',
                 'description': 'Classic 4-player guessing game!'
+            },
+            {
+                'name': 'Hangman',
+                'url': '/hangman',
+                'icon': '🪢🔤',
+                'players': '2+',
+                'description': 'Host sets a secret word — guessers reveal it letter by letter!'
             }
         ]
 
