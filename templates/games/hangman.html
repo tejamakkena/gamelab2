@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Hangman - TJ Game Lab{% endblock %}
+
+{% block extra_css %}
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+        height: 100%; width: 100%; overflow: hidden; position: fixed;
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    nav, .navbar, header, footer { display: none !important; }
+
+    .hangman-container {
+        width: 100vw; height: 100vh; height: 100dvh;
+        display: flex; flex-direction: column;
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        overflow: hidden; position: relative;
+    }
+
+    /* ── Sections ── */
+    .screen {
+        width: 100%; height: 100%;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        padding: 20px 15px; overflow-y: auto;
+        -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    }
+    .screen.hidden { display: none !important; }
+
+    h1 { color: #fff; font-size: 2em; margin-bottom: 8px; text-align: center; }
+    .subtitle { color: #aaa; font-size: 1em; text-align: center; margin-bottom: 22px; }
+
+    /* ── Mode buttons ── */
+    .mode-buttons { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 380px; }
+    .mode-btn {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        border: 3px solid #a855f7; border-radius: 20px;
+        padding: 32px 20px; cursor: pointer; transition: all .3s;
+        text-align: center; color: #fff; font-size: 1.1em; font-weight: 600;
+        min-height: 150px; display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        box-shadow: 0 8px 24px rgba(168,85,247,.25);
+    }
+    .mode-btn:active { transform: scale(.96); }
+    .mode-btn .icon { font-size: 2.8em; margin-bottom: 12px; }
+
+    /* ── Generic input section ── */
+    .input-card {
+        background: rgba(255,255,255,.05); border: 2px solid rgba(168,85,247,.35);
+        border-radius: 15px; padding: 24px; width: 100%; max-width: 400px; margin-bottom: 16px;
+    }
+    input[type="text"], input[type="password"] {
+        width: 100%; padding: 13px 15px; font-size: 1em;
+        border: 2px solid #a855f7; border-radius: 10px;
+        background: rgba(255,255,255,.08); color: #fff;
+        margin-bottom: 12px; text-transform: uppercase;
+    }
+    input[type="text"]::placeholder, input[type="password"]::placeholder { color: rgba(255,255,255,.4); text-transform: none; }
+    input.no-upper { text-transform: none; }
+    label { color: #ccc; font-size: .9em; display: block; margin-bottom: 5px; }
+
+    /* ── Buttons ── */
+    .btn {
+        padding: 13px 32px; font-size: 1em; font-weight: 600;
+        border: none; border-radius: 12px; cursor: pointer;
+        transition: all .3s; color: #fff; margin: 6px;
+    }
+    .btn-primary { background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 5px 15px rgba(168,85,247,.4); }
+    .btn-primary:active { transform: scale(.96); }
+    .btn-secondary { background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.25); }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+
+    /* ── Waiting room ── */
+    .room-info {
+        background: rgba(168,85,247,.12); border: 2px solid #a855f7;
+        border-radius: 15px; padding: 20px; margin: 16px 0; text-align: center;
+        max-width: 400px; width: 100%;
+    }
+    .room-code { font-size: 2em; font-weight: bold; color: #a855f7; letter-spacing: 6px; margin: 8px 0; }
+    .players-list { margin: 18px 0; color: #fff; max-width: 400px; width: 100%; }
+    .player-item {
+        background: rgba(255,255,255,.08); padding: 11px 14px; margin: 6px 0;
+        border-radius: 8px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .host-badge {
+        background: rgba(168,85,247,.3); color: #d8b4fe;
+        font-size: .75em; padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+    }
+
+    /* ── Hangman SVG ── */
+    .gallows-wrap {
+        display: flex; justify-content: center; align-items: center;
+        padding: 10px 0;
+    }
+    .gallows-svg { width: 180px; height: 220px; }
+    .gallows-svg line, .gallows-svg circle {
+        stroke-linecap: round; transition: opacity .3s;
+    }
+    .gallows-structure { stroke: #7c3aed; stroke-width: 5; fill: none; }
+    .body-part { stroke: #f0abfc; stroke-width: 4; fill: none; opacity: 0; }
+    .body-part.visible { opacity: 1; }
+    .body-part.wrong { stroke: #f87171; }
+
+    /* ── Word display ── */
+    .word-display {
+        display: flex; flex-wrap: wrap; gap: 8px 12px;
+        justify-content: center; margin: 16px 0; padding: 0 10px;
+    }
+    .word-gap { width: 20px; } /* space between words */
+    .letter-slot {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .letter-char {
+        font-size: 1.6em; font-weight: bold; color: #e879f9;
+        min-width: 28px; text-align: center; min-height: 1.6em;
+    }
+    .letter-line {
+        width: 28px; height: 3px; background: #a855f7; border-radius: 2px;
+    }
+    .hint-text { color: #c4b5fd; font-size: .95em; text-align: center; margin: 6px 0; }
+    .wrong-letters {
+        color: #f87171; font-size: 1em; text-align: center; margin: 6px 0;
+        letter-spacing: 4px; font-weight: bold;
+    }
+    .wrong-count { color: #aaa; font-size: .9em; text-align: center; margin-bottom: 10px; }
+
+    /* ── Letter keyboard ── */
+    .keyboard {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        justify-content: center; max-width: 460px; margin: 12px auto;
+    }
+    .key-btn {
+        width: 40px; height: 40px; border-radius: 8px;
+        border: 2px solid #a855f7; background: rgba(168,85,247,.15);
+        color: #fff; font-size: 1em; font-weight: 700;
+        cursor: pointer; transition: all .2s;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .key-btn:hover:not(:disabled) { background: rgba(168,85,247,.5); transform: scale(1.08); }
+    .key-btn:active:not(:disabled) { transform: scale(.94); }
+    .key-btn:disabled { opacity: .3; cursor: not-allowed; }
+    .key-btn.correct { background: rgba(34,197,94,.3); border-color: #22c55e; color: #86efac; }
+    .key-btn.wrong-key { background: rgba(239,68,68,.2); border-color: #ef4444; color: #fca5a5; }
+
+    /* ── Host word panel ── */
+    .host-panel {
+        background: rgba(168,85,247,.1); border: 2px solid rgba(168,85,247,.4);
+        border-radius: 14px; padding: 18px; text-align: center; max-width: 420px; width: 100%;
+    }
+    .host-word-reveal { font-size: 1.4em; font-weight: bold; color: #e879f9; letter-spacing: 4px; margin: 10px 0; }
+
+    /* ── Game over ── */
+    .result-win { color: #4ade80; font-size: 2.4em; text-shadow: 0 0 20px rgba(74,222,128,.5); margin: 16px 0; }
+    .result-lose { color: #f87171; font-size: 2.4em; text-shadow: 0 0 20px rgba(248,113,113,.5); margin: 16px 0; }
+    .word-reveal-box {
+        background: rgba(168,85,247,.12); border: 2px solid #a855f7;
+        border-radius: 12px; padding: 18px; margin: 16px 0; color: #fff; text-align: center;
+    }
+    .word-big { font-size: 1.8em; font-weight: bold; color: #e879f9; letter-spacing: 5px; margin: 8px 0; }
+
+    /* ── Toast ── */
+    .toast {
+        position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+        background: rgba(239,68,68,.92); color: #fff; padding: 13px 28px;
+        border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,.3);
+        z-index: 9999; display: none; max-width: 90%; text-align: center;
+    }
+    .toast.show { display: block; animation: slideDown .3s ease; }
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateX(-50%) translateY(-18px); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    /* ── Game layout (side-by-side on wide screens) ── */
+    .game-layout {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 12px; width: 100%; max-width: 600px;
+    }
+    @media (min-width: 640px) {
+        .game-layout { flex-direction: row; align-items: flex-start; max-width: 860px; }
+        .game-left { flex: 0 0 220px; }
+        .game-right { flex: 1; }
+    }
+    .game-left { display: flex; flex-direction: column; align-items: center; }
+    .game-right { width: 100%; display: flex; flex-direction: column; align-items: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hangman-container">
+    <div id="toast" class="toast"></div>
+
+    <!-- Mode Selection -->
+    <div id="screen-mode" class="screen">
+        <h1>🪢 Hangman</h1>
+        <p class="subtitle">One sets the word — the rest guess letter by letter!</p>
+        <div class="mode-buttons">
+            <button class="mode-btn" id="btn-create">
+                <div class="icon">🎮</div>
+                Create Room <span style="font-size:.8em;font-weight:400;display:block;color:#c4b5fd">You set the secret word</span>
+            </button>
+            <button class="mode-btn" id="btn-join-show">
+                <div class="icon">🔗</div>
+                Join Room <span style="font-size:.8em;font-weight:400;display:block;color:#c4b5fd">Guess the word!</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Join Room -->
+    <div id="screen-join" class="screen hidden">
+        <h1>Join Room</h1>
+        <div class="input-card">
+            <label>Room Code</label>
+            <input type="text" id="inp-room-code" placeholder="XXXXXX" maxlength="6">
+            <button class="btn btn-primary" id="btn-join-submit" style="width:100%">Join</button>
+        </div>
+        <button class="btn btn-secondary" id="btn-join-back">← Back</button>
+    </div>
+
+    <!-- Waiting Room -->
+    <div id="screen-waiting" class="screen hidden">
+        <h1>Waiting Room</h1>
+        <div class="room-info">
+            <div style="color:#ccc;font-size:.9em">Room Code</div>
+            <div class="room-code" id="disp-room-code">------</div>
+            <button class="btn btn-secondary" id="btn-copy" style="font-size:.85em;padding:8px 18px">📋 Copy</button>
+        </div>
+        <div class="players-list">
+            <h3 style="color:#fff;margin-bottom:12px">Players</h3>
+            <div id="players-container"></div>
+        </div>
+        <div>
+            <button class="btn btn-primary" id="btn-start">▶ Start Game</button>
+            <button class="btn btn-secondary" id="btn-leave-waiting">Leave</button>
+        </div>
+        <p id="waiting-hint" style="color:#888;font-size:.85em;margin-top:12px">Waiting for host to start…</p>
+    </div>
+
+    <!-- Host: Set Word -->
+    <div id="screen-set-word" class="screen hidden">
+        <h1>🤫 Set Your Word</h1>
+        <p class="subtitle">Type a word or phrase — others will guess it!</p>
+        <div class="input-card">
+            <label>Secret Word / Phrase</label>
+            <input type="text" id="inp-word" class="no-upper" placeholder="e.g. Mount Everest" maxlength="30" autocomplete="off">
+            <label>Hint (optional)</label>
+            <input type="text" id="inp-hint" class="no-upper" placeholder="e.g. Famous mountain" maxlength="50" autocomplete="off">
+            <button class="btn btn-primary" id="btn-set-word" style="width:100%;margin-top:6px">Confirm Word</button>
+        </div>
+    </div>
+
+    <!-- Waiting for word (guessers) -->
+    <div id="screen-wait-word" class="screen hidden">
+        <h1>⏳ Hold on…</h1>
+        <p class="subtitle">The host is choosing a word. Get ready!</p>
+    </div>
+
+    <!-- Main Game -->
+    <div id="screen-game" class="screen hidden">
+        <div class="game-layout">
+            <!-- Left: Gallows + wrong letters -->
+            <div class="game-left">
+                <svg class="gallows-svg" viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Gallows structure -->
+                    <line class="gallows-structure" x1="10" y1="210" x2="160" y2="210"/> <!-- base -->
+                    <line class="gallows-structure" x1="40"  y1="210" x2="40"  y2="15"/>  <!-- pole -->
+                    <line class="gallows-structure" x1="40"  y1="15"  x2="120" y2="15"/>  <!-- beam -->
+                    <line class="gallows-structure" x1="120" y1="15"  x2="120" y2="45"/>  <!-- rope -->
+                    <!-- Body parts -->
+                    <circle id="hm-head"       class="body-part" cx="120" cy="62"  r="17"/>
+                    <line   id="hm-body"        class="body-part" x1="120" y1="79"  x2="120" y2="145"/>
+                    <line   id="hm-left-arm"    class="body-part" x1="120" y1="100" x2="88"  y2="128"/>
+                    <line   id="hm-right-arm"   class="body-part" x1="120" y1="100" x2="152" y2="128"/>
+                    <line   id="hm-left-leg"    class="body-part" x1="120" y1="145" x2="90"  y2="185"/>
+                    <line   id="hm-right-leg"   class="body-part" x1="120" y1="145" x2="150" y2="185"/>
+                </svg>
+                <div class="wrong-letters" id="wrong-letters-disp"></div>
+                <div class="wrong-count" id="wrong-count-disp">0 / 6 wrong</div>
+            </div>
+
+            <!-- Right: Word + keyboard -->
+            <div class="game-right">
+                <div class="hint-text" id="hint-disp" style="display:none"></div>
+                <div class="word-display" id="word-display"></div>
+
+                <!-- Host panel (shown only to host) -->
+                <div class="host-panel hidden" id="host-panel">
+                    <div style="color:#c4b5fd;font-size:.9em">Your secret word:</div>
+                    <div class="host-word-reveal" id="host-word-reveal"></div>
+                    <div style="color:#aaa;font-size:.85em">You can't guess — sit back and watch!</div>
+                </div>
+
+                <!-- Keyboard (shown only to guessers) -->
+                <div class="keyboard hidden" id="keyboard"></div>
+
+                <div style="margin-top:12px">
+                    <button class="btn btn-secondary" id="btn-leave-game" style="font-size:.85em;padding:10px 22px">Leave Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="screen-over" class="screen hidden">
+        <div id="over-result"></div>
+        <div class="word-reveal-box">
+            <div style="color:#ccc;font-size:.9em">The word was:</div>
+            <div class="word-big" id="over-word"></div>
+        </div>
+        <div id="over-players" class="players-list"></div>
+        <div>
+            <button class="btn btn-primary" id="btn-play-again">▶ New Round</button>
+            <button class="btn btn-secondary" id="btn-exit">Exit</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.user = {{ user | tojson | safe }};</script>
+<script src="{{ url_for('static', filename='js/games/hangman.js') }}"></script>
+{% endblock %}
