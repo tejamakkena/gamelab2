@@ -38,7 +38,7 @@ def create_app(config_name='default'):
     from games.trivia.routes import trivia_bp
     from games.snake_ladder.routes import snake_ladder_bp
     from games.roulette.routes import roulette_bp
-    from games.poker.routes import poker_bp  # ADD THIS
+    from games.poker.routes import poker_bp
     from games.canvas_battle.routes import canvas_battle_bp
     from games.connect4.routes import connect4_bp
     from games.digit_guess.routes import digit_guess_bp
@@ -48,13 +48,15 @@ def create_app(config_name='default'):
     from games.mafia.routes import mafia_bp
     from games.tambola.routes import tambola_bp
     from games.hangman.routes import hangman_bp
-
+    from games.pong.routes import pong_bp
+    from games.stickfight.routes import stickfight_bp
+    from games.roadfighter.routes import roadfighter_bp
 
     app.register_blueprint(tictactoe_bp, url_prefix='/tictactoe')
     app.register_blueprint(trivia_bp, url_prefix='/trivia')
     app.register_blueprint(snake_ladder_bp, url_prefix='/snake')
     app.register_blueprint(roulette_bp, url_prefix='/roulette')
-    app.register_blueprint(poker_bp, url_prefix='/poker')  # ADD THIS
+    app.register_blueprint(poker_bp, url_prefix='/poker')
     app.register_blueprint(canvas_battle_bp, url_prefix='/canvas-battle')
     app.register_blueprint(connect4_bp, url_prefix='/connect4')
     app.register_blueprint(digit_guess_bp, url_prefix='/digit-guess')
@@ -64,6 +66,9 @@ def create_app(config_name='default'):
     app.register_blueprint(mafia_bp, url_prefix='/mafia')
     app.register_blueprint(tambola_bp, url_prefix='/tambola')
     app.register_blueprint(hangman_bp, url_prefix='/hangman')
+    app.register_blueprint(pong_bp, url_prefix='/pong')
+    app.register_blueprint(stickfight_bp, url_prefix='/stickfight')
+    app.register_blueprint(roadfighter_bp, url_prefix='/roadfighter')
 
     # Apply rate limiting to all game blueprints (configurable via RATE_LIMIT env var, default: 100/hour)
     game_rate_limit = app.config.get('RATELIMIT_DEFAULT', '100 per hour')
@@ -81,8 +86,9 @@ def create_app(config_name='default'):
     limiter.limit(game_rate_limit)(mafia_bp)
     limiter.limit(game_rate_limit)(tambola_bp)
     limiter.limit(game_rate_limit)(hangman_bp)
-
-
+    limiter.limit(game_rate_limit)(pong_bp)
+    limiter.limit(game_rate_limit)(stickfight_bp)
+    limiter.limit(game_rate_limit)(roadfighter_bp)
 
     # Import Socket.IO event handlers
     from games.trivia.socket_events import register_trivia_events
@@ -97,6 +103,9 @@ def create_app(config_name='default'):
     from games.tambola.socket_events import register_tambola_events
     from games.raja_mantri.socket_events import register_raja_mantri_events
     from games.hangman.socket_events import register_hangman_events
+    from games.pong.socket_events import register_pong_events
+    from games.stickfight.socket_events import register_stickfight_events
+    from games.roadfighter.socket_events import register_roadfighter_events
 
     # After creating socketio
     register_poker_events(socketio)
@@ -111,6 +120,9 @@ def create_app(config_name='default'):
     register_tambola_events(socketio)
     register_raja_mantri_events(socketio)
     register_hangman_events(socketio)
+    register_pong_events(socketio)
+    register_stickfight_events(socketio)
+    register_roadfighter_events(socketio)
 
 
     # Login required decorator
@@ -224,6 +236,27 @@ def create_app(config_name='default'):
                 'icon': '🪢🔤',
                 'players': '2+',
                 'description': 'Host sets a secret word — guessers reveal it letter by letter!'
+            },
+            {
+                'name': 'Pong',
+                'url': '/pong',
+                'icon': '🏓',
+                'players': '2',
+                'description': 'Classic paddle battle! First to 7 points wins!'
+            },
+            {
+                'name': 'Stick Fight',
+                'url': '/stickfight',
+                'icon': '🥊',
+                'players': '2-4',
+                'description': 'Arena brawler! Punch and kick your way to victory!'
+            },
+            {
+                'name': 'Road Fighter',
+                'url': '/roadfighter',
+                'icon': '🚗',
+                'players': '1-4',
+                'description': 'Race through traffic! Dodge cars and survive the longest!'
             }
         ]
 

@@ -600,6 +600,58 @@ body > div {
     font-size: clamp(1.5em, 3vw, 2.5em) !important;
 }
 
+/* ── LOBBY PANEL ─────────────────────────────────────────────── */
+.lobby-panel {
+    max-width: 520px;
+    margin: 0 auto;
+    background: var(--bg-card);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-xl);
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(0, 245, 255, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 245, 255, 0.4), rgba(191, 95, 255, 0.4), transparent);
+}
+
+.lobby-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.lobby-big-btn {
+    width: 100%;
+    padding: 16px 24px !important;
+    font-size: 1.05em !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 !important;
+}
+
+.controls-hint {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin-top: 20px;
+    line-height: 1.6;
+}
+
 /* ── LINK DECORATION ────────────────────────────────────────── */
 a:not(.btn):not(.game-card):not(.back-btn) {
     color: var(--primary-color);
