@@ -1,0 +1,618 @@
+/* ============================================================
+   futuristic.css — Enhanced UI layer for Cosmic Aurora theme
+   ============================================================ */
+
+/* ── SCAN-LINE TEXTURE ─────────────────────────────────────── */
+body > .container,
+body > div {
+    position: relative;
+}
+
+/* Subtle top-of-page aurora gradient bar */
+.container::before {
+    content: none; /* Container already has z-index context */
+}
+
+/* ── HERO HEADER ───────────────────────────────────────────── */
+.hero-section {
+    text-align: center;
+    padding: 60px 0 40px;
+    position: relative;
+}
+
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 245, 255, 0.06);
+    border: 1px solid rgba(0, 245, 255, 0.2);
+    border-radius: 100px;
+    padding: 6px 18px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--primary-color);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.hero-badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    box-shadow: 0 0 8px var(--primary-color);
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--primary-color); }
+    50%       { opacity: 0.5; box-shadow: 0 0 16px var(--primary-color); }
+}
+
+/* ── GAME GRID LABEL ───────────────────────────────────────── */
+.section-label {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding: 0 4px;
+}
+
+.section-label::before,
+.section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 245, 255, 0.2), transparent);
+}
+
+.section-label span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ── GAME CARD ENHANCEMENTS ─────────────────────────────────── */
+.game-card {
+    min-height: 240px;
+}
+
+/* Category tag on each game card */
+.game-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.68em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 100px;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 2;
+}
+
+.game-tag.multiplayer {
+    background: rgba(0, 245, 255, 0.08);
+    border: 1px solid rgba(0, 245, 255, 0.25);
+    color: var(--primary-color);
+}
+
+.game-tag.solo {
+    background: rgba(191, 95, 255, 0.08);
+    border: 1px solid rgba(191, 95, 255, 0.25);
+    color: var(--secondary-color);
+}
+
+.game-tag.casino {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    color: var(--accent-gold);
+}
+
+/* ── PLAYER COUNT BADGE ─────────────────────────────────────── */
+.player-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+    transition: color 0.3s ease;
+    letter-spacing: 0.05em;
+}
+
+.game-card:hover .player-count {
+    color: var(--primary-color);
+}
+
+/* ── STAT ITEMS (MODAL) ─────────────────────────────────────── */
+.stat-item {
+    background: rgba(4, 0, 15, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── PLAYER CARD ENHANCEMENTS ──────────────────────────────── */
+.player-card {
+    background: rgba(15, 0, 40, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.player-card.active {
+    border-color: rgba(0, 245, 255, 0.4) !important;
+    background: rgba(0, 245, 255, 0.06) !important;
+    box-shadow: 0 0 24px rgba(0, 245, 255, 0.2) !important;
+}
+
+/* ── ROOM CODE DISPLAY ─────────────────────────────────────── */
+.room-code-display {
+    background: rgba(4, 0, 15, 0.6) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-color: rgba(0, 245, 255, 0.15) !important;
+}
+
+/* ── WAITING ROOM ──────────────────────────────────────────── */
+.waiting-message {
+    background: rgba(0, 245, 255, 0.04) !important;
+    border: 1px solid rgba(0, 245, 255, 0.1) !important;
+}
+
+/* ── TRIVIA & QUESTION CARDS ───────────────────────────────── */
+.trivia-card,
+.question-card {
+    background: rgba(15, 0, 40, 0.55) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 245, 255, 0.05) !important;
+}
+
+/* ── DIFFICULTY / COUNT BUTTONS ────────────────────────────── */
+.count-btn,
+.diff-btn,
+.difficulty-btn,
+.mode-btn {
+    background: rgba(15, 0, 40, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    transition: all 0.25s ease !important;
+}
+
+.count-btn:hover,
+.diff-btn:hover,
+.difficulty-btn:hover,
+.mode-btn:hover {
+    border-color: rgba(0, 245, 255, 0.35) !important;
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.15) !important;
+    background: rgba(0, 245, 255, 0.06) !important;
+}
+
+.count-btn.active,
+.diff-btn.active,
+.difficulty-btn.active {
+    background: rgba(0, 245, 255, 0.12) !important;
+    border-color: rgba(0, 245, 255, 0.5) !important;
+    color: var(--primary-color) !important;
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.2) !important;
+}
+
+/* ── ANSWER BUTTONS ─────────────────────────────────────────── */
+.answer-btn {
+    background: rgba(15, 0, 40, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.answer-btn:hover:not(:disabled) {
+    background: rgba(0, 245, 255, 0.06) !important;
+    border-color: rgba(0, 245, 255, 0.35) !important;
+}
+
+/* ── GAME BOARD CELL ────────────────────────────────────────── */
+.cell {
+    background: rgba(15, 0, 40, 0.55) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+.cell:hover:not(.taken) {
+    background: rgba(0, 245, 255, 0.08) !important;
+    border-color: rgba(0, 245, 255, 0.4) !important;
+}
+
+/* ── SNAKE & LADDER BOARD CELLS ─────────────────────────────── */
+.board-cell {
+    background: rgba(15, 2, 40, 0.7) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.board-cell.snake-cell {
+    background: rgba(244, 63, 94, 0.12) !important;
+    border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+.board-cell.ladder-cell {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* ── DICE SECTION ───────────────────────────────────────────── */
+.dice-section {
+    background: rgba(8, 0, 22, 0.7) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(0, 245, 255, 0.12) !important;
+}
+
+.dice-display {
+    background: rgba(0, 245, 255, 0.04) !important;
+    border-color: rgba(0, 245, 255, 0.3) !important;
+}
+
+/* ── STATS BAR ──────────────────────────────────────────────── */
+.stats-bar {
+    background: rgba(8, 0, 22, 0.7) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.stats-bar .stat-item {
+    background: rgba(0, 245, 255, 0.04) !important;
+}
+
+/* ── BETTING SECTION ────────────────────────────────────────── */
+.betting-section {
+    background: rgba(8, 0, 22, 0.7) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+/* ── RANKING ITEM ───────────────────────────────────────────── */
+.ranking-item {
+    background: rgba(15, 0, 40, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.ranking-item.winner {
+    background: rgba(245, 158, 11, 0.08) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.2) !important;
+}
+
+/* ── PLAYER ITEM ────────────────────────────────────────────── */
+.player-item {
+    background: rgba(15, 0, 40, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.player-item.host {
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.15) !important;
+}
+
+/* ── SCROLLBAR STYLING ──────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(4, 0, 15, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 245, 255, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 245, 255, 0.4);
+}
+
+/* ── LIGHT THEME OVERRIDES ──────────────────────────────────── */
+.theme-light body::before {
+    background:
+        radial-gradient(ellipse 80% 50% at 20% -20%, rgba(8, 145, 178, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 0%, rgba(124, 58, 237, 0.1) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 60% at 50% 100%, rgba(14, 165, 233, 0.06) 0%, transparent 60%),
+        linear-gradient(160deg, #f0f4ff 0%, #f5f0ff 50%, #f0f4ff 100%);
+}
+
+.theme-light .game-card {
+    background: rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(8, 145, 178, 0.15) !important;
+}
+
+.theme-light .game-card:hover {
+    background: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15), 0 0 40px rgba(8, 145, 178, 0.12) !important;
+}
+
+.theme-light .login-card,
+.theme-light .user-info,
+.theme-light .rooms-container,
+.theme-light .game-info-bar {
+    background: rgba(255, 255, 255, 0.7) !important;
+    border-color: rgba(8, 145, 178, 0.15) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .trivia-card,
+.theme-light .question-card,
+.theme-light .count-btn,
+.theme-light .diff-btn,
+.theme-light .difficulty-btn,
+.theme-light .answer-btn,
+.theme-light .room-item,
+.theme-light .player-card,
+.theme-light .player-item,
+.theme-light .ranking-item {
+    background: rgba(255, 255, 255, 0.6) !important;
+    border-color: rgba(8, 145, 178, 0.12) !important;
+}
+
+.theme-light .modal-content {
+    background: rgba(245, 245, 255, 0.95) !important;
+    border-color: rgba(8, 145, 178, 0.25) !important;
+}
+
+.theme-light .modal {
+    background: rgba(230, 230, 255, 0.85) !important;
+}
+
+/* ── GLOW COLOR UPDATES FOR NEW PALETTE ─────────────────────── */
+.theme-light .rooms-header h2,
+.theme-light .login-card h2,
+.theme-light .back-btn,
+.theme-light .room-code,
+.theme-light .user-name {
+    color: var(--primary-color);
+}
+
+/* ── INPUT FOCUS RING IN LIGHT THEME ─────────────────────────── */
+.theme-light input:focus,
+.theme-light textarea:focus {
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15) !important;
+    border-color: rgba(8, 145, 178, 0.5) !important;
+}
+
+/* ── RESPONSIVE: Preserve glassmorphism on mobile ───────────── */
+@media (max-width: 768px) {
+    .game-card {
+        border-radius: var(--radius-lg) !important;
+    }
+
+    .login-card {
+        border-radius: var(--radius-lg) !important;
+        padding: var(--spacing-md) !important;
+    }
+}
+
+/* ── GAME CONTROLS SECTION ──────────────────────────────────── */
+.game-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    justify-content: center;
+    align-items: flex-end;
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background: var(--bg-glass);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.game-controls .input-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+    min-width: 240px;
+    margin: 0;
+}
+
+/* ── TOPIC SELECT ───────────────────────────────────────────── */
+.topic-select {
+    background: rgba(4, 0, 15, 0.6) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(0, 245, 255, 0.15) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-light) !important;
+    transition: border-color 0.25s ease !important;
+}
+
+.topic-select:focus {
+    outline: none !important;
+    border-color: rgba(0, 245, 255, 0.5) !important;
+    box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.1) !important;
+}
+
+/* ── SNAKE & LADDER BOARD ───────────────────────────────────── */
+.snake-ladder-board {
+    background: rgba(4, 0, 15, 0.8) !important;
+    border-color: rgba(0, 245, 255, 0.2) !important;
+    box-shadow: 0 0 40px rgba(0, 245, 255, 0.1) !important;
+}
+
+/* ── SECTION HEADERS ────────────────────────────────────────── */
+.rooms-header h2,
+.players-waiting h3,
+.betting-title {
+    font-family: 'Orbitron', sans-serif !important;
+    font-size: 1em !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+}
+
+/* ── REFRESH BUTTON ─────────────────────────────────────────── */
+.refresh-btn {
+    background: rgba(0, 245, 255, 0.06) !important;
+    border: 1px solid rgba(0, 245, 255, 0.2) !important;
+    border-radius: var(--radius-sm) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    color: var(--primary-color) !important;
+    font-size: 0.85em !important;
+    transition: all 0.25s ease !important;
+}
+
+.refresh-btn:hover {
+    background: rgba(0, 245, 255, 0.12) !important;
+    border-color: rgba(0, 245, 255, 0.4) !important;
+    box-shadow: 0 0 16px rgba(0, 245, 255, 0.2) !important;
+}
+
+/* ── COPY BUTTON ────────────────────────────────────────────── */
+.copy-btn,
+#copy-room-code-btn {
+    background: rgba(0, 245, 255, 0.06) !important;
+    border: 1px solid rgba(0, 245, 255, 0.2) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--primary-color) !important;
+    transition: all 0.25s ease !important;
+}
+
+.copy-btn.copied,
+#copy-room-code-btn.copied {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+    color: #10b981 !important;
+}
+
+/* ── NEON PULSE ANIMATIONS ──────────────────────────────────── */
+@keyframes neonPulseCircle {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(0, 245, 255, 0.7)); }
+    50%       { filter: drop-shadow(0 0 20px rgba(0, 245, 255, 1)) drop-shadow(0 0 40px rgba(0, 245, 255, 0.4)); }
+}
+
+@keyframes neonPulseX {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(191, 95, 255, 0.7)); }
+    50%       { filter: drop-shadow(0 0 20px rgba(191, 95, 255, 1)) drop-shadow(0 0 40px rgba(191, 95, 255, 0.4)); }
+}
+
+/* Override the X symbol to use new secondary color */
+.x-symbol {
+    color: var(--secondary-color) !important;
+    text-shadow:
+        0 0 20px rgba(191, 95, 255, 1),
+        0 0 40px rgba(191, 95, 255, 0.6) !important;
+    animation: neonPulseX 2s ease-in-out infinite !important;
+}
+
+/* ── HOST BADGE ─────────────────────────────────────────────── */
+.host-badge {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: var(--accent-gold) !important;
+    border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    border-radius: 100px !important;
+    font-size: 0.75em !important;
+}
+
+/* ── PLAYER NUMBER BADGE ─────────────────────────────────────── */
+.player-number {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color)) !important;
+    color: #04000f !important;
+    font-weight: 700 !important;
+}
+
+/* ── CONNECT 4 / GRID GAME STYLES ───────────────────────────── */
+.connect4-board,
+.game-board-grid {
+    background: rgba(4, 0, 15, 0.8) !important;
+    border: 1px solid rgba(0, 245, 255, 0.15) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 16px !important;
+}
+
+/* ── LOBBY SECTION ──────────────────────────────────────────── */
+#lobby {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* ── FINAL RESULTS ──────────────────────────────────────────── */
+.result-title {
+    font-family: 'Orbitron', sans-serif !important;
+    letter-spacing: 0.08em !important;
+}
+
+/* ── ANIMATED GRADIENT TEXT ─────────────────────────────────── */
+.gradient-text {
+    background: linear-gradient(135deg,
+        var(--primary-color) 0%,
+        #a78bfa 40%,
+        var(--secondary-color) 100%
+    );
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titleShimmer 4s ease-in-out infinite;
+}
+
+/* ── TOAST / ALERT OVERRIDE ─────────────────────────────────── */
+.toast,
+.alert {
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+/* ── GAME HEADER TITLE ──────────────────────────────────────── */
+.game-header h1 {
+    font-size: clamp(1.5em, 3vw, 2.5em) !important;
+}
+
+/* ── LINK DECORATION ────────────────────────────────────────── */
+a:not(.btn):not(.game-card):not(.back-btn) {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:not(.btn):not(.game-card):not(.back-btn):hover {
+    color: white;
+}
+
+/* ── SELECTION COLOR ────────────────────────────────────────── */
+::selection {
+    background: rgba(0, 245, 255, 0.2);
+    color: white;
+}

@@ -12,9 +12,12 @@
 
 {% block content %}
 <div class="container">
-    <h1>🎮 Futuristic Games Hub</h1>
-    <p class="subtitle">Choose Your Epic Adventure</p>
-    
+    <div class="hero-section">
+        <div class="hero-badge">✦ Live Multiplayer Gaming</div>
+        <h1>Futuristic Games Hub</h1>
+        <p class="subtitle">Choose your arena &mdash; challenge awaits</p>
+    </div>
+
     {% if user %}
     <!-- Logged in view -->
     <div class="user-info">
@@ -23,17 +26,19 @@
         {% else %}
         <div class="profile-pic-placeholder">{{ user.first_name[0] if user.first_name else user.name[0] }}</div>
         {% endif %}
-        <span class="user-name">Welcome, {{ user.first_name or user.name }}! 👋</span>
-        <a href="/logout" class="btn btn-secondary">Logout</a>
+        <span class="user-name">Welcome back, {{ user.first_name or user.name }}</span>
+        <a href="/logout" class="btn btn-secondary" style="margin-left:auto;">Sign Out</a>
     </div>
-    
+
+    <div class="section-label"><span>Select a game</span></div>
+
     <div class="games-grid">
         {% for game in games %}
         <a href="{{ game.url }}" class="game-card">
             <div class="game-icon">{{ game.icon }}</div>
             <h2>{{ game.name }}</h2>
             <p>{{ game.description }}</p>
-            <p class="player-count">👥 {{ game.players }} Players</p>
+            <p class="player-count">{{ game.players }} Players</p>
         </a>
         {% endfor %}
     </div>
@@ -42,9 +47,9 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-icon">🔐</div>
-            <h2>Sign In to Play</h2>
-            <p>Sign in with Google or enter your name to start playing</p>
-            
+            <h2>Enter the Hub</h2>
+            <p>Sign in with Google or choose a name to jump in</p>
+
             <!-- Google Sign-In Button Container -->
             <div id="google-signin-section">
                 <div id="google-signin-button"></div>
@@ -52,29 +57,27 @@
                     <span>OR</span>
                 </div>
             </div>
-            
+
             <!-- Manual Name Input -->
             <div class="manual-login-section">
                 <form id="manual-login-form">
                     <div class="input-group">
-                        <input type="text" 
-                               id="player-name" 
-                               name="player_name" 
-                               placeholder="Enter your name" 
+                        <input type="text"
+                               id="player-name"
+                               name="player_name"
+                               placeholder="Your player name"
                                required
                                minlength="2"
                                maxlength="30"
                                class="name-input">
                     </div>
                     <button type="submit" class="btn btn-primary">
-                        🎮 Start Playing
+                        Launch &rarr;
                     </button>
                 </form>
-                <p class="login-hint">💡 Tip: Sign in with Google to save your progress!</p>
+                <p class="login-hint">Sign in with Google to save your progress</p>
             </div>
         </div>
-        
-        <!-- Removed duplicate games preview - reduces DOM size by 50% -->
     </div>
     {% endif %}
 </div>
