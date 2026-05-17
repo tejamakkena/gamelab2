@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Road Fighter — Futuristic Games Hub{% endblock %}
+
+{% block content %}
+<div class="game-section">
+    <div class="game-header">
+        <a href="/" class="btn btn-secondary back-btn">← Home</a>
+        <h1>🚗 Road Fighter</h1>
+        <div class="spacer"></div>
+    </div>
+
+    <!-- MODE -->
+    <div id="mode-section" class="lobby-panel">
+        <div class="game-icon-large">🚗</div>
+        <h2 style="text-align:center;margin-bottom:8px">Road Fighter</h2>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:32px">Up to 4 racers dodge traffic. Highest score wins!</p>
+        <div class="lobby-actions">
+            <button id="create-btn" class="btn btn-primary lobby-big-btn">⚡ Create Race</button>
+            <button id="join-btn-show" class="btn btn-secondary lobby-big-btn">🔗 Join Race</button>
+        </div>
+        <p class="controls-hint"><strong>← → / A D</strong> — Change lane</p>
+    </div>
+
+    <!-- JOIN -->
+    <div id="join-section" class="lobby-panel hidden">
+        <h2 style="text-align:center;margin-bottom:24px">Join a Race</h2>
+        <div class="input-group">
+            <input type="text" id="room-code-input" placeholder="ROOM CODE" maxlength="6" autocomplete="off" style="letter-spacing:0.2em;text-align:center;font-size:1.4em">
+        </div>
+        <div class="lobby-actions">
+            <button id="join-submit" class="btn btn-primary lobby-big-btn">Join →</button>
+            <button id="back-to-mode" class="btn btn-secondary">← Back</button>
+        </div>
+    </div>
+
+    <!-- WAITING -->
+    <div id="waiting-section" class="lobby-panel hidden">
+        <h2 style="text-align:center;margin-bottom:8px">Waiting Room</h2>
+        <div class="room-code-display" style="margin:20px auto;max-width:320px">
+            <span class="code" id="display-room-code" style="font-size:2.4em;letter-spacing:0.2em"></span><br>
+            <button id="copy-code-btn" class="copy-btn" style="margin-top:10px">📋 Copy Code</button>
+        </div>
+        <div class="players-waiting">
+            <h3 style="color:var(--text-muted);font-size:0.85em;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:12px">Racers (1–4)</h3>
+            <div id="waiting-players" class="players-list"></div>
+        </div>
+        <div class="waiting-actions">
+            <button id="start-btn" class="btn btn-primary hidden">▶ Start Race</button>
+            <button id="leave-btn" class="btn btn-secondary">Leave</button>
+        </div>
+    </div>
+
+    <!-- GAME -->
+    <div id="game-section" class="hidden" style="display:flex;flex-direction:column;align-items:center;gap:16px">
+        <canvas id="rf-canvas" style="border-radius:16px;border:1px solid rgba(0,245,255,0.15);box-shadow:0 0 40px rgba(0,245,255,0.1)"></canvas>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameover-section" class="lobby-panel hidden" style="text-align:center">
+        <div style="font-size:4em;margin-bottom:16px">🏁</div>
+        <h2 id="result-text" style="font-size:2em;margin-bottom:24px"></h2>
+        <div id="final-scores" class="final-rankings-list" style="max-width:400px;margin:0 auto 24px"></div>
+        <div class="lobby-actions">
+            <button id="play-again-btn" class="btn btn-primary">🔄 Race Again</button>
+            <button id="exit-btn" class="btn btn-secondary">← Home</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/games/roadfighter.js') }}"></script>
+{% endblock %}
