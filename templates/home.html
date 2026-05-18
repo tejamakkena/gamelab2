@@ -3,7 +3,6 @@
 {% block title %}Futuristic Games Hub{% endblock %}
 
 {% block extra_head %}
-<!-- Lazy load Google Sign-In only when needed -->
 {% if not user %}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta name="google-signin-client_id" content="{{ google_client_id }}">
@@ -11,54 +10,112 @@
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="hero-section">
-        <div class="hero-badge">✦ Live Multiplayer Gaming</div>
-        <h1>Futuristic Games Hub</h1>
-        <p class="subtitle">Choose your arena &mdash; challenge awaits</p>
-    </div>
+<!-- Portal transition overlay -->
+<div class="portal-overlay" id="portal-overlay"></div>
+
+<div class="home-wrap">
+
+    <!-- ── HERO ─────────────────────────────────────────────── -->
+    <section class="hero-section" aria-label="Hero">
+        <canvas id="hero-canvas" aria-hidden="true"></canvas>
+        <div class="hero-content">
+            <div class="hero-badge">✦ Live Multiplayer Gaming</div>
+            <h1 class="gradient-text">Futuristic<br>Games Hub</h1>
+            <p class="subtitle">{{ games|length }} games &mdash; challenge awaits</p>
+        </div>
+    </section>
 
     {% if user %}
-    <!-- Logged in view -->
-    <div class="user-info">
+    <!-- ── USER BAR ──────────────────────────────────────────── -->
+    <div class="user-bar">
         {% if user.picture %}
         <img src="{{ user.picture }}" alt="Profile" class="profile-pic" loading="lazy">
         {% else %}
         <div class="profile-pic-placeholder">{{ user.first_name[0] if user.first_name else user.name[0] }}</div>
         {% endif %}
-        <span class="user-name">Welcome back, {{ user.first_name or user.name }}</span>
-        <a href="/logout" class="btn btn-secondary" style="margin-left:auto;">Sign Out</a>
+        <span class="user-name">{{ user.first_name or user.name }}</span>
+        <a href="/logout" class="btn btn-secondary sign-out-btn">Sign Out</a>
     </div>
 
-    <div class="section-label"><span>Select a game</span></div>
+    <!-- ── CATEGORY FILTER BAR ──────────────────────────────── -->
+    <nav class="cat-filter-bar" role="tablist" aria-label="Game categories">
+        <button class="cat-btn active" data-cat="all" role="tab" aria-selected="true">
+            <span aria-hidden="true">🎮</span> All Games
+        </button>
+        <button class="cat-btn" data-cat="action" role="tab" aria-selected="false">
+            <span aria-hidden="true">⚔️</span> Action
+        </button>
+        <button class="cat-btn" data-cat="strategy" role="tab" aria-selected="false">
+            <span aria-hidden="true">🧠</span> Strategy
+        </button>
+        <button class="cat-btn" data-cat="casino" role="tab" aria-selected="false">
+            <span aria-hidden="true">🎰</span> Casino
+        </button>
+        <button class="cat-btn" data-cat="party" role="tab" aria-selected="false">
+            <span aria-hidden="true">🎉</span> Party
+        </button>
+    </nav>
 
-    <div class="games-grid">
-        {% for game in games %}
-        <a href="{{ game.url }}" class="game-card">
-            <div class="game-icon">{{ game.icon }}</div>
-            <h2>{{ game.name }}</h2>
-            <p>{{ game.description }}</p>
-            <p class="player-count">{{ game.players }} Players</p>
-        </a>
+    <!-- ── GAME LANES ────────────────────────────────────────── -->
+    <div class="lanes-container" id="lanes-container">
+        {% set categories = [
+            ('action',   '⚔️', 'Action'),
+            ('strategy', '🧠', 'Strategy'),
+            ('casino',   '🎰', 'Casino'),
+            ('party',    '🎉', 'Party'),
+        ] %}
+        {% for cat, icon, label in categories %}
+        {% set cat_games = games | selectattr('category', 'equalto', cat) | list %}
+        {% if cat_games %}
+        <div class="game-lane" data-lane="{{ cat }}">
+            <div class="lane-header">
+                <span class="lane-icon" aria-hidden="true">{{ icon }}</span>
+                <span class="lane-title">{{ label }}</span>
+                <div class="lane-nav">
+                    <button class="lane-arrow lane-prev" aria-label="Scroll {{ label }} left">&#8249;</button>
+                    <button class="lane-arrow lane-next" aria-label="Scroll {{ label }} right">&#8250;</button>
+                </div>
+            </div>
+            <div class="lane-track" tabindex="0" aria-label="{{ label }} games">
+                {% for game in cat_games %}
+                <a href="{{ game.url }}"
+                   class="lane-card"
+                   data-preview="{{ game.preview }}"
+                   data-url="{{ game.url }}"
+                   aria-label="{{ game.name }} — {{ game.players }} players">
+                    <div class="card-preview-wrap">
+                        <canvas class="preview-canvas" width="280" height="150" aria-hidden="true"></canvas>
+                        <div class="card-icon-overlay" aria-hidden="true">{{ game.icon }}</div>
+                    </div>
+                    <div class="card-body">
+                        <h3>{{ game.name }}</h3>
+                        <p>{{ game.description }}</p>
+                        <div class="card-footer">
+                            <span class="player-count">&#128101; {{ game.players }}</span>
+                            <span class="play-btn-hint" aria-hidden="true">Play &#8594;</span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% endfor %}
     </div>
+
     {% else %}
-    <!-- Login required view -->
+    <!-- ── LOGIN ─────────────────────────────────────────────── -->
     <div class="login-container">
         <div class="login-card">
             <div class="login-icon">🔐</div>
             <h2>Enter the Hub</h2>
             <p>Sign in with Google or choose a name to jump in</p>
 
-            <!-- Google Sign-In Button Container -->
             <div id="google-signin-section">
                 <div id="google-signin-button"></div>
-                <div class="divider">
-                    <span>OR</span>
-                </div>
+                <div class="divider"><span>OR</span></div>
             </div>
 
-            <!-- Manual Name Input -->
             <div class="manual-login-section">
                 <form id="manual-login-form">
                     <div class="input-group">
@@ -69,104 +126,69 @@
                                required
                                minlength="2"
                                maxlength="30"
-                               class="name-input">
+                               class="name-input"
+                               autocomplete="nickname">
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        Launch &rarr;
-                    </button>
+                    <button type="submit" class="btn btn-primary">Launch &rarr;</button>
                 </form>
                 <p class="login-hint">Sign in with Google to save your progress</p>
             </div>
         </div>
     </div>
-    {% endif %}
-</div>
 
-{% if not user %}
-<script>
-// Optimized Google Sign-In - only loads when not logged in
-function handleCredentialResponse(response) {
-    fetch('/login', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            credential: response.credential,
-            login_type: 'google'
+    <script>
+    function handleCredentialResponse(response) {
+        fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: response.credential, login_type: 'google' })
         })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert('Login failed: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Login failed. Please try again.');
-    });
-}
-
-// Optimized: Single initialization check with timeout
-window.addEventListener('DOMContentLoaded', function() {
-    const clientId = "{{ google_client_id }}";
-    
-    if (!clientId || clientId === '' || clientId === 'None') {
-        document.getElementById('google-signin-section').style.display = 'none';
-        return;
+        .then(r => r.json())
+        .then(d => { if (d.success) window.location.reload(); else alert('Login failed: ' + (d.error || '?')); })
+        .catch(() => alert('Login failed. Please try again.'));
     }
-    
-    let attempts = 0;
-    const maxAttempts = 30; // 3 seconds max
-    
-    const initGoogle = setInterval(function() {
-        attempts++;
-        if (typeof google !== 'undefined' && google.accounts) {
-            clearInterval(initGoogle);
-            google.accounts.id.initialize({
-                client_id: clientId,
-                callback: handleCredentialResponse
-            });
-            google.accounts.id.renderButton(
-                document.getElementById('google-signin-button'),
-                {theme: 'filled_black', size: 'large', width: 300}
-            );
-        } else if (attempts >= maxAttempts) {
-            clearInterval(initGoogle);
+
+    window.addEventListener('DOMContentLoaded', function () {
+        const clientId = "{{ google_client_id }}";
+        if (!clientId || clientId === 'None') {
             document.getElementById('google-signin-section').style.display = 'none';
+            return;
         }
-    }, 100);
-});
-
-// Manual login form
-document.getElementById('manual-login-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const playerName = document.getElementById('player-name').value.trim();
-    
-    if (playerName.length < 2) {
-        alert('Please enter a name with at least 2 characters');
-        return;
-    }
-    
-    fetch('/login/manual', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({player_name: playerName})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert('Login failed: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Login failed. Please try again.');
+        let attempts = 0;
+        const init = setInterval(function () {
+            if (typeof google !== 'undefined' && google.accounts) {
+                clearInterval(init);
+                google.accounts.id.initialize({ client_id: clientId, callback: handleCredentialResponse });
+                google.accounts.id.renderButton(
+                    document.getElementById('google-signin-button'),
+                    { theme: 'filled_black', size: 'large', width: 300 }
+                );
+            } else if (++attempts >= 30) {
+                clearInterval(init);
+                document.getElementById('google-signin-section').style.display = 'none';
+            }
+        }, 100);
     });
-});
-</script>
-{% endif %}
+
+    document.getElementById('manual-login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const playerName = document.getElementById('player-name').value.trim();
+        if (playerName.length < 2) { alert('Name must be at least 2 characters'); return; }
+        fetch('/login/manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_name: playerName })
+        })
+        .then(r => r.json())
+        .then(d => { if (d.success) window.location.reload(); else alert('Login failed: ' + (d.error || '?')); })
+        .catch(() => alert('Login failed. Please try again.'));
+    });
+    </script>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% endblock %}

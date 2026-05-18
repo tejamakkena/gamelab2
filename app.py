@@ -139,125 +139,180 @@ def create_app(config_name='default'):
     @limiter.limit(lambda: app.config.get('RATELIMIT_DEFAULT', '100 per hour'))
     def home():
         games_list = [
-            {
-                'name': 'Tic Tac Toe',
-                'url': '/tictactoe',
-                'icon': '❌⭕',
-                'players': '2',
-                'description': 'Classic 2-player strategy game. Test your tactical skills!'
-            },
-            {
-                'name': 'Connect 4', 
-                'url': '/connect4', 
-                'icon': '🔴🟡', 
-                'players': '2',
-                'description': 'Strategic dropping game. Connect four to win!'
-            },
-            {
-                'name': 'Digit Guess',
-                'url': '/digit-guess',
-                'icon': '🔢🎯',
-                'players': '2',
-                'description': 'Crack your opponent\'s 4-digit code! Like Mastermind!'
-            },
-            {
-                'name': 'Snake & Ladder',
-                'url': '/snake',
-                'icon': '🐍🪜',
-                'players': '2-4',
-                'description': 'Roll the dice and climb to victory!'
-            },
-            {
-                'name': 'Roulette Casino',
-                'url': '/roulette',
-                'icon': '🎰',
-                'players': '1+',
-                'description': 'Place your bets and spin the wheel!'
-            },
-            {
-                'name': 'Texas Hold\'em Poker',
-                'url': '/poker',
-                'icon': '🃏♠️',
-                'players': '2-6',
-                'description': 'High stakes poker showdown!'
-            },
-            {
-                'name': 'Memory Game', 
-                'url': '/memory', 
-                'icon': '🧠💭', 
-                'players': '1-4',
-                'description': 'Test your memory with matching cards!'
-            },
-            {
-                'name': 'Pictionary', 
-                'url': '/pictionary', 
-                'icon': '🎨✏️', 
-                'players': '2+',
-                'description': 'Draw and guess! Creative multiplayer fun!'
-            },
-            {
-                'name': 'Trivia',
-                'url': '/trivia',
-                'icon': '❓🏆',
-                'players': '1+',
-                'description': 'Challenge your knowledge across categories!'
-            },
-            {
-                'name': 'Canvas Battle',
-                'url': '/canvas-battle',
-                'icon': '🎨🖼️',
-                'players': '2-6',
-                'description': 'Draw on a theme and vote for the best art!'
-            },
-            {
-                'name': 'Mafia', 
-                'url': '/mafia', 
-                'icon': '🕵️🔪', 
-                'players': '4+',
-                'description': 'Social deduction game. Find the mafia members!'
-            },
-            {
-                'name': 'Tambola', 
-                'url': '/tambola', 
-                'icon': '🎲🎟️', 
-                'players': '2+',
-                'description': 'Indian bingo game. Mark your numbers and win!'
-            },
-            {
-                'name': 'Raja Mantri',
-                'url': '/raja-mantri',
-                'icon': '👑🗡️',
-                'players': '4',
-                'description': 'Classic 4-player guessing game!'
-            },
-            {
-                'name': 'Hangman',
-                'url': '/hangman',
-                'icon': '🪢🔤',
-                'players': '2+',
-                'description': 'Host sets a secret word — guessers reveal it letter by letter!'
-            },
+            # ── ACTION ──────────────────────────────────────────
             {
                 'name': 'Pong',
                 'url': '/pong',
                 'icon': '🏓',
                 'players': '2',
-                'description': 'Classic paddle battle! First to 7 points wins!'
+                'description': 'Classic paddle battle! First to 7 points wins!',
+                'category': 'action',
+                'category_label': '⚔️ Action',
+                'preview': 'pong'
             },
             {
                 'name': 'Stick Fight',
                 'url': '/stickfight',
                 'icon': '🥊',
                 'players': '2-4',
-                'description': 'Arena brawler! Punch and kick your way to victory!'
+                'description': 'Arena brawler! Punch and kick your way to victory!',
+                'category': 'action',
+                'category_label': '⚔️ Action',
+                'preview': 'stickfight'
             },
             {
                 'name': 'Road Fighter',
                 'url': '/roadfighter',
                 'icon': '🚗',
                 'players': '1-4',
-                'description': 'Race through traffic! Dodge cars and survive the longest!'
-            }
+                'description': 'Race through traffic! Dodge cars and survive the longest!',
+                'category': 'action',
+                'category_label': '⚔️ Action',
+                'preview': 'roadfighter'
+            },
+            {
+                'name': 'Canvas Battle',
+                'url': '/canvas-battle',
+                'icon': '🎨🖼️',
+                'players': '2-6',
+                'description': 'Draw on a theme and vote for the best art!',
+                'category': 'action',
+                'category_label': '⚔️ Action',
+                'preview': 'canvas_battle'
+            },
+            {
+                'name': 'Snake & Ladder',
+                'url': '/snake',
+                'icon': '🐍🪜',
+                'players': '2-4',
+                'description': 'Roll the dice and climb to victory!',
+                'category': 'action',
+                'category_label': '⚔️ Action',
+                'preview': 'snake'
+            },
+            # ── STRATEGY ────────────────────────────────────────
+            {
+                'name': 'Tic Tac Toe',
+                'url': '/tictactoe',
+                'icon': '❌⭕',
+                'players': '2',
+                'description': 'Classic 2-player strategy game. Test your tactical skills!',
+                'category': 'strategy',
+                'category_label': '🧠 Strategy',
+                'preview': 'tictactoe'
+            },
+            {
+                'name': 'Connect 4',
+                'url': '/connect4',
+                'icon': '🔴🟡',
+                'players': '2',
+                'description': 'Strategic dropping game. Connect four to win!',
+                'category': 'strategy',
+                'category_label': '🧠 Strategy',
+                'preview': 'connect4'
+            },
+            {
+                'name': 'Digit Guess',
+                'url': '/digit-guess',
+                'icon': '🔢🎯',
+                'players': '2',
+                'description': 'Crack your opponent\'s 4-digit code! Like Mastermind!',
+                'category': 'strategy',
+                'category_label': '🧠 Strategy',
+                'preview': 'digit_guess'
+            },
+            {
+                'name': 'Memory Game',
+                'url': '/memory',
+                'icon': '🧠💭',
+                'players': '1-4',
+                'description': 'Test your memory with matching cards!',
+                'category': 'strategy',
+                'category_label': '🧠 Strategy',
+                'preview': 'memory'
+            },
+            {
+                'name': 'Hangman',
+                'url': '/hangman',
+                'icon': '🪢🔤',
+                'players': '2+',
+                'description': 'Host sets a secret word — guessers reveal it letter by letter!',
+                'category': 'strategy',
+                'category_label': '🧠 Strategy',
+                'preview': 'hangman'
+            },
+            # ── CASINO ──────────────────────────────────────────
+            {
+                'name': 'Roulette Casino',
+                'url': '/roulette',
+                'icon': '🎰',
+                'players': '1+',
+                'description': 'Place your bets and spin the wheel!',
+                'category': 'casino',
+                'category_label': '🎰 Casino',
+                'preview': 'roulette'
+            },
+            {
+                'name': 'Texas Hold\'em Poker',
+                'url': '/poker',
+                'icon': '🃏♠️',
+                'players': '2-6',
+                'description': 'High stakes poker showdown!',
+                'category': 'casino',
+                'category_label': '🎰 Casino',
+                'preview': 'poker'
+            },
+            # ── PARTY ───────────────────────────────────────────
+            {
+                'name': 'Pictionary',
+                'url': '/pictionary',
+                'icon': '🎨✏️',
+                'players': '2+',
+                'description': 'Draw and guess! Creative multiplayer fun!',
+                'category': 'party',
+                'category_label': '🎉 Party',
+                'preview': 'pictionary'
+            },
+            {
+                'name': 'Trivia',
+                'url': '/trivia',
+                'icon': '❓🏆',
+                'players': '1+',
+                'description': 'Challenge your knowledge across categories!',
+                'category': 'party',
+                'category_label': '🎉 Party',
+                'preview': 'trivia'
+            },
+            {
+                'name': 'Mafia',
+                'url': '/mafia',
+                'icon': '🕵️🔪',
+                'players': '4+',
+                'description': 'Social deduction game. Find the mafia members!',
+                'category': 'party',
+                'category_label': '🎉 Party',
+                'preview': 'mafia'
+            },
+            {
+                'name': 'Tambola',
+                'url': '/tambola',
+                'icon': '🎲🎟️',
+                'players': '2+',
+                'description': 'Indian bingo game. Mark your numbers and win!',
+                'category': 'party',
+                'category_label': '🎉 Party',
+                'preview': 'tambola'
+            },
+            {
+                'name': 'Raja Mantri',
+                'url': '/raja-mantri',
+                'icon': '👑🗡️',
+                'players': '4',
+                'description': 'Classic 4-player guessing game!',
+                'category': 'party',
+                'category_label': '🎉 Party',
+                'preview': 'raja_mantri'
+            },
         ]
 
         user = session.get('user')
