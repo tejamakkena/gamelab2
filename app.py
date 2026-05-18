@@ -313,6 +313,34 @@ def create_app(config_name='default'):
                 'category_label': '🎉 Party',
                 'preview': 'raja_mantri'
             },
+            {
+                'name': 'Hangman',
+                'url': '/hangman',
+                'icon': '🪢🔤',
+                'players': '2+',
+                'description': 'Host sets a secret word — guessers reveal it letter by letter!'
+            },
+            {
+                'name': 'Pong',
+                'url': '/pong',
+                'icon': '🏓',
+                'players': '2',
+                'description': 'Classic paddle battle! First to 7 points wins!'
+            },
+            {
+                'name': 'Stick Fight',
+                'url': '/stickfight',
+                'icon': '🥊',
+                'players': '2-4',
+                'description': 'Arena brawler! Punch and kick your way to victory!'
+            },
+            {
+                'name': 'Road Fighter',
+                'url': '/roadfighter',
+                'icon': '🚗',
+                'players': '1-4',
+                'description': 'Race through traffic! Dodge cars and survive the longest!'
+            }
         ]
 
         user = session.get('user')
