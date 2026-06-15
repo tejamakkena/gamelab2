@@ -178,6 +178,46 @@ final class TriviaboardViewModel: ObservableObject {
 
     private func updateState(from data: [String: AnyCodable]) {
         if let s = data["secondsLeft"]?.value as? Int { secondsLeft = s }
-        // Parse question, choices, players from server payload
+        if let show = data["showChoices"]?.value as? Bool { showChoices = show }
+
+        // Reveal correct answer
+        if let idx = data["correctIndex"]?.value as? Int {
+            revealedCorrectIndex = idx
+        }
+
+        // Players who have answered this round
+        if let answered = data["answeredPlayerIDs"]?.value as? [String] {
+            answeredIDs = Set(answered)
+        }
+
+        // Player score list
+        if let playerData = data["players"]?.value as? [[String: Any]] {
+            players = playerData.compactMap { d -> Player? in
+                guard let id   = d["id"]   as? String,
+                      let name = d["name"] as? String else { return nil }
+                return Player(id: id, name: name, isReady: true,
+                              score: d["score"] as? Int ?? 0,
+                              isHost: d["isHost"] as? Bool ?? false)
+            }
+        }
+
+        // New question — reset answer state and schedule choice reveal
+        let incomingQID = data["questionID"]?.value as? String ?? ""
+        let incomingText = data["questionText"]?.value as? String ?? ""
+        if !incomingQID.isEmpty, incomingText != currentQuestion?.text {
+            answeredIDs = []
+            revealedCorrectIndex = nil
+            showChoices = false
+            currentQuestion = TriviaQuestion(
+                text: incomingText,
+                choices: data["choices"]?.value as? [String] ?? [],
+                correctIndex: data["correctIndex"]?.value as? Int ?? 0,
+                category: data["category"]?.value as? String ?? "General"
+            )
+            // Brief delay so TV readers can read the question before choices appear
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                [weak self] in self?.showChoices = true
+            }
+        }
     }
 }

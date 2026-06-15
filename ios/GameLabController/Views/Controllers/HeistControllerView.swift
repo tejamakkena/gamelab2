@@ -20,271 +20,277 @@ struct HeistControllerView: View {
 }
 
 // MARK: - Guard Controller
-// Guard sees camera positions on their phone and sets which cameras are active.
-// This info is PRIVATE — thieves can't see it on the TV until reveal phase.
 
 private struct GuardControllerView: View {
     let privateData: [String: Any]
     let onAction: (String, [String: Any]) -> Void
 
+    // User interaction state — must persist across re-renders
     @State private var activeCameras: Set<String> = []
-    @State private var phase: HeistPhase = .guardSets
     @State private var hasSubmitted = false
+    @State private var trackedRound = 0
 
-    // Camera slots the guard can activate (positions on the grid)
+    // Derived from privateData — automatically reflects server updates
+    private var phase: HeistPhase {
+        HeistPhase(rawValue: privateData["phase"] as? String ?? "") ?? .guardSets
+    }
+    private var currentRound: Int { privateData["round"] as? Int ?? 0 }
+
     private var cameraSlots: [CameraSlot] {
-        (privateData["cameraSlots"] as? [[String: Any]] ?? defaultCameraSlots)
-            .compactMap { dict -> CameraSlot? in
-                guard let id = dict["id"] as? String,
-                      let label = dict["label"] as? String,
-                      let dir = dict["direction"] as? String
-                else { return nil }
-                return CameraSlot(id: id, label: label, direction: dir)
-            }
+        let raw = privateData["cameraSlots"] as? [[String: Any]] ?? defaultSlots
+        return raw.compactMap { d -> CameraSlot? in
+            guard let id  = d["id"]  as? String,
+                  let lbl = d["label"] as? String,
+                  let dir = d["direction"] as? String else { return nil }
+            return CameraSlot(id: id, label: lbl, direction: dir)
+        }
     }
 
-    private var defaultCameraSlots: [[String: Any]] {
-        [
-            ["id": "cam_tl", "label": "Top Left",     "direction": "↘"],
-            ["id": "cam_tr", "label": "Top Right",    "direction": "↙"],
-            ["id": "cam_bl", "label": "Bottom Left",  "direction": "↗"],
-            ["id": "cam_br", "label": "Bottom Right", "direction": "↖"],
-        ]
-    }
+    private var defaultSlots: [[String: Any]] {[
+        ["id": "cam_tl", "label": "Top Left",     "direction": "↘"],
+        ["id": "cam_tr", "label": "Top Right",    "direction": "↙"],
+        ["id": "cam_bl", "label": "Bottom Left",  "direction": "↗"],
+        ["id": "cam_br", "label": "Bottom Right", "direction": "↖"],
+    ]}
 
     var body: some View {
         VStack(spacing: 0) {
-            // Role badge
             roleBadge
 
             Spacer()
 
             if phase == .guardSets {
-                VStack(spacing: 28) {
-                    Text("Choose cameras to activate")
-                        .font(.headline)
-                        .foregroundColor(.white.opacity(0.6))
-
-                    Text("Activate up to 2")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.3))
-
-                    // 2×2 camera grid
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(cameraSlots) { slot in
-                            CameraToggleTile(
-                                slot: slot,
-                                isActive: activeCameras.contains(slot.id),
-                                canActivate: activeCameras.count < 2 || activeCameras.contains(slot.id)
-                            ) {
-                                toggleCamera(slot.id)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 24)
-
-                    // Submit
-                    Button(action: submitCameras) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.shield.fill")
-                            Text(hasSubmitted ? "Cameras Set ✓" : "Lock Cameras")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(hasSubmitted ? Color.green.opacity(0.3) : Color.red.opacity(0.8))
-                        )
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(hasSubmitted)
-                    .padding(.horizontal, 24)
-                }
+                guardSetPhase
             } else {
-                // During thieves move phase, guard waits and sees coverage map
-                VStack(spacing: 16) {
-                    Text("📷 Cameras Active")
-                        .font(.title3.bold())
-                        .foregroundColor(.red)
-
-                    Text("Watching for thieves…")
-                        .foregroundColor(.white.opacity(0.5))
-
-                    ForEach(cameraSlots.filter { activeCameras.contains($0.id) }) { slot in
-                        HStack {
-                            Text(slot.direction).font(.title2)
-                            Text(slot.label)
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("ACTIVE")
-                                .font(.caption.bold())
-                                .foregroundColor(.red)
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.15)))
-                        .padding(.horizontal, 24)
-                    }
-                }
+                watchingPhase
             }
 
             Spacer()
         }
         .background(Color(hex: "140000").ignoresSafeArea())
-        .onAppear {
-            if let p = privateData["phase"] as? String {
-                phase = HeistPhase(rawValue: p) ?? .guardSets
+        // Reset per round so Guard picks cameras fresh each round
+        .onChange(of: currentRound) { newRound in
+            guard newRound != trackedRound else { return }
+            trackedRound = newRound
+            hasSubmitted = false
+            activeCameras = []
+        }
+        .onAppear { trackedRound = currentRound }
+    }
+
+    // MARK: - Phases
+
+    private var guardSetPhase: some View {
+        VStack(spacing: 28) {
+            Text("Choose cameras to activate")
+                .font(.headline).foregroundColor(.white.opacity(0.6))
+            Text("Max 2 cameras per round")
+                .font(.caption).foregroundColor(.white.opacity(0.3))
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                ForEach(cameraSlots) { slot in
+                    CameraToggleTile(
+                        slot: slot,
+                        isActive: activeCameras.contains(slot.id),
+                        canActivate: activeCameras.count < 2 || activeCameras.contains(slot.id)
+                    ) { toggleCamera(slot.id) }
+                }
+            }
+            .padding(.horizontal, 24)
+
+            Button(action: submitCameras) {
+                HStack(spacing: 8) {
+                    Image(systemName: hasSubmitted ? "checkmark.shield.fill" : "shield.fill")
+                    Text(hasSubmitted ? "Cameras Locked ✓" : "Lock Cameras")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 18)
+                .background(RoundedRectangle(cornerRadius: 16)
+                    .fill(hasSubmitted ? Color.green.opacity(0.3) : Color.red.opacity(0.8)))
+                .foregroundColor(.white)
+            }
+            .buttonStyle(.plain).disabled(hasSubmitted).padding(.horizontal, 24)
+        }
+    }
+
+    private var watchingPhase: some View {
+        VStack(spacing: 16) {
+            Text("📷 Cameras Active")
+                .font(.title3.bold()).foregroundColor(.red)
+            Text("Watching for thieves…")
+                .foregroundColor(.white.opacity(0.5))
+
+            VStack(spacing: 10) {
+                ForEach(cameraSlots.filter { activeCameras.contains($0.id) }) { slot in
+                    HStack {
+                        Text(slot.direction).font(.title2)
+                        Text(slot.label).foregroundColor(.white)
+                        Spacer()
+                        Text("ACTIVE").font(.caption.bold()).foregroundColor(.red)
+                    }
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.15)))
+                    .padding(.horizontal, 24)
+                }
             }
         }
     }
+
+    // MARK: - Subviews & helpers
 
     private var roleBadge: some View {
         HStack(spacing: 12) {
-            Text("🛡")
-                .font(.system(size: 32))
+            Text("🛡").font(.system(size: 32))
             VStack(alignment: .leading, spacing: 2) {
-                Text("You are the Guard")
-                    .font(.headline)
-                    .foregroundColor(.red)
-                Text("Only YOU can see camera positions")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.5))
+                Text("You are the Guard").font(.headline).foregroundColor(.red)
+                Text("Only YOU can see camera positions").font(.caption).foregroundColor(.white.opacity(0.5))
             }
             Spacer()
+            Text("Round \(currentRound)").font(.caption.bold()).foregroundColor(.white.opacity(0.4))
         }
-        .padding(20)
-        .background(Color.red.opacity(0.1))
+        .padding(20).background(Color.red.opacity(0.1))
     }
 
     private func toggleCamera(_ id: String) {
-        if activeCameras.contains(id) {
-            activeCameras.remove(id)
-        } else if activeCameras.count < 2 {
-            activeCameras.insert(id)
-        }
+        if activeCameras.contains(id) { activeCameras.remove(id) }
+        else if activeCameras.count < 2 { activeCameras.insert(id) }
     }
 
     private func submitCameras() {
+        guard !hasSubmitted else { return }
         hasSubmitted = true
         onAction("set_cameras", ["cameras": Array(activeCameras)])
     }
 }
 
 // MARK: - Thief Controller
-// Thief sees ONLY their position on a simplified map.
-// They pick a direction to move each round.
 
 private struct ThiefControllerView: View {
     let privateData: [String: Any]
     let onAction: (String, [String: Any]) -> Void
 
     @State private var hasMoved = false
-    @State private var myPosition: GridPos = .init(col: 1, row: 1)
-    @State private var thiefColor: Color = .cyan
+    @State private var trackedRound = 0
 
-    private var isMovingPhase: Bool {
-        (privateData["phase"] as? String) == HeistPhase.thievesMove.rawValue
+    private var phase: HeistPhase {
+        HeistPhase(rawValue: privateData["phase"] as? String ?? "") ?? .guardSets
     }
+    private var myPosition: GridPos {
+        GridPos(
+            col: privateData["col"] as? Int ?? 1,
+            row: privateData["row"] as? Int ?? 1
+        )
+    }
+    private var currentRound: Int { privateData["round"] as? Int ?? 0 }
+    private var isMovingPhase: Bool { phase == .thievesMove }
+    private var hasReachedVault: Bool { privateData["hasReachedVault"] as? Bool ?? false }
+    private var isCaught: Bool { privateData["isCaught"] as? Bool ?? false }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Role badge
             roleBadge
 
             Spacer()
 
-            VStack(spacing: 28) {
-                // Mini position indicator
-                HStack(spacing: 12) {
-                    Text("Your position")
-                        .foregroundColor(.white.opacity(0.5))
-                        .font(.subheadline)
-                    Spacer()
-                    Text("C\(myPosition.col) R\(myPosition.row)")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.cyan)
-                }
-                .padding(.horizontal, 24)
-
-                // Direction pad
-                VStack(spacing: 12) {
-                    DirectionButton(symbol: "arrow.up", label: "Up") {
-                        move(direction: "up")
-                    }
-                    HStack(spacing: 40) {
-                        DirectionButton(symbol: "arrow.left", label: "Left") {
-                            move(direction: "left")
-                        }
-                        DirectionButton(symbol: "arrow.right", label: "Right") {
-                            move(direction: "right")
-                        }
-                    }
-                    DirectionButton(symbol: "arrow.down", label: "Down") {
-                        move(direction: "down")
-                    }
-                }
-                .opacity(isMovingPhase && !hasMoved ? 1 : 0.3)
-
-                if hasMoved {
-                    Label("Move sent — waiting for round to end", systemImage: "hourglass")
-                        .font(.subheadline)
-                        .foregroundColor(.cyan.opacity(0.7))
-                } else if !isMovingPhase {
-                    Label("Wait for the Guard to set cameras…", systemImage: "eye")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.4))
+            if isCaught {
+                caughtView
+            } else {
+                VStack(spacing: 28) {
+                    positionIndicator
+                    dpad
+                    statusLabel
                 }
             }
 
             Spacer()
 
-            // Tip: avoid lit tiles
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.yellow)
-                Text("Avoid tiles with camera arcs on the TV!")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.5))
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            cameraWarning
         }
         .background(Color(hex: "000d14").ignoresSafeArea())
-        .onAppear {
-            if let col = privateData["col"] as? Int,
-               let row = privateData["row"] as? Int {
-                myPosition = GridPos(col: col, row: row)
+        .onChange(of: currentRound) { newRound in
+            guard newRound != trackedRound else { return }
+            trackedRound = newRound
+            hasMoved = false
+        }
+        .onAppear { trackedRound = currentRound }
+    }
+
+    private var positionIndicator: some View {
+        HStack(spacing: 12) {
+            Text("Position").foregroundColor(.white.opacity(0.5)).font(.subheadline)
+            Spacer()
+            Text("Col \(myPosition.col)  Row \(myPosition.row)")
+                .font(.system(.body, design: .monospaced)).foregroundColor(.cyan)
+            if hasReachedVault {
+                Text("💰 GOT IT").font(.caption.bold()).foregroundColor(.yellow)
             }
         }
+        .padding(.horizontal, 24)
+    }
+
+    private var dpad: some View {
+        VStack(spacing: 14) {
+            DirectionButton(symbol: "arrow.up",    label: "Up")    { move("up") }
+            HStack(spacing: 48) {
+                DirectionButton(symbol: "arrow.left",  label: "Left")  { move("left") }
+                DirectionButton(symbol: "arrow.right", label: "Right") { move("right") }
+            }
+            DirectionButton(symbol: "arrow.down",  label: "Down")  { move("down") }
+        }
+        .opacity(isMovingPhase && !hasMoved ? 1 : 0.3)
+        .disabled(!isMovingPhase || hasMoved)
+    }
+
+    private var statusLabel: some View {
+        Group {
+            if hasMoved {
+                Label("Move sent — waiting for round end", systemImage: "hourglass")
+                    .font(.subheadline).foregroundColor(.cyan.opacity(0.7))
+            } else if !isMovingPhase {
+                Label("Guard is setting cameras…", systemImage: "eye")
+                    .font(.subheadline).foregroundColor(.white.opacity(0.4))
+            }
+        }
+    }
+
+    private var caughtView: some View {
+        VStack(spacing: 16) {
+            Text("🚨").font(.system(size: 60))
+            Text("You were caught!").font(.title2.bold()).foregroundColor(.red)
+            Text("Watch the TV to see how it ends.").foregroundColor(.white.opacity(0.5))
+        }
+    }
+
+    private var cameraWarning: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
+            Text("Avoid red-lit tiles on the TV!")
+                .font(.caption).foregroundColor(.white.opacity(0.5))
+        }
+        .padding(.horizontal, 24).padding(.bottom, 32)
     }
 
     private var roleBadge: some View {
         HStack(spacing: 12) {
-            Text("🥷")
-                .font(.system(size: 32))
+            Text("🥷").font(.system(size: 32))
             VStack(alignment: .leading, spacing: 2) {
-                Text("You are a Thief")
-                    .font(.headline)
-                    .foregroundColor(.cyan)
-                Text("Reach the vault 💰 then escape 🚪")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.5))
+                Text("You are a Thief").font(.headline).foregroundColor(.cyan)
+                Text("Reach 💰 then escape 🚪").font(.caption).foregroundColor(.white.opacity(0.5))
             }
             Spacer()
+            Text("Round \(currentRound)").font(.caption.bold()).foregroundColor(.white.opacity(0.4))
         }
-        .padding(20)
-        .background(Color.cyan.opacity(0.08))
+        .padding(20).background(Color.cyan.opacity(0.08))
     }
 
-    private func move(direction: String) {
-        guard isMovingPhase, !hasMoved else { return }
+    private func move(_ direction: String) {
+        guard isMovingPhase, !hasMoved, !isCaught else { return }
         hasMoved = true
         onAction("move", ["direction": direction])
     }
 }
 
-// MARK: - Subviews
+// MARK: - Shared subviews
 
 private struct CameraToggleTile: View {
     let slot: CameraSlot
@@ -295,31 +301,23 @@ private struct CameraToggleTile: View {
     var body: some View {
         Button(action: onToggle) {
             VStack(spacing: 10) {
-                Text(slot.direction)
-                    .font(.system(size: 36))
-                Text(slot.label)
-                    .font(.caption)
-                    .foregroundColor(isActive ? .white : .white.opacity(0.5))
+                Text(slot.direction).font(.system(size: 36))
+                Text(slot.label).font(.caption).foregroundColor(isActive ? .white : .white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                Text(isActive ? "ACTIVE" : "OFF")
-                    .font(.caption2.bold())
+                Text(isActive ? "ACTIVE" : "OFF").font(.caption2.bold())
                     .foregroundColor(isActive ? .red : .white.opacity(0.3))
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity).padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(isActive ? Color.red.opacity(0.25) : Color.white.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(isActive ? Color.red.opacity(0.6) : Color.white.opacity(0.08),
-                                          lineWidth: isActive ? 2 : 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(isActive ? Color.red.opacity(0.6) : Color.white.opacity(0.08),
+                                      lineWidth: isActive ? 2 : 1))
             )
         }
         .buttonStyle(.plain)
-        .opacity(canActivate ? 1 : 0.4)
-        .disabled(!canActivate && !isActive)
+        .opacity(canActivate ? 1 : 0.4).disabled(!canActivate && !isActive)
         .scaleEffect(isActive ? 1.04 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
     }
@@ -333,23 +331,16 @@ private struct DirectionButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.system(size: 28, weight: .semibold))
-                Text(label)
-                    .font(.caption2)
+                Image(systemName: symbol).font(.system(size: 28, weight: .semibold))
+                Text(label).font(.caption2)
             }
-            .foregroundColor(.white)
-            .frame(width: 80, height: 80)
-            .background(
-                Circle().fill(Color.white.opacity(0.1))
-                    .overlay(Circle().strokeBorder(Color.cyan.opacity(0.3), lineWidth: 1))
-            )
+            .foregroundColor(.white).frame(width: 80, height: 80)
+            .background(Circle().fill(Color.white.opacity(0.1))
+                .overlay(Circle().strokeBorder(Color.cyan.opacity(0.3), lineWidth: 1)))
         }
         .buttonStyle(.plain)
     }
 }
-
-// MARK: - Supporting types
 
 private struct CameraSlot: Identifiable {
     let id: String

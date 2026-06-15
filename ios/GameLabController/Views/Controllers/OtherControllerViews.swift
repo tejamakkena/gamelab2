@@ -494,49 +494,7 @@ struct GenericTapControllerView: View {
     }
 }
 
-// MARK: - Placeholder board views (TV side, other games)
-
-struct TVPokerBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVTambolaBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVStockPanicBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVMindMeldBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVHotGridBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVSpeedSculptorBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-struct TVWebGameBoardView: View {
-    let room: Room
-    var body: some View { PlaceholderBoardView(game: room.gameID) }
-}
-
-struct PlaceholderBoardView: View {
-    let game: GameID
-    var body: some View {
-        VStack(spacing: 20) {
-            Text(game.emoji).font(.system(size: 80))
-            Text(game.displayName).font(.largeTitle.bold()).foregroundColor(.white)
-            Text("Board coming soon").foregroundColor(.white.opacity(0.4))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(hex: "0a0a14").ignoresSafeArea())
-    }
-}
+// TV board views are defined in TVClassicGameBoards.swift and TVHeistBoardView.swift
 
 // MARK: - Results views
 
@@ -545,20 +503,38 @@ struct TVResultsView: View {
     let onPlayAgain: () -> Void
 
     var body: some View {
-        VStack(spacing: 32) {
-            Text("Game Over!").font(.system(size: 64, weight: .black)).foregroundColor(.white)
-            let sorted = room.players.sorted { $0.score > $1.score }
-            ForEach(Array(sorted.enumerated()), id: \.element.id) { rank, player in
-                HStack {
-                    Text(rank == 0 ? "🥇" : rank == 1 ? "🥈" : "🥉").font(.title)
-                    Text(player.name).font(.title2).foregroundColor(.white)
-                    Spacer()
-                    Text("\(player.score)").font(.title.bold()).foregroundColor(.cyan)
-                }
-                .padding(.horizontal, 80)
+        VStack(spacing: 40) {
+            VStack(spacing: 8) {
+                Text("🏆 Final Results").font(.system(size: 56, weight: .black)).foregroundColor(.white)
+                Text(room.gameID.displayName).font(.title3).foregroundColor(.white.opacity(0.4))
             }
+
+            let sorted = room.players.sorted { $0.score > $1.score }
+            VStack(spacing: 16) {
+                ForEach(Array(sorted.enumerated()), id: \.element.id) { rank, player in
+                    HStack(spacing: 24) {
+                        Text(rank == 0 ? "🥇" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(rank+1).")
+                            .font(.system(size: 40)).frame(width: 60)
+                        Text(player.name).font(.title2.bold()).foregroundColor(.white)
+                        Spacer()
+                        Text("\(player.score) pts")
+                            .font(.title.bold())
+                            .foregroundColor(rank == 0 ? .yellow : .cyan)
+                    }
+                    .padding(.horizontal, 100)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(rank == 0 ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+                    )
+                    .padding(.horizontal, 60)
+                }
+            }
+
             Button(action: onPlayAgain) {
-                Text("Play Again").font(.title3.bold()).padding(.horizontal, 60).padding(.vertical, 20)
+                Label("Play Again", systemImage: "arrow.clockwise")
+                    .font(.title3.bold())
+                    .padding(.horizontal, 60).padding(.vertical, 20)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color.purple))
                     .foregroundColor(.white)
             }
@@ -573,22 +549,79 @@ struct ResultsControllerView: View {
     let room: Room
     let onLeave: () -> Void
 
+    private var myID: String { AppConstants.deviceID }
+    private var sorted: [Player] { room.players.sorted { $0.score > $1.score } }
+    private var myRank: Int {
+        (sorted.firstIndex(where: { $0.id == myID }) ?? 0) + 1
+    }
+
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Text("🏁 Game Over!").font(.largeTitle.bold()).foregroundColor(.white)
-            if let me = room.players.first {
-                Text("Your score: \(me.score)").font(.title2).foregroundColor(.cyan)
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 8) {
+                Text("🏁 Game Over").font(.largeTitle.bold()).foregroundColor(.white)
+                Text(room.gameID.displayName).font(.subheadline).foregroundColor(.white.opacity(0.4))
             }
+            .padding(.top, 48).padding(.bottom, 24)
+
+            // My rank callout
+            HStack(spacing: 12) {
+                Text(rankEmoji(myRank)).font(.system(size: 40))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("You finished \(ordinal(myRank))").font(.headline).foregroundColor(.white)
+                    if let me = sorted.first(where: { $0.id == myID }) {
+                        Text("\(me.score) points").font(.subheadline).foregroundColor(.cyan)
+                    }
+                }
+                Spacer()
+            }
+            .padding(16).padding(.horizontal, 24)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.06)))
+            .padding(.horizontal, 24)
+
+            // Full leaderboard
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(Array(sorted.enumerated()), id: \.element.id) { rank, player in
+                        HStack(spacing: 12) {
+                            Text(rankEmoji(rank + 1)).font(.title3).frame(width: 36)
+                            Text(player.name)
+                                .font(.body)
+                                .foregroundColor(player.id == myID ? .cyan : .white)
+                                .fontWeight(player.id == myID ? .bold : .regular)
+                            if player.id == myID {
+                                Text("YOU").font(.caption2.bold()).foregroundColor(.cyan)
+                            }
+                            Spacer()
+                            Text("\(player.score)").font(.headline.bold()).foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 12)
+                            .fill(player.id == myID ? Color.cyan.opacity(0.1) : Color.white.opacity(0.04)))
+                    }
+                }
+                .padding(.horizontal, 24).padding(.top, 16)
+            }
+
+            Spacer()
+
             Button(action: onLeave) {
-                Text("Back to Lobby").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 16)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(Color.purple))
+                Label("Leave Room", systemImage: "arrow.left.circle")
+                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 16)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.1)))
                     .foregroundColor(.white)
             }
-            .buttonStyle(.plain).padding(.horizontal, 32)
-            Spacer()
+            .buttonStyle(.plain).padding(.horizontal, 24).padding(.bottom, 40)
         }
         .background(Color(hex: "0a0a14").ignoresSafeArea())
+    }
+
+    private func rankEmoji(_ rank: Int) -> String {
+        switch rank { case 1: return "🥇"; case 2: return "🥈"; case 3: return "🥉"; default: return "\(rank)." }
+    }
+
+    private func ordinal(_ n: Int) -> String {
+        switch n { case 1: return "1st"; case 2: return "2nd"; case 3: return "3rd"; default: return "\(n)th" }
     }
 }
 

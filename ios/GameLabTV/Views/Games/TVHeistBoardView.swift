@@ -232,30 +232,7 @@ private struct PhaseTag: View {
     }
 }
 
-private struct TimerRing: View {
-    let secondsLeft: Int
-    let total: Int
-
-    private var progress: Double { Double(secondsLeft) / Double(total) }
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.1), lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    progress > 0.4 ? Color.cyan : Color.red,
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 1), value: secondsLeft)
-            Text("\(secondsLeft)")
-                .font(.system(size: 22, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-        }
-        .frame(width: 70, height: 70)
-    }
-}
+// TimerRing defined in TVClassicGameBoards.swift
 
 private struct HeistPlayerRow: View {
     let status: HeistPlayerStatus
@@ -397,8 +374,52 @@ struct HeistBoardState {
         if let r = data["round"]?.value as? Int       { round = r }
         if let s = data["secondsLeft"]?.value as? Int { secondsLeft = s }
         if let p = data["phase"]?.value as? String    { phase = HeistPhase(rawValue: p) ?? .guardSets }
-        // Camera arcs, thief positions, and player statuses decoded similarly
-        // (full server payload parsing omitted for brevity — server sends these fields)
+
+        // Camera positions the Guard activated this round
+        if let cams = data["cameraPositions"]?.value as? [[String: Any]] {
+            cameraPositions = cams.compactMap { dict -> GridPos? in
+                guard let c = dict["col"] as? Int, let r = dict["row"] as? Int else { return nil }
+                return GridPos(col: c, row: r)
+            }
+        }
+
+        // Tiles covered by camera arcs (computed server-side)
+        if let arcs = data["cameraArcTiles"]?.value as? [[String: Any]] {
+            cameraArcTiles = Set(arcs.compactMap { dict -> GridPos? in
+                guard let c = dict["col"] as? Int, let r = dict["row"] as? Int else { return nil }
+                return GridPos(col: c, row: r)
+            })
+        }
+
+        // Each thief's position (playerID → {col, row})
+        if let positions = data["thiefPositions"]?.value as? [String: [String: Any]] {
+            thiefPositions = positions.compactMapValues { dict -> GridPos? in
+                guard let c = dict["col"] as? Int, let r = dict["row"] as? Int else { return nil }
+                return GridPos(col: c, row: r)
+            }
+        }
+
+        // Player status array
+        if let statuses = data["playerStatuses"]?.value as? [[String: Any]] {
+            let palette: [Color] = [.cyan, .yellow, .green, .orange, .purple, .pink]
+            playerStatuses = statuses.enumerated().compactMap { idx, dict -> HeistPlayerStatus? in
+                guard let id   = dict["id"]   as? String,
+                      let name = dict["name"] as? String,
+                      let rs   = dict["role"] as? String else { return nil }
+                return HeistPlayerStatus(
+                    id: id, name: name,
+                    role: rs == "guard" ? .guard : .thief,
+                    color: palette[idx % palette.count],
+                    isCaught: dict["isCaught"] as? Bool ?? false,
+                    hasEscaped: dict["hasEscaped"] as? Bool ?? false
+                )
+            }
+        }
+
+        // Game over
+        if let w = data["winner"]?.value as? String {
+            winner = w == "guard" ? .guard_ : .thieves
+        }
     }
 }
 

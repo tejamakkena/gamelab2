@@ -63,6 +63,11 @@ struct PrivateStateResponse: Decodable {
     let privateData: [String: AnyCodable]  // only sent to that phone
 }
 
+struct ErrorResponse: Decodable {
+    let message: String
+    let code: String?
+}
+
 // MARK: - AnyCodable helper (encode/decode arbitrary JSON values)
 
 struct AnyCodable: Codable {
