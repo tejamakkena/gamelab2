@@ -1,0 +1,306 @@
+"""The /native namespace, exercised through a real Socket.IO test client.
+
+Payload shapes are asserted key-for-key against the Swift Codable structs. A
+mismatch does not raise on the client -- GameSocketManager decodes with `try?`
+and drops the message -- so the screen would simply never update.
+"""
+
+import pytest
+
+from app import create_app
+from utils.room_manager import rooms
+
+NS = "/native"
+
+
+@pytest.fixture
+def server():
+    rooms.clear()
+    return create_app("default")   # returns (app, socketio)
+
+
+@pytest.fixture
+def tv(server):
+    app, socketio = server
+    client = socketio.test_client(app, namespace=NS)
+    assert client.is_connected(NS)
+    return client
+
+
+def received(client, name=None):
+    events = client.get_received(NS)
+    return [e for e in events if name is None or e["name"] == name]
+
+
+def latest(client, name):
+    events = [e for e in client.get_received(NS) if e["name"] == name]
+    assert events, f"expected {name}"
+    return events[-1]["args"][0]
+
+
+def open_room(app, socketio, tv, game_id="cipher_grid", players=4):
+    tv.emit("create_room", {"gameID": game_id, "hostName": "TV", "hostID": "tv-1"},
+            namespace=NS)
+    room = latest(tv, "room_updated")
+    phones = []
+    for i in range(players):
+        phone = socketio.test_client(app, namespace=NS)
+        phone.emit("join_room", {"roomCode": room["code"], "playerName": f"P{i}",
+                                 "playerID": f"dev-{i}", "isTV": False}, namespace=NS)
+        phone.get_received(NS)
+        phones.append(phone)
+    tv.get_received(NS)
+    return room["code"], phones
+
+
+class TestNamespaceIsolation:
+    def test_legacy_default_namespace_still_works(self, server):
+        # Five browser games register create_room on '/'; the hub must not
+        # disturb them.
+        app, socketio = server
+        legacy = socketio.test_client(app)
+        assert legacy.is_connected()
+        legacy.emit("create_room", {"game_type": "roadfighter", "player_name": "Racer"})
+        assert legacy.get_received()
+
+    def test_hub_events_do_not_reach_the_default_namespace(self, server):
+        app, socketio = server
+        legacy = socketio.test_client(app)
+        legacy.get_received()
+        legacy.emit("player_ready", {"roomCode": "ABC123", "playerID": "x"})
+        assert legacy.get_received() == []
+
+
+class TestCreateRoom:
+    def test_replies_with_room_updated(self, tv):
+        # The TV never emits join_room and listens only to room_updated, so
+        # that is what has to carry the new room.
+        tv.emit("create_room", {"gameID": "trivia", "hostName": "TV", "hostID": "tv-1"},
+                namespace=NS)
+        room = latest(tv, "room_updated")
+        assert set(room) == {"code", "gameID", "players", "state"}
+        assert room["gameID"] == "trivia" and room["state"] == "lobby"
+        assert len(room["code"]) == 6
+
+    def test_tv_is_not_listed_as_a_player(self, tv):
+        tv.emit("create_room", {"gameID": "trivia", "hostName": "TV", "hostID": "tv-1"},
+                namespace=NS)
+        assert latest(tv, "room_updated")["players"] == []
+
+    def test_rejects_an_unknown_game(self, tv):
+        tv.emit("create_room", {"gameID": "not_a_game", "hostName": "TV", "hostID": "t"},
+                namespace=NS)
+        error = latest(tv, "error")
+        assert set(error) == {"message", "code"}
+        assert error["code"] == "INVALID_GAME"
+
+
+class TestJoinRoom:
+    def test_room_joined_matches_the_swift_struct(self, server, tv):
+        app, socketio = server
+        tv.emit("create_room", {"gameID": "trivia", "hostName": "TV", "hostID": "tv-1"},
+                namespace=NS)
+        code = latest(tv, "room_updated")["code"]
+
+        phone = socketio.test_client(app, namespace=NS)
+        phone.emit("join_room", {"roomCode": code, "playerName": "Teja",
+                                 "playerID": "dev-1", "isTV": False}, namespace=NS)
+        payload = latest(phone, "room_joined")
+        assert set(payload) == {"room", "playerID"}
+        assert payload["playerID"] == "dev-1"
+        assert set(payload["room"]["players"][0]) == {
+            "id", "name", "isReady", "score", "isHost"}
+
+    def test_first_phone_becomes_host(self, server, tv):
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "trivia", players=3)
+        tv.emit("player_ready", {"roomCode": code, "playerID": "dev-0"}, namespace=NS)
+        roster = latest(tv, "room_updated")["players"]
+        assert [p["isHost"] for p in roster] == [True, False, False]
+
+    def test_accepts_a_lowercase_code(self, server, tv):
+        app, socketio = server
+        tv.emit("create_room", {"gameID": "trivia", "hostName": "TV", "hostID": "tv-1"},
+                namespace=NS)
+        code = latest(tv, "room_updated")["code"]
+        phone = socketio.test_client(app, namespace=NS)
+        phone.emit("join_room", {"roomCode": code.lower(), "playerName": "Late",
+                                 "playerID": "dev-late", "isTV": False}, namespace=NS)
+        assert latest(phone, "room_joined")["playerID"] == "dev-late"
+
+    def test_unknown_room_is_rejected(self, server):
+        app, socketio = server
+        phone = socketio.test_client(app, namespace=NS)
+        phone.emit("join_room", {"roomCode": "ZZZZZZ", "playerName": "x",
+                                 "playerID": "d", "isTV": False}, namespace=NS)
+        assert latest(phone, "error")["code"] == "ROOM_NOT_FOUND"
+
+    def test_room_is_capped_at_max_players(self, server, tv):
+        # TVLobbyView builds a range from players.count to maxPlayers, which
+        # traps if the server ever reports more players than the cap.
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "battleship", players=2)
+        extra = socketio.test_client(app, namespace=NS)
+        extra.emit("join_room", {"roomCode": code, "playerName": "Third",
+                                 "playerID": "dev-3", "isTV": False}, namespace=NS)
+        assert latest(extra, "error")["code"] == "ROOM_FULL"
+
+    def test_a_second_tv_joins_without_taking_a_seat(self, server, tv):
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "trivia", players=2)
+        board = socketio.test_client(app, namespace=NS)
+        board.emit("join_room", {"roomCode": code, "playerName": "", "playerID": "",
+                                 "isTV": True}, namespace=NS)
+        assert len(latest(board, "room_joined")["room"]["players"]) == 2
+
+
+class TestStartGame:
+    def test_moves_the_room_to_playing(self, server, tv):
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        assert latest(tv, "room_updated")["state"] == "playing"
+
+    def test_rejects_too_few_players(self, server, tv):
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "cipher_grid", players=1)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        assert latest(tv, "error")["code"] == "NOT_ENOUGH_PLAYERS"
+
+    def test_a_non_host_phone_cannot_start(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        phones[2].emit("start_game", {"roomCode": code}, namespace=NS)
+        assert latest(phones[2], "error")["code"] == "NOT_HOST"
+
+    def test_every_phone_receives_private_state(self, server, tv):
+        # The phone leaves its waiting screen on private_state, not on
+        # game_started, which has no listener in the Swift app.
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        for i, phone in enumerate(phones):
+            payload = latest(phone, "private_state")
+            assert set(payload) == {"roomCode", "playerID", "privateData"}
+            assert payload["playerID"] == f"dev-{i}"
+
+    def test_board_state_reaches_the_tv_without_the_secret(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        board = latest(tv, "game_state")
+        assert set(board) == {"roomCode", "boardState"}
+        assert len(board["boardState"]["words"]) == 25
+        assert "key" not in board["boardState"]
+
+    def test_exactly_two_spymasters_hold_the_key(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        with_key = [i for i, p in enumerate(phones)
+                    if latest(p, "private_state")["privateData"].get("key")]
+        assert len(with_key) == 2
+
+    def test_the_pump_keeps_publishing(self, server, tv):
+        # Board view models subscribe only after room_updated builds them, and
+        # there is no request_state event, so the pump is the recovery path.
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        tv.get_received(NS)
+        socketio.sleep(1.4)
+        assert received(tv, "game_state")
+
+
+class TestGameAction:
+    def test_a_phone_cannot_act_as_another_player(self, server, tv):
+        # playerID is a client-supplied device UUID, so it has to be checked
+        # against the socket it arrived on.
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        phones[1].get_received(NS)
+        phones[1].emit("game_action", {"roomCode": code, "playerID": "dev-0",
+                                       "action": "guess", "data": {"index": 0}},
+                       namespace=NS)
+        assert latest(phones[1], "error")["code"] == "NOT_IN_ROOM"
+
+    def test_actions_before_the_game_starts_are_ignored(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        phones[0].get_received(NS)
+        phones[0].emit("game_action", {"roomCode": code, "playerID": "dev-0",
+                                       "action": "guess", "data": {"index": 0}},
+                       namespace=NS)
+        assert received(phones[0], "game_state") == []
+
+
+class TestSoloRoom:
+    def test_starts_with_a_single_synthetic_player(self, tv):
+        tv.emit("create_room", {"gameID": "neon_snake", "hostName": "Solo",
+                                "hostID": "tv-solo", "solo": True}, namespace=NS)
+        room = latest(tv, "room_updated")
+        assert len(room["players"]) == 1
+        tv.emit("start_game", {"roomCode": room["code"]}, namespace=NS)
+        assert latest(tv, "room_updated")["state"] == "playing"
+
+    def test_the_tv_can_send_actions_for_itself(self, server, tv):
+        app, socketio = server
+        tv.emit("create_room", {"gameID": "neon_snake", "hostName": "Solo",
+                                "hostID": "tv-solo", "solo": True}, namespace=NS)
+        code = latest(tv, "room_updated")["code"]
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        tv.emit("game_action", {"roomCode": code, "playerID": "tv-solo",
+                                "action": "turn", "data": {"direction": "down"}},
+                namespace=NS)
+        socketio.sleep(0.9)
+        assert latest(tv, "game_state")["boardState"]["snakes"][0]["body"]
+
+    def test_solo_bypasses_the_minimum_player_gate(self, tv):
+        # cipher_grid needs four players normally.
+        tv.emit("create_room", {"gameID": "cipher_grid", "hostName": "Solo",
+                                "hostID": "tv-solo", "solo": True}, namespace=NS)
+        code = latest(tv, "room_updated")["code"]
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        assert latest(tv, "room_updated")["state"] == "playing"
+
+
+class TestLeaveAndReconnect:
+    def test_leaving_removes_the_player(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "trivia", players=3)
+        phones[1].emit("leave_room", {"roomCode": code, "playerID": "dev-1"},
+                       namespace=NS)
+        roster = latest(tv, "room_updated")["players"]
+        assert [p["id"] for p in roster] == ["dev-0", "dev-2"]
+
+    def test_rejoining_mid_game_resumes_the_same_seat(self, server, tv):
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        socketio.sleep(1.2)
+        phones[1].disconnect(namespace=NS)
+
+        again = socketio.test_client(app, namespace=NS)
+        again.emit("join_room", {"roomCode": code, "playerName": "P1",
+                                 "playerID": "dev-1", "isTV": False}, namespace=NS)
+        # get_received drains the queue, so read both events from one batch.
+        batch = {e["name"]: e["args"][0] for e in again.get_received(NS)}
+        assert batch["room_joined"]["playerID"] == "dev-1"
+        # Resumed immediately rather than waiting for the next pump cycle.
+        assert batch["private_state"]["playerID"] == "dev-1"
+
+    def test_a_new_player_cannot_join_a_game_in_progress(self, server, tv):
+        app, socketio = server
+        code, _ = open_room(app, socketio, tv, "cipher_grid", players=4)
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        latecomer = socketio.test_client(app, namespace=NS)
+        latecomer.emit("join_room", {"roomCode": code, "playerName": "Late",
+                                     "playerID": "dev-late", "isTV": False},
+                       namespace=NS)
+        assert latest(latecomer, "error")["code"] == "GAME_IN_PROGRESS"

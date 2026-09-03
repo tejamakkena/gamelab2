@@ -22,7 +22,10 @@ final class GameSocketManager: ObservableObject {
             socketURL: serverURL,
             config: [.log(false), .compress, .reconnects(true), .reconnectWait(2)]
         )
-        socket = manager?.defaultSocket
+        // The hub lives on its own namespace: five browser games register the
+        // same create_room/join_room names on the default namespace, where only
+        // the last registration survives.
+        socket = manager?.socket(forNamespace: AppConstants.socketNamespace)
 
         socket?.on(clientEvent: .connect) { [weak self] _, _ in
             DispatchQueue.main.async { self?.isConnected = true }

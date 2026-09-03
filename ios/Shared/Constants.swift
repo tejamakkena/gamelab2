@@ -5,6 +5,10 @@ enum AppConstants {
     // Change this to your server's address (local dev or deployed)
     static let serverURL = URL(string: "http://localhost:5000")!
 
+    /// The native apps talk to their own Socket.IO namespace, kept separate
+    /// from the browser games so the two cannot collide.
+    static let socketNamespace = "/native"
+
     // Stable per-device identifier (persisted in UserDefaults)
     static var deviceID: String {
         let key = "gamelab_device_id"

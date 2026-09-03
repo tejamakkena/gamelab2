@@ -58,8 +58,10 @@ struct TVLobbyView: View {
                         ForEach(room.players) { player in
                             PlayerRow(player: player)
                         }
-                        // Empty slots
-                        ForEach(room.players.count..<room.gameID.maxPlayers, id: \.self) { _ in
+                        // Empty slots. Clamped because a range whose lower bound
+                        // exceeds its upper bound traps at runtime, and the player
+                        // count is server-supplied.
+                        ForEach(0..<max(0, room.gameID.maxPlayers - room.players.count), id: \.self) { _ in
                             EmptySlotRow()
                         }
                     }
@@ -67,7 +69,9 @@ struct TVLobbyView: View {
 
                 Spacer()
 
-                let canStart = room.players.count >= room.gameID.minPlayers
+                // A solo room has one synthetic player and no phones to wait for.
+                let isSolo = room.gameID.soloPlayable && room.players.count <= 1
+                let canStart = isSolo || room.players.count >= room.gameID.minPlayers
                 Button(action: onStart) {
                     Label(canStart ? "Start Game" : "Waiting for \(room.gameID.minPlayers - room.players.count) more…",
                           systemImage: canStart ? "play.fill" : "hourglass")
