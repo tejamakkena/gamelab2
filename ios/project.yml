@@ -1,0 +1,105 @@
+# XcodeGen project spec — generates GameLab.xcodeproj on the fly.
+# Run: brew install xcodegen && xcodegen generate  (from ios/ directory)
+
+name: GameLab
+options:
+  bundleIdPrefix: com.gamelab           # ← CHANGE to your reverse-domain prefix
+  deploymentTarget:
+    iOS: "17.0"
+    tvOS: "17.0"
+  xcodeVersion: "15.4"
+  groupSortPosition: top
+  createIntermediateGroups: true
+  usesTabs: false
+  indentWidth: 4
+
+# Swift Package dependencies
+packages:
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    from: "16.0.0"
+
+# ─── Targets ──────────────────────────────────────────────────────────────────
+
+targets:
+
+  # ── iPhone / iPad controller app ──────────────────────────────────────────
+  GameLabController:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+
+    sources:
+      - path: GameLabController
+        excludes: ["*.plist"]
+      - path: Shared
+
+    dependencies:
+      - package: SocketIO
+        product: SocketIO
+
+    info:
+      path: GameLabController/Info.plist
+      properties:
+        CFBundleDisplayName: GameLab
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSMotionUsageDescription: "GameLab uses motion to let you tilt and shake your phone as a game controller."
+        NSLocalNetworkUsageDescription: "GameLab connects to the game server on your local network."
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gamelab.controller   # ← CHANGE
+        SWIFT_VERSION: "5.9"
+        CURRENT_PROJECT_VERSION: 1
+        DEVELOPMENT_TEAM: ""        # ← set to your 10-char Team ID
+        CODE_SIGN_STYLE: Manual     # overridden to Automatic for local dev (see below)
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "$(IOS_PROVISION_PROFILE_NAME)"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER: ""
+
+  # ── Apple TV board app ────────────────────────────────────────────────────
+  GameLabTV:
+    type: application
+    platform: tvOS
+    deploymentTarget: "17.0"
+
+    sources:
+      - path: GameLabTV
+        excludes: ["*.plist"]
+      - path: Shared
+
+    dependencies:
+      - package: SocketIO
+        product: SocketIO
+
+    info:
+      path: GameLabTV/Info.plist
+      properties:
+        CFBundleDisplayName: GameLab TV
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSLocalNetworkUsageDescription: "GameLab TV connects to the game server on your local network."
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gamelab.tv            # ← CHANGE
+        SWIFT_VERSION: "5.9"
+        CURRENT_PROJECT_VERSION: 1
+        DEVELOPMENT_TEAM: ""        # ← set to your 10-char Team ID
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "$(TVOS_PROVISION_PROFILE_NAME)"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER: ""

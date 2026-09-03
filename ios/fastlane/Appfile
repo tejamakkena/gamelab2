@@ -1,0 +1,11 @@
+# ── Appfile ───────────────────────────────────────────────────────────────────
+# Set APPLE_ID and TEAM_ID in GitHub secrets or .env.local (never commit them).
+
+apple_id(ENV["APPLE_ID"] || "your@email.com")          # ← your Apple ID
+team_id(ENV["TEAM_ID"] || "XXXXXXXXXX")                  # ← 10-char Team ID
+
+# App IDs — must match project.yml bundle identifiers
+app_identifier([
+  "com.gamelab.controller",   # ← iOS phone controller
+  "com.gamelab.tv",           # ← tvOS board app
+])
