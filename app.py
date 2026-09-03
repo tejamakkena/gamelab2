@@ -107,6 +107,10 @@ def create_app(config_name='default'):
     from games.stickfight.socket_events import register_stickfight_events
     from games.roadfighter.socket_events import register_roadfighter_events
 
+    # Native iOS/tvOS hub -- isolated on the '/native' namespace so it cannot
+    # collide with the browser games' default-namespace room events.
+    from games.native_hub.socket_events import register_native_events
+
     # After creating socketio
     register_poker_events(socketio)
     register_trivia_events(socketio)
@@ -123,6 +127,7 @@ def create_app(config_name='default'):
     register_pong_events(socketio)
     register_stickfight_events(socketio)
     register_roadfighter_events(socketio)
+    register_native_events(socketio)
 
 
     # Login required decorator

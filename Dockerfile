@@ -27,4 +27,6 @@ ENV FLASK_ENV=development
 EXPOSE 5000
 
 # Run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+# "flask run" serves the WSGI app only and never calls socketio.run(), so
+# Socket.IO would not be served at all -- every realtime game would break.
+CMD ["python", "app.py"]
