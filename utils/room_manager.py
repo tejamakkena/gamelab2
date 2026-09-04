@@ -1,0 +1,286 @@
+"""Shared room + player state for the native iOS/tvOS hub.
+
+Every one of the 17 browser games re-implements this from scratch with its own
+module-level ``<game>_rooms = {}`` dict and its own ``generate_room_code()``.
+This is the single implementation the native hub uses instead.
+
+Two design points worth stating up front:
+
+1.  **The TV is never in ``players``.** It lives in ``tv_sids`` and is joined to
+    the Socket.IO room, so it receives every broadcast without appearing in the
+    lobby roster or counting toward the minimum-player gate.
+
+2.  **``to_json()`` emits Swift key names exactly.** The client decodes with a
+    default ``JSONDecoder`` (no snake_case conversion), so ``isReady`` and
+    ``gameID`` are spelled that way here. A mismatch does not raise -- it makes
+    the whole payload decode to nil and the screen silently never updates.
+"""
+
+import random
+import threading
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable
+
+# O/0 and I/1 are omitted: the TV renders this code at 96pt across a living room
+# and a misread character means the phone simply cannot join.
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+CODE_LENGTH = 6
+
+EMPTY_GRACE_SECONDS = 120       # room with nobody in it survives this long
+ROOM_TTL_SECONDS = 3600         # hard ceiling regardless of activity
+RECONNECT_GRACE_SECONDS = 60    # a disconnected player keeps their seat this long
+
+
+class RoomState(str, Enum):
+    LOBBY = "lobby"
+    PLAYING = "playing"
+    RESULTS = "results"
+
+
+def generate_room_code(exists: Callable[[str], bool]) -> str:
+    """Generate a code that passes ``exists``. Exposed as a free function so the
+    legacy games can adopt it later without importing the registry."""
+    for _ in range(12):
+        code = "".join(random.choices(CODE_ALPHABET, k=CODE_LENGTH))
+        if not exists(code):
+            return code
+    raise RuntimeError("room code space exhausted")
+
+
+@dataclass
+class Player:
+    """One phone. ``id`` is the stable device UUID, ``sid`` the current socket."""
+
+    id: str
+    name: str
+    is_ready: bool = False
+    score: int = 0
+    is_host: bool = False
+    sid: str | None = None
+    connected: bool = True
+    disconnected_at: float | None = None
+
+    def to_json(self) -> dict:
+        """Exactly the Swift ``Player`` struct -- all five keys, no optionals."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "isReady": self.is_ready,
+            "score": self.score,
+            "isHost": self.is_host,
+        }
+
+
+@dataclass
+class Room:
+    code: str
+    game_id: str
+    state: RoomState = RoomState.LOBBY
+    players: list[Player] = field(default_factory=list)   # phones only
+    tv_sids: set[str] = field(default_factory=set)        # TV / board sockets
+    solo: bool = False
+    engine: Any = None
+    # Bumped on start and on finish. A background pump captures the value it was
+    # spawned with and exits as soon as it no longer matches, so a pump from a
+    # previous round can never double-broadcast into the next one.
+    generation: int = 0
+    created_at: float = field(default_factory=time.time)
+    last_activity: float = field(default_factory=time.time)
+    empty_since: float | None = None
+    lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+
+    # ---- queries -----------------------------------------------------------
+
+    def player(self, player_id: str) -> Player | None:
+        return next((p for p in self.players if p.id == player_id), None)
+
+    def player_by_sid(self, sid: str) -> Player | None:
+        return next((p for p in self.players if p.sid == sid), None)
+
+    def connected_players(self) -> list[Player]:
+        return [p for p in self.players if p.connected]
+
+    def host(self) -> Player | None:
+        return next((p for p in self.players if p.is_host), None)
+
+    def is_empty(self) -> bool:
+        return not self.tv_sids and not self.connected_players()
+
+    def to_json(self) -> dict:
+        """Exactly the Swift ``Room`` struct."""
+        return {
+            "code": self.code,
+            "gameID": self.game_id,
+            "players": [p.to_json() for p in self.players],
+            "state": self.state.value,
+        }
+
+    # ---- mutations (callers hold self.lock) --------------------------------
+
+    def touch(self) -> None:
+        self.last_activity = time.time()
+        self.empty_since = None
+
+    def add_player(self, player_id: str, name: str, sid: str) -> Player:
+        """Add a phone. The first phone to arrive becomes host."""
+        player = Player(
+            id=player_id,
+            name=name,
+            sid=sid,
+            is_host=not any(p.is_host for p in self.players),
+        )
+        self.players.append(player)
+        self.touch()
+        return player
+
+    def remove_player(self, player_id: str) -> Player | None:
+        player = self.player(player_id)
+        if player is None:
+            return None
+        self.players.remove(player)
+        self.reassign_host()
+        self.mark_empty_if_needed()
+        return player
+
+    def attach_tv(self, sid: str) -> None:
+        self.tv_sids.add(sid)
+        self.touch()
+
+    def detach_sid(self, sid: str) -> str | None:
+        """Detach whatever this socket was. Returns '__tv__', a player id, or None."""
+        if sid in self.tv_sids:
+            self.tv_sids.discard(sid)
+            self.mark_empty_if_needed()
+            return "__tv__"
+
+        player = self.player_by_sid(sid)
+        if player is None:
+            return None
+
+        if self.state is RoomState.LOBBY:
+            # Nothing to preserve yet -- drop the seat outright.
+            self.players.remove(player)
+            self.reassign_host()
+        else:
+            # Mid-game: keep the seat so the same device can reclaim it.
+            player.connected = False
+            player.sid = None
+            player.disconnected_at = time.time()
+            self.reassign_host()
+
+        self.mark_empty_if_needed()
+        return player.id
+
+    def set_ready(self, player_id: str, ready: bool = True) -> bool:
+        player = self.player(player_id)
+        if player is None:
+            return False
+        player.is_ready = ready
+        self.touch()
+        return True
+
+    def reassign_host(self) -> None:
+        """Ensure exactly one connected player holds the host flag."""
+        if any(p.is_host and p.connected for p in self.players):
+            return
+        for p in self.players:
+            p.is_host = False
+        nxt = next((p for p in self.players if p.connected), None)
+        if nxt is not None:
+            nxt.is_host = True
+
+    def mark_empty_if_needed(self) -> None:
+        if self.is_empty():
+            if self.empty_since is None:
+                self.empty_since = time.time()
+        else:
+            self.empty_since = None
+
+    def evict_stale_players(self, now: float | None = None) -> list[str]:
+        """Drop players whose reconnect grace has expired. Returns their ids."""
+        now = now or time.time()
+        evicted = []
+        for p in list(self.players):
+            if (not p.connected and p.disconnected_at is not None
+                    and now - p.disconnected_at > RECONNECT_GRACE_SECONDS):
+                self.players.remove(p)
+                evicted.append(p.id)
+        if evicted:
+            self.reassign_host()
+            self.mark_empty_if_needed()
+        return evicted
+
+
+class RoomRegistry:
+    """Process-wide room store. Thread-safe."""
+
+    def __init__(self) -> None:
+        self._rooms: dict[str, Room] = {}
+        self._sid_index: dict[str, str] = {}   # sid -> room code
+        self._lock = threading.RLock()
+
+    def new_code(self) -> str:
+        with self._lock:
+            return generate_room_code(lambda c: c in self._rooms)
+
+    def create(self, game_id: str, *, solo: bool = False) -> Room:
+        with self._lock:
+            room = Room(code=self.new_code(), game_id=game_id, solo=solo)
+            self._rooms[room.code] = room
+            return room
+
+    def get(self, code: str) -> Room | None:
+        with self._lock:
+            return self._rooms.get(code)
+
+    def get_by_sid(self, sid: str) -> Room | None:
+        with self._lock:
+            code = self._sid_index.get(sid)
+            return self._rooms.get(code) if code else None
+
+    def bind_sid(self, sid: str, code: str) -> None:
+        with self._lock:
+            self._sid_index[sid] = code
+
+    def unbind_sid(self, sid: str) -> str | None:
+        with self._lock:
+            return self._sid_index.pop(sid, None)
+
+    def remove(self, code: str) -> None:
+        with self._lock:
+            room = self._rooms.pop(code, None)
+            if room is not None:
+                room.generation += 1   # kill any pump still running for it
+            for sid in [s for s, c in self._sid_index.items() if c == code]:
+                del self._sid_index[sid]
+
+    def all_rooms(self) -> list[Room]:
+        with self._lock:
+            return list(self._rooms.values())
+
+    def reapable(self, now: float | None = None) -> list[Room]:
+        """Rooms that have been empty past the grace period or exceeded the TTL."""
+        now = now or time.time()
+        with self._lock:
+            return [
+                r for r in self._rooms.values()
+                if (r.empty_since is not None
+                    and now - r.empty_since > EMPTY_GRACE_SECONDS)
+                or now - r.created_at > ROOM_TTL_SECONDS
+            ]
+
+    def clear(self) -> None:
+        """Test helper."""
+        with self._lock:
+            self._rooms.clear()
+            self._sid_index.clear()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._rooms)
+
+
+# Module-level singleton used by the hub.
+rooms = RoomRegistry()

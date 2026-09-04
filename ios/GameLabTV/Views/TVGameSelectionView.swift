@@ -2,9 +2,15 @@ import SwiftUI
 
 struct TVGameSelectionView: View {
     let onSelect: (GameID) -> Void
+    /// Starts a game with no phones at all — the Siri Remote is the controller.
+    var onSelectSolo: ((GameID) -> Void)? = nil
 
     @State private var selectedCategory: GameCategory? = nil
     @FocusState private var focusedGame: GameID?
+
+    // Observed rather than read off the singleton, so the dot actually updates
+    // when the connection drops.
+    @ObservedObject private var socket = GameSocketManager.shared
 
     private var displayedGames: [GameID] {
         if let cat = selectedCategory {
@@ -45,9 +51,9 @@ struct TVGameSelectionView: View {
                 // Connection status dot
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(GameSocketManager.shared.isConnected ? Color.green : Color.red)
+                        .fill(socket.isConnected ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
-                    Text(GameSocketManager.shared.isConnected ? "Server connected" : "Reconnecting…")
+                    Text(socket.isConnected ? "Server connected" : "Reconnecting…")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.5))
                 }
@@ -65,16 +71,23 @@ struct TVGameSelectionView: View {
                     ForEach(displayedGames, id: \.self) { game in
                         TVGameCard(game: game, isFocused: focusedGame == game)
                             .focused($focusedGame, equals: game)
-                            .onPlayPauseCommand { onSelect(game) }
-                            // tvOS primary action = select button
-                            .onMoveCommand { _ in }
-                            .buttonStyle(.plain)
-                            .onTapGesture { onSelect(game) }
+                            .onPlayPauseCommand { pick(game) }
+                            .onTapGesture { pick(game) }
                     }
                 }
                 .padding(.vertical, 60)
                 .padding(.trailing, 60)
             }
+        }
+    }
+
+    /// A solo-capable game starts immediately with no room code and no lobby;
+    /// everything else goes through the normal join flow.
+    private func pick(_ game: GameID) {
+        if game.soloPlayable, let onSelectSolo {
+            onSelectSolo(game)
+        } else {
+            onSelect(game)
         }
     }
 }
@@ -99,11 +112,16 @@ private struct TVGameCard: View {
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.5))
 
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 if game.hasPrivateInfo {
                     Label("Private info", systemImage: "eye.slash.fill")
                         .font(.caption2)
                         .foregroundColor(.cyan)
+                }
+                if game.supportsRemote {
+                    Label("Remote", systemImage: "av.remote.fill")
+                        .font(.caption2)
+                        .foregroundColor(.green)
                 }
             }
         }
