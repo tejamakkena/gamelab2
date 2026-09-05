@@ -60,11 +60,19 @@ jobs:
 
       - name: Build tvOS (simulator, no signing)
         run: |
+          # generic/platform=tvOS Simulator failed here: this runner image
+          # has no tvOS Simulator runtime installed ("tvOS 18.2 is not
+          # installed"), unlike the iOS Simulator destination above, which
+          # resolved fine. generic/platform=tvOS is the device-generic form
+          # already proven working for this exact scheme in deploy-tvos's
+          # archive step -- it needs only the tvOS SDK (bundled with Xcode),
+          # never a separately-installed runtime, which is all a
+          # compile-only check needs.
           xcodebuild build \
             -project GameLab.xcodeproj \
             -scheme GameLabTV \
             -configuration Debug \
-            -destination "generic/platform=tvOS Simulator" \
+            -destination generic/platform=tvOS \
             CODE_SIGNING_ALLOWED=NO
 
   # ── Deploy iOS controller app to TestFlight ─────────────────────────────────
