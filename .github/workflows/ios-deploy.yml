@@ -40,6 +40,14 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
+      # A freshly xcode-select'd non-default Xcode copy may never have run
+      # Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator, etc.). Without it, -downloadPlatform
+      # fails with "Unable to connect to simulator" rather than actually
+      # downloading anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
       # Xcode 16.2 on this runner image ships iOS support by default but
       # not tvOS -- both destination forms above failed with the same
       # underlying "tvOS 18.2 is not installed" error. This fetches the
@@ -231,6 +239,14 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      # A freshly xcode-select'd non-default Xcode copy may never have run
+      # Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator, etc.). Without it, -downloadPlatform
+      # fails with "Unable to connect to simulator" rather than actually
+      # downloading anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
 
       # Xcode 16.2 on this runner image ships iOS support by default but
       # not tvOS (see build-check's tvOS build step for the two destination
