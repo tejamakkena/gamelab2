@@ -40,6 +40,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
+      # Xcode 16.2 on this runner image ships iOS support by default but
+      # not tvOS -- both destination forms above failed with the same
+      # underlying "tvOS 18.2 is not installed" error. This fetches the
+      # platform support files so tvOS can be targeted at all.
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -224,6 +231,13 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      # Xcode 16.2 on this runner image ships iOS support by default but
+      # not tvOS (see build-check's tvOS build step for the two destination
+      # forms that both failed with "tvOS 18.2 is not installed"). This
+      # fetches the platform support files so archiving for tvOS works.
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
 
       - name: Install XcodeGen
         run: brew install xcodegen
