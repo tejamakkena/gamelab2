@@ -40,21 +40,6 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      # A freshly xcode-select'd non-default Xcode copy may never have run
-      # Apple's first-launch initialization (accepting the license,
-      # registering with CoreSimulator, etc.). Without it, -downloadPlatform
-      # fails with "Unable to connect to simulator" rather than actually
-      # downloading anything.
-      - name: Run Xcode first launch
-        run: sudo xcodebuild -runFirstLaunch
-
-      # Xcode 16.2 on this runner image ships iOS support by default but
-      # not tvOS -- both destination forms above failed with the same
-      # underlying "tvOS 18.2 is not installed" error. This fetches the
-      # platform support files so tvOS can be targeted at all.
-      - name: Install tvOS platform
-        run: sudo xcodebuild -downloadPlatform tvOS
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -72,6 +57,26 @@ jobs:
             -configuration Debug \
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO
+
+      # Installing the tvOS platform runs after the iOS build, not before it.
+      # A prior run confirmed -downloadPlatform tvOS genuinely succeeds
+      # (downloads and registers the tvOS Simulator runtime), but the very
+      # next xcodebuild invocation afterward failed to find the iOS platform
+      # too -- installing a new platform leaves Xcode's platform registry
+      # transiently unable to resolve destinations right after. Since the
+      # iOS build has no dependency on tvOS, doing it first sidesteps that
+      # disruption entirely instead of guessing at how to wait it out.
+      #
+      # A freshly xcode-select'd non-default Xcode copy may also never have
+      # run Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator); without it, -downloadPlatform fails
+      # with "Unable to connect to simulator" rather than downloading
+      # anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
 
       - name: Build tvOS (simulator, no signing)
         run: |
