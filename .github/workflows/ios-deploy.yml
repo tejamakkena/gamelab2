@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
     paths: ["ios/**"]          # only runs when Swift code changes
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-deploy.yml"   # build-check below is gated on
+                                              # this event; without this line
+                                              # a PR that only edits this file
+                                              # never triggers its own check
   workflow_dispatch:           # manual trigger from GitHub Actions tab
     inputs:
       target:
@@ -33,12 +40,6 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: ios
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -46,27 +47,53 @@ jobs:
         run: xcodegen generate
 
       - name: Resolve SPM packages
-        run: xcodebuild -resolvePackageDependencies -workspace GameLab.xcworkspace -scheme GameLabController
+        run: xcodebuild -resolvePackageDependencies -project GameLab.xcodeproj -scheme GameLabController
 
       - name: Build iOS (simulator, no signing)
         run: |
           xcodebuild build \
-            -workspace GameLab.xcworkspace \
+            -project GameLab.xcodeproj \
             -scheme GameLabController \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=iPhone 16" \
-            CODE_SIGNING_ALLOWED=NO \
-            | xcpretty
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO
+
+      # Installing the tvOS platform runs after the iOS build, not before it.
+      # A prior run confirmed -downloadPlatform tvOS genuinely succeeds
+      # (downloads and registers the tvOS Simulator runtime), but the very
+      # next xcodebuild invocation afterward failed to find the iOS platform
+      # too -- installing a new platform leaves Xcode's platform registry
+      # transiently unable to resolve destinations right after. Since the
+      # iOS build has no dependency on tvOS, doing it first sidesteps that
+      # disruption entirely instead of guessing at how to wait it out.
+      #
+      # A freshly xcode-select'd non-default Xcode copy may also never have
+      # run Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator); without it, -downloadPlatform fails
+      # with "Unable to connect to simulator" rather than downloading
+      # anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
 
       - name: Build tvOS (simulator, no signing)
         run: |
+          # generic/platform=tvOS Simulator failed here: this runner image
+          # has no tvOS Simulator runtime installed ("tvOS 18.2 is not
+          # installed"), unlike the iOS Simulator destination above, which
+          # resolved fine. generic/platform=tvOS is the device-generic form
+          # already proven working for this exact scheme in deploy-tvos's
+          # archive step -- it needs only the tvOS SDK (bundled with Xcode),
+          # never a separately-installed runtime, which is all a
+          # compile-only check needs.
           xcodebuild build \
-            -workspace GameLab.xcworkspace \
+            -project GameLab.xcodeproj \
             -scheme GameLabTV \
             -configuration Debug \
-            -destination "platform=tvOS Simulator,name=Apple TV 4K (3rd generation)" \
-            CODE_SIGNING_ALLOWED=NO \
-            | xcpretty
+            -destination generic/platform=tvOS \
+            CODE_SIGNING_ALLOWED=NO
 
   # ── Deploy iOS controller app to TestFlight ─────────────────────────────────
   deploy-ios:
@@ -87,14 +114,8 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: ios
-
-      - name: Install XcodeGen + xcpretty
-        run: brew install xcodegen && gem install xcpretty
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -114,10 +135,13 @@ jobs:
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Import distribution certificate
+          # Import distribution certificate. No -t: the p12 bundles both the
+          # certificate and its private key, and forcing -t cert makes
+          # security import keep only the certificate, silently dropping the
+          # key -- the next command then finds no identity to authorize.
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
           security import "$CERT_PATH" \
-            -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            -P "$P12_PASSWORD" -A -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list \
             -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
@@ -147,15 +171,14 @@ jobs:
           DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
         run: |
           xcodebuild archive \
-            -workspace GameLab.xcworkspace \
+            -project GameLab.xcodeproj \
             -scheme GameLabController \
             -configuration Release \
             -destination generic/platform=iOS \
             -archivePath $RUNNER_TEMP/GameLabController.xcarchive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISION_PROFILE_NAME" \
-            | xcpretty
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISION_PROFILE_NAME"
 
       - name: Export IPA
         env:
@@ -222,14 +245,23 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: ios
+      # A freshly xcode-select'd non-default Xcode copy may never have run
+      # Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator, etc.). Without it, -downloadPlatform
+      # fails with "Unable to connect to simulator" rather than actually
+      # downloading anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
 
-      - name: Install XcodeGen + xcpretty
-        run: brew install xcodegen && gem install xcpretty
+      # Xcode 16.2 on this runner image ships iOS support by default but
+      # not tvOS (see build-check's tvOS build step for the two destination
+      # forms that both failed with "tvOS 18.2 is not installed"). This
+      # fetches the platform support files so archiving for tvOS works.
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -246,8 +278,9 @@ jobs:
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+          # No -t: forcing cert-only import drops the paired private key.
           security import "$CERT_PATH" \
-            -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            -P "$P12_PASSWORD" -A -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list \
             -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
@@ -270,15 +303,14 @@ jobs:
           DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
         run: |
           xcodebuild archive \
-            -workspace GameLab.xcworkspace \
+            -project GameLab.xcodeproj \
             -scheme GameLabTV \
             -configuration Release \
             -destination generic/platform=tvOS \
             -archivePath $RUNNER_TEMP/GameLabTV.xcarchive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$TVOS_PROVISION_PROFILE_NAME" \
-            | xcpretty
+            PROVISIONING_PROFILE_SPECIFIER="$TVOS_PROVISION_PROFILE_NAME"
 
       - name: Export IPA
         env:
