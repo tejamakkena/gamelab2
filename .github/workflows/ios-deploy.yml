@@ -5,7 +5,12 @@ on:
     branches: [main]
     paths: ["ios/**"]          # only runs when Swift code changes
   pull_request:
-    paths: ["ios/**"]          # build-check below is gated on this event
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-deploy.yml"   # build-check below is gated on
+                                              # this event; without this line
+                                              # a PR that only edits this file
+                                              # never triggers its own check
   workflow_dispatch:           # manual trigger from GitHub Actions tab
     inputs:
       target:
