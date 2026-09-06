@@ -424,34 +424,11 @@ struct HeistBoardState {
 }
 
 // MARK: - Supporting types
-
-struct GridPos: Hashable, Codable {
-    let col: Int
-    let row: Int
-}
+//
+// GridPos, HeistPhase, and HeistRole moved to Shared/Models/HeistTypes.swift —
+// HeistControllerView (a different Xcode target) needs them too.
 
 enum HeistTileType { case empty, wall, vault, exit, camera }
-
-enum HeistPhase: String {
-    case guardSets  = "guard_sets"
-    case thievesMove = "thieves_move"
-    case reveal     = "reveal"
-
-    var label: String {
-        switch self {
-        case .guardSets:   return "Guard Setting Cameras"
-        case .thievesMove: return "Thieves Moving"
-        case .reveal:      return "Reveal"
-        }
-    }
-    var color: Color {
-        switch self {
-        case .guardSets:   return .red
-        case .thievesMove: return .cyan
-        case .reveal:      return .yellow
-        }
-    }
-}
 
 enum HeistWinner { case guard_, thieves }
 // disambiguate keyword
@@ -472,8 +449,6 @@ struct HeistThiefStatus: Identifiable {
     let id: String
     let color: Color
 }
-
-enum HeistRole { case `guard`, thief }
 
 enum HeistConstants {
     static let cols = 7

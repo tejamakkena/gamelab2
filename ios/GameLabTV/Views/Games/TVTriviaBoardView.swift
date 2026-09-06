@@ -170,7 +170,7 @@ final class TriviaboardViewModel: ObservableObject {
         }
     }
 
-    func choiceState(for index: Int, correctIndex: Int) -> ChoiceTile.ChoiceState {
+    fileprivate func choiceState(for index: Int, correctIndex: Int) -> ChoiceTile.ChoiceState {
         guard let revealed = revealedCorrectIndex else { return .idle }
         if index == revealed { return .correct }
         return .idle

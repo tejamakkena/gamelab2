@@ -285,24 +285,26 @@ struct TVAirHockeyBoardView: View {
                                                       width: 120, height: 120)),
                                with: .color(.white.opacity(0.15)), lineWidth: 2)
 
-                    // Paddles
+                    // Paddles. state fields decode as Double (server JSON), scale is
+                    // CGFloat -- Swift has no automatic Double<->CGFloat conversion,
+                    // so each Double sub-expression is wrapped once before scaling.
                     for (i, p) in vm.state.paddles.enumerated() {
-                        let y: CGFloat = i == 0 ? 6 * scale : (vm.state.height - 6) * scale
+                        let y: CGFloat = i == 0 ? 6 * scale : CGFloat(vm.state.height - 6) * scale
                         ctx.fill(
                             Path(roundedRect: CGRect(
-                                x: (p.x - vm.state.paddleWidth / 2) * scale, y: y - 8,
-                                width: vm.state.paddleWidth * scale, height: 16),
+                                x: CGFloat(p.x - vm.state.paddleWidth / 2) * scale, y: y - 8,
+                                width: CGFloat(vm.state.paddleWidth) * scale, height: 16),
                                  cornerRadius: 8),
                             with: .color(i == 0 ? .cyan : .pink))
                     }
 
                     ctx.fill(
-                        Path(ellipseIn: CGRect(x: (vm.state.puck.x - 3) * scale,
-                                               y: (vm.state.puck.y - 3) * scale,
+                        Path(ellipseIn: CGRect(x: CGFloat(vm.state.puck.x - 3) * scale,
+                                               y: CGFloat(vm.state.puck.y - 3) * scale,
                                                width: 6 * scale, height: 6 * scale)),
                         with: .color(.white))
                 }
-                .frame(width: vm.state.width * scale, height: vm.state.height * scale)
+                .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
 
                 if vm.state.finished {
                     Text("GAME OVER").font(.system(size: 54, weight: .heavy)).tracking(5)
@@ -311,7 +313,7 @@ struct TVAirHockeyBoardView: View {
                         .background(RoundedRectangle(cornerRadius: 20).fill(.black.opacity(0.8)))
                 }
             }
-            .frame(width: vm.state.width * scale + 8, height: vm.state.height * scale + 8)
+            .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
@@ -428,23 +430,18 @@ struct TVLudoBoardView: View {
                 // Ring board: 52 squares laid out in a circle keeps every token
                 // visible at TV distance without a cramped cross layout.
                 ZStack {
+                    // Extracted into their own subviews (below) rather than inline
+                    // closures here: two nested ForEach loops combining trig,
+                    // conditional binding, and several chained modifiers in one
+                    // expression tree made the type-checker time out. Each subview
+                    // now type-checks independently.
                     ForEach(0..<track, id: \.self) { i in
-                        let angle = Double(i) / Double(track) * 2 * .pi - .pi / 2
-                        Circle()
-                            .fill(.white.opacity(0.1))
-                            .frame(width: 30, height: 30)
-                            .offset(x: radius * cos(angle), y: radius * sin(angle))
+                        LudoTrackDot(index: i, track: track, radius: radius)
                     }
                     ForEach(Array(vm.state.seats.enumerated()), id: \.offset) { _, seat in
                         ForEach(Array(seat.absolute.enumerated()), id: \.offset) { _, abs in
-                            if let pos = abs {
-                                let angle = Double(pos) / Double(track) * 2 * .pi - .pi / 2
-                                Circle()
-                                    .fill(seatColors[seat.seat % 4])
-                                    .frame(width: 34, height: 34)
-                                    .overlay(Circle().stroke(.white, lineWidth: 2))
-                                    .offset(x: radius * cos(angle), y: radius * sin(angle))
-                            }
+                            LudoTokenDot(position: abs, track: track, radius: radius,
+                                        color: seatColors[seat.seat % 4])
                         }
                     }
                     VStack(spacing: 6) {
@@ -477,6 +474,43 @@ struct TVLudoBoardView: View {
             TVScoreStrip(players: vm.state.players)
         }
         .onAppear { vm.bind(roomCode: room.code) }
+    }
+}
+
+/// One background ring position on the Ludo track. Its own `body` gives the
+/// type-checker a small, isolated expression instead of one more closure
+/// nested inside TVLudoBoardView's already-heavy view tree.
+private struct LudoTrackDot: View {
+    let index: Int
+    let track: Int
+    let radius: CGFloat
+
+    var body: some View {
+        let angle = Double(index) / Double(track) * 2 * .pi - .pi / 2
+        Circle()
+            .fill(.white.opacity(0.1))
+            .frame(width: 30, height: 30)
+            .offset(x: radius * cos(angle), y: radius * sin(angle))
+    }
+}
+
+/// One player token on the Ludo track, or nothing if that token hasn't left
+/// the yard yet (`position == nil`).
+private struct LudoTokenDot: View {
+    let position: Int?
+    let track: Int
+    let radius: CGFloat
+    let color: Color
+
+    var body: some View {
+        if let pos = position {
+            let angle = Double(pos) / Double(track) * 2 * .pi - .pi / 2
+            Circle()
+                .fill(color)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .offset(x: radius * cos(angle), y: radius * sin(angle))
+        }
     }
 }
 
@@ -520,7 +554,7 @@ struct TVCarromBoardView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(Color(hex: "d9b382"))
-                    .frame(width: vm.state.board * scale, height: vm.state.board * scale)
+                    .frame(width: CGFloat(vm.state.board) * scale, height: CGFloat(vm.state.board) * scale)
                     .overlay(RoundedRectangle(cornerRadius: 14)
                         .stroke(Color(hex: "6b4f2a"), lineWidth: 10))
 
@@ -538,22 +572,24 @@ struct TVCarromBoardView: View {
                                                       width: 90, height: 90)),
                                with: .color(Color(hex: "6b4f2a").opacity(0.5)), lineWidth: 3)
 
+                    // coin.x/y and strikerX decode as Double (server JSON); scale is
+                    // CGFloat, so each is wrapped before scaling -- see AirHockey above.
                     for coin in vm.state.coins {
                         let color: Color = coin.kind == "queen" ? .red
                                          : coin.kind == "black" ? .black
                                          : Color(hex: "f5e6c8")
-                        ctx.fill(Path(ellipseIn: CGRect(x: coin.x * scale - 12,
-                                                        y: coin.y * scale - 12,
+                        ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(coin.x) * scale - 12,
+                                                        y: CGFloat(coin.y) * scale - 12,
                                                         width: 24, height: 24)),
                                  with: .color(color))
                     }
                     // Striker
-                    ctx.fill(Path(ellipseIn: CGRect(x: vm.state.strikerX * scale - 16,
+                    ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(vm.state.strikerX) * scale - 16,
                                                     y: 92 * scale - 16,
                                                     width: 32, height: 32)),
                              with: .color(.cyan))
                 }
-                .frame(width: vm.state.board * scale, height: vm.state.board * scale)
+                .frame(width: CGFloat(vm.state.board) * scale, height: CGFloat(vm.state.board) * scale)
             }
             Spacer()
             TVScoreStrip(players: vm.state.players)

@@ -43,15 +43,12 @@ struct RemoteDPad: ViewModifier {
 
 /// Discrete swipes for tile games such as 2048.
 ///
-/// `onMoveCommand` already fires for a flick on the touch surface, so the
-/// gesture below only adds recognition for slower drags that tvOS would
-/// otherwise treat as focus movement.
+/// `DragGesture` is unavailable on tvOS entirely (no touch screen — the
+/// remote's surface is exposed only through the focus-engine commands
+/// below), so `onMoveCommand` is the only source of swipe direction here,
+/// not a supplement to a gesture recognizer.
 struct RemoteSwipe: ViewModifier {
     let onEvent: (RemoteEvent) -> Void
-
-    @State private var handled = false
-
-    private var threshold: CGFloat { 40 }
 
     func body(content: Content) -> some View {
         content
@@ -66,44 +63,29 @@ struct RemoteSwipe: ViewModifier {
                 }
             }
             .onPlayPauseCommand { onEvent(.playPause) }
-            .gesture(
-                DragGesture(minimumDistance: threshold)
-                    .onChanged { value in
-                        guard !handled else { return }
-                        handled = true
-                        let dx = value.translation.width
-                        let dy = value.translation.height
-                        if abs(dx) > abs(dy) {
-                            onEvent(dx > 0 ? .right : .left)
-                        } else {
-                            onEvent(dy > 0 ? .down : .up)
-                        }
-                    }
-                    .onEnded { _ in handled = false }
-            )
     }
 }
 
 // MARK: - Analog scrub
 
-/// Continuous left/right position for paddle games such as Brick Breaker.
+/// Left/right position for paddle games such as Brick Breaker.
 ///
-/// Reports a normalised 0...1 value so the caller does not have to know the
-/// width of the touch surface.
+/// tvOS has no `DragGesture` to read continuous position off the remote's
+/// touch surface directly in SwiftUI (that needs GameController.framework's
+/// `GCMicroGamepad.dpad`, a lower-level API this file deliberately doesn't
+/// take on yet). Until then, each edge click on the touch surface arrives as
+/// a discrete `onMoveCommand` and nudges the paddle a fixed step — coarser
+/// than a smooth drag, but a real, working control rather than a modifier
+/// that doesn't compile.
 struct RemoteScrub: ViewModifier {
     let onEvent: (RemoteEvent) -> Void
 
-    /// How far a full-width drag travels, in points. tvOS reports touch-surface
-    /// drags in a small range, so this is deliberately modest.
-    private var span: CGFloat { 600 }
-
-    @State private var anchor: Double = 0.5
+    @State private var position: Double = 0.5
 
     func body(content: Content) -> some View {
         content
             .focusable()
             .onMoveCommand { direction in
-                // Step the paddle when someone clicks the edges instead of dragging.
                 switch direction {
                 case .left:  nudge(-0.08)
                 case .right: nudge(0.08)
@@ -111,21 +93,11 @@ struct RemoteScrub: ViewModifier {
                 }
             }
             .onPlayPauseCommand { onEvent(.playPause) }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let delta = Double(value.translation.width / span)
-                        onEvent(.scrub(min(1, max(0, anchor + delta))))
-                    }
-                    .onEnded { value in
-                        anchor = min(1, max(0, anchor + Double(value.translation.width / span)))
-                    }
-            )
     }
 
     private func nudge(_ amount: Double) {
-        anchor = min(1, max(0, anchor + amount))
-        onEvent(.scrub(anchor))
+        position = min(1, max(0, position + amount))
+        onEvent(.scrub(position))
     }
 }
 
