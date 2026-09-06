@@ -244,21 +244,26 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
-          # Write the API key to a temp file
-          KEY_PATH=$RUNNER_TEMP/asc_key.p8
-          echo -n "$ASC_PRIVATE_KEY" > "$KEY_PATH"
+          # altool doesn't accept an arbitrary --private-key path -- it looks
+          # for a file named AuthKey_<key ID>.p8 in one of a few fixed
+          # directories, so the key has to be placed there under that name.
+          mkdir -p ~/private_keys
+          echo -n "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_"$ASC_KEY_ID".p8
 
           xcrun altool --upload-app \
             --type ios \
             --file $RUNNER_TEMP/ios-export/GameLabController.ipa \
             --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$ASC_ISSUER_ID" \
-            --private-key "$KEY_PATH" \
             --show-progress
 
       - name: Clean up keychain
         if: always()
         run: security delete-keychain $RUNNER_TEMP/signing.keychain-db 2>/dev/null || true
+
+      - name: Clean up App Store Connect API key
+        if: always()
+        run: rm -rf ~/private_keys
 
   # ── Deploy tvOS board app to TestFlight ────────────────────────────────────
   deploy-tvos:
@@ -381,16 +386,23 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
-          KEY_PATH=$RUNNER_TEMP/asc_key.p8
-          echo -n "$ASC_PRIVATE_KEY" > "$KEY_PATH"
+          # altool doesn't accept an arbitrary --private-key path -- it looks
+          # for a file named AuthKey_<key ID>.p8 in one of a few fixed
+          # directories, so the key has to be placed there under that name.
+          mkdir -p ~/private_keys
+          echo -n "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_"$ASC_KEY_ID".p8
+
           xcrun altool --upload-app \
             --type appletvos \
             --file $RUNNER_TEMP/tvos-export/GameLabTV.ipa \
             --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$ASC_ISSUER_ID" \
-            --private-key "$KEY_PATH" \
             --show-progress
 
       - name: Clean up keychain
         if: always()
         run: security delete-keychain $RUNNER_TEMP/signing.keychain-db 2>/dev/null || true
+
+      - name: Clean up App Store Connect API key
+        if: always()
+        run: rm -rf ~/private_keys
