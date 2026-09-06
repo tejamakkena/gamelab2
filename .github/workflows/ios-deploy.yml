@@ -62,10 +62,22 @@ jobs:
       # unconditionally costs nothing on instances where it's cached, and
       # fixes the build on instances where it isn't.
       - name: Install iOS platform
-        run: sudo xcodebuild -downloadPlatform iOS
+        run: |
+          for attempt in 1 2 3; do
+            sudo xcodebuild -downloadPlatform iOS && exit 0
+            echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Install tvOS platform
-        run: sudo xcodebuild -downloadPlatform tvOS
+        run: |
+          for attempt in 1 2 3; do
+            sudo xcodebuild -downloadPlatform tvOS && exit 0
+            echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -128,7 +140,13 @@ jobs:
         run: sudo xcodebuild -runFirstLaunch
 
       - name: Install iOS platform
-        run: sudo xcodebuild -downloadPlatform iOS
+        run: |
+          for attempt in 1 2 3; do
+            sudo xcodebuild -downloadPlatform iOS && exit 0
+            echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -274,7 +292,13 @@ jobs:
       # forms that both failed with "tvOS 18.2 is not installed"). This
       # fetches the platform support files so archiving for tvOS works.
       - name: Install tvOS platform
-        run: sudo xcodebuild -downloadPlatform tvOS
+        run: |
+          for attempt in 1 2 3; do
+            sudo xcodebuild -downloadPlatform tvOS && exit 0
+            echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Install XcodeGen
         run: brew install xcodegen
