@@ -324,38 +324,41 @@ struct TVBrickBreakerBoardView: View {
                     .stroke(Color.orange.opacity(0.3), lineWidth: 3)
                     .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.4)))
 
+                // State fields decode as Double (server JSON), scale is CGFloat --
+                // each Double sub-expression is wrapped once before scaling, since
+                // Swift has no automatic Double<->CGFloat conversion.
                 Canvas { ctx, _ in
                     for brick in vm.state.bricks {
                         // Colour by row so the wall reads as bands.
                         let band = Int(brick.y / 7) % 5
                         let colors: [Color] = [.red, .orange, .yellow, .green, .cyan]
                         ctx.fill(
-                            Path(roundedRect: CGRect(x: brick.x * scale, y: brick.y * scale,
-                                                     width: brick.w * scale, height: brick.h * scale),
+                            Path(roundedRect: CGRect(x: CGFloat(brick.x) * scale, y: CGFloat(brick.y) * scale,
+                                                     width: CGFloat(brick.w) * scale, height: CGFloat(brick.h) * scale),
                                  cornerRadius: 4),
                             with: .color(colors[band])
                         )
                     }
                     ctx.fill(
-                        Path(ellipseIn: CGRect(x: (vm.state.ball.x - 1.6) * scale,
-                                               y: (vm.state.ball.y - 1.6) * scale,
+                        Path(ellipseIn: CGRect(x: CGFloat(vm.state.ball.x - 1.6) * scale,
+                                               y: CGFloat(vm.state.ball.y - 1.6) * scale,
                                                width: 3.2 * scale, height: 3.2 * scale)),
                         with: .color(.white)
                     )
                     ctx.fill(
                         Path(roundedRect: CGRect(
-                            x: (vm.state.paddle - vm.state.paddleWidth / 2) * scale,
-                            y: (vm.state.height - 10) * scale,
-                            width: vm.state.paddleWidth * scale, height: 3 * scale),
+                            x: CGFloat(vm.state.paddle - vm.state.paddleWidth / 2) * scale,
+                            y: CGFloat(vm.state.height - 10) * scale,
+                            width: CGFloat(vm.state.paddleWidth) * scale, height: 3 * scale),
                              cornerRadius: 5),
                         with: .color(.cyan)
                     )
                 }
-                .frame(width: vm.state.width * scale, height: vm.state.height * scale)
+                .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
 
                 if vm.state.finished { GameOverBanner(score: vm.state.score) }
             }
-            .frame(width: vm.state.width * scale + 8, height: vm.state.height * scale + 8)
+            .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
             Spacer()
             RemoteHint(text: "Drag across the remote to move the paddle")
         }
