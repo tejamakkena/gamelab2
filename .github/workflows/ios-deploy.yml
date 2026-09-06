@@ -28,7 +28,7 @@ jobs:
   # ── Build check on every PR (no signing, no upload) ────────────────────────
   build-check:
     name: Build check (simulator)
-    runs-on: macos-15
+    runs-on: macos-26
     if: github.event_name == 'pull_request'
     defaults:
       run:
@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       # A freshly xcode-select'd non-default Xcode copy may never have run
       # Apple's first-launch initialization (accepting the license,
@@ -117,7 +117,7 @@ jobs:
   # ── Deploy iOS controller app to TestFlight ─────────────────────────────────
   deploy-ios:
     name: Deploy iOS → TestFlight
-    runs-on: macos-15
+    runs-on: macos-26
     if: |
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' &&
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       # See build-check's identical steps for why: this runner's VM
       # instances are inconsistent about pre-cached platform support, and
@@ -268,7 +268,7 @@ jobs:
   # ── Deploy tvOS board app to TestFlight ────────────────────────────────────
   deploy-tvos:
     name: Deploy tvOS → TestFlight
-    runs-on: macos-15
+    runs-on: macos-26
     if: |
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' &&
@@ -282,7 +282,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       # A freshly xcode-select'd non-default Xcode copy may never have run
       # Apple's first-launch initialization (accepting the license,
@@ -292,10 +292,11 @@ jobs:
       - name: Run Xcode first launch
         run: sudo xcodebuild -runFirstLaunch
 
-      # Xcode 16.2 on this runner image ships iOS support by default but
-      # not tvOS (see build-check's tvOS build step for the two destination
-      # forms that both failed with "tvOS 18.2 is not installed"). This
-      # fetches the platform support files so archiving for tvOS works.
+      # This runner image's VM instances aren't always consistent about what
+      # platform support is pre-cached (see build-check's tvOS build step for
+      # the destination forms that failed with "tvOS ... is not installed" on
+      # an earlier Xcode/runner combination). Downloading explicitly here is
+      # a no-op when already present and cheap insurance otherwise.
       - name: Install tvOS platform
         run: |
           for attempt in 1 2 3; do
