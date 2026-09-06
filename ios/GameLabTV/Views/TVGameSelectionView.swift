@@ -82,17 +82,25 @@ struct TVGameSelectionView: View {
                     spacing: 28
                 ) {
                     ForEach(displayedGames, id: \.self) { game in
-                        TVGameCard(game: game, isFocused: focusedGame == game)
-                            // The card itself is a plain VStack, not a Button --
-                            // without this, it can never receive focus at all,
-                            // which is why the remote's swipes could previously
-                            // only ever move through the sidebar's buttons and
-                            // never reach a single game card.
-                            .focusable()
-                            .focused($focusedGame, equals: game)
-                            .onPlayPauseCommand { pick(game) }
-                            .onTapGesture { pick(game) }
-                            .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        // A real Button, not a plain VStack with .onTapGesture --
+                        // .focusable() alone (the swipe-navigation fix) makes a
+                        // view reachable by the remote, but a Select-button
+                        // click on a custom focusable view isn't reliably
+                        // delivered as a tap gesture on tvOS. Button is the
+                        // primitive tvOS actually wires Select through, which
+                        // is exactly why CategoryPill (already a Button)
+                        // never had this problem. .buttonStyle(.plain) drops
+                        // tvOS's own button chrome so TVGameCard's custom
+                        // focus styling is what's actually seen.
+                        Button {
+                            pick(game)
+                        } label: {
+                            TVGameCard(game: game, isFocused: focusedGame == game)
+                        }
+                        .buttonStyle(.plain)
+                        .focused($focusedGame, equals: game)
+                        .onPlayPauseCommand { pick(game) }
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
                 .padding(.vertical, 60)
