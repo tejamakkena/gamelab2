@@ -48,6 +48,9 @@ targets:
           UIColorName: ""
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSMotionUsageDescription: "GameLab uses motion to let you tilt and shake your phone as a game controller."
         NSLocalNetworkUsageDescription: "GameLab connects to the game server on your local network."
 
