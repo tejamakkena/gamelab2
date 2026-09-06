@@ -1,23 +1,25 @@
 
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y     build-essential     curl     software-properties-common     git     && rm -rf /var/lib/apt/lists/*
+# Install system dependencies. build-essential is the only one anything in
+# requirements.txt could conceivably need (a transitive dependency compiling
+# from source); curl, software-properties-common and git were never actually
+# used anywhere in this app, so they're dropped -- smaller image, less apt
+# surface to fail on. --no-install-recommends keeps the ripple-effect
+# packages down too.
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy project files
 COPY . /app
 
-# Install Python dependencies
+# Install Python dependencies. Only the runtime ones -- pylint/pytest/bandit
+# etc. (dev-requirements.txt) are for local development, not for running
+# the server, so they don't belong in a deploy image.
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install development dependencies
-RUN pip install --no-cache-dir -r dev-requirements.txt
-
-# Add development tools
-RUN pip install     pylint     pytest     coverage     bandit
 
 # Set environment variables
 ENV FLASK_APP=app.py
