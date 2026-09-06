@@ -82,25 +82,28 @@ struct TVGameSelectionView: View {
                     spacing: 28
                 ) {
                     ForEach(displayedGames, id: \.self) { game in
-                        // A real Button, not a plain VStack with .onTapGesture --
-                        // .focusable() alone (the swipe-navigation fix) makes a
-                        // view reachable by the remote, but a Select-button
-                        // click on a custom focusable view isn't reliably
-                        // delivered as a tap gesture on tvOS. Button is the
-                        // primitive tvOS actually wires Select through, which
-                        // is exactly why CategoryPill (already a Button)
-                        // never had this problem. .buttonStyle(.plain) drops
-                        // tvOS's own button chrome so TVGameCard's custom
-                        // focus styling is what's actually seen.
-                        Button {
-                            pick(game)
-                        } label: {
-                            TVGameCard(game: game, isFocused: focusedGame == game)
-                        }
-                        .buttonStyle(.plain)
-                        .focused($focusedGame, equals: game)
-                        .onPlayPauseCommand { pick(game) }
-                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        // Wrapping this in a Button (tried previously) turned
+                        // out worse: tvOS's focus engine draws its own
+                        // default focus/pressed "card" chrome underneath a
+                        // Button's content regardless of .buttonStyle(.plain)
+                        // -- exactly the stray white rounded rectangle
+                        // reported from testing on a real Apple TV. Custom-
+                        // styled focusable tap targets on tvOS need to stay
+                        // plain views: .focusable() makes the card reachable
+                        // by the remote's swipes (the original fix), and
+                        // .onLongPressGesture(minimumDuration: 0) is what
+                        // actually, reliably fires on a Select-button click
+                        // for a plain focusable view -- unlike .onTapGesture,
+                        // which tvOS doesn't consistently deliver from Select
+                        // on a non-Button view. No system chrome is drawn at
+                        // all this way; TVGameCard's own isFocused styling is
+                        // the only visual affordance.
+                        TVGameCard(game: game, isFocused: focusedGame == game)
+                            .focusable()
+                            .focused($focusedGame, equals: game)
+                            .onLongPressGesture(minimumDuration: 0) { pick(game) }
+                            .onPlayPauseCommand { pick(game) }
+                            .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
                 .padding(.vertical, 60)
