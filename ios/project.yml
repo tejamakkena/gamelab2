@@ -54,6 +54,10 @@ targets:
         NSMotionUsageDescription: "GameLab uses motion to let you tilt and shake your phone as a game controller."
         NSLocalNetworkUsageDescription: "GameLab connects to the game server on your local network."
         ITSAppUsesNonExemptEncryption: false
+        # TEMPORARY: lets AppConstants.serverURL point at a Mac's plain-HTTP
+        # LAN IP for local testing. Remove once serverURL is https://.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
 
     settings:
       base:
@@ -94,6 +98,10 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSLocalNetworkUsageDescription: "GameLab TV connects to the game server on your local network."
         ITSAppUsesNonExemptEncryption: false
+        # TEMPORARY: lets AppConstants.serverURL point at a Mac's plain-HTTP
+        # LAN IP for local testing. Remove once serverURL is https://.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
 
     settings:
       base:

@@ -30,5 +30,14 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Allows plain-HTTP connections to local-network addresses only
+		     (LAN IPs, .local hostnames, loopback), needed while
+		     AppConstants.serverURL points at a Mac's LAN IP for testing.
+		     Remove once serverURL is a real https deployment. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

@@ -7,6 +7,8 @@ struct TVGameSelectionView: View {
 
     @State private var selectedCategory: GameCategory? = nil
     @FocusState private var focusedGame: GameID?
+    @State private var hasAppeared = false
+    @State private var isPulsing = false
 
     // Observed rather than read off the singleton, so the dot actually updates
     // when the connection drops.
@@ -37,22 +39,29 @@ struct TVGameSelectionView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     CategoryPill(label: "All", isSelected: selectedCategory == nil) {
-                        selectedCategory = nil
+                        selectCategory(nil)
                     }
                     ForEach(GameCategory.allCases, id: \.self) { cat in
                         CategoryPill(label: cat.rawValue, isSelected: selectedCategory == cat) {
-                            selectedCategory = (selectedCategory == cat) ? nil : cat
+                            selectCategory(selectedCategory == cat ? nil : cat)
                         }
                     }
                 }
 
                 Spacer()
 
-                // Connection status dot
+                // Connection status dot — breathes gently while reconnecting
+                // so the state reads as "actively retrying", not stuck.
                 HStack(spacing: 8) {
                     Circle()
                         .fill(socket.isConnected ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
+                        .opacity(socket.isConnected ? 1 : (isPulsing ? 1 : 0.3))
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                                isPulsing = true
+                            }
+                        }
                     Text(socket.isConnected ? "Server connected" : "Reconnecting…")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.5))
@@ -61,6 +70,10 @@ struct TVGameSelectionView: View {
             .frame(width: 280)
             .padding(.vertical, 60)
             .padding(.leading, 60)
+            // Gives the focus engine a clear boundary: moving right off the
+            // last category jumps into the grid's own section below, rather
+            // than the engine guessing at a target across two sibling stacks.
+            .focusSection()
 
             // Right — game grid
             ScrollView {
@@ -70,14 +83,34 @@ struct TVGameSelectionView: View {
                 ) {
                     ForEach(displayedGames, id: \.self) { game in
                         TVGameCard(game: game, isFocused: focusedGame == game)
+                            // The card itself is a plain VStack, not a Button --
+                            // without this, it can never receive focus at all,
+                            // which is why the remote's swipes could previously
+                            // only ever move through the sidebar's buttons and
+                            // never reach a single game card.
+                            .focusable()
                             .focused($focusedGame, equals: game)
                             .onPlayPauseCommand { pick(game) }
                             .onTapGesture { pick(game) }
+                            .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
                 .padding(.vertical, 60)
                 .padding(.trailing, 60)
+                .animation(.easeInOut(duration: 0.25), value: selectedCategory)
             }
+            .focusSection()
+        }
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 16)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.4)) { hasAppeared = true }
+        }
+    }
+
+    private func selectCategory(_ category: GameCategory?) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            selectedCategory = category
         }
     }
 
@@ -107,24 +140,14 @@ private struct TVGameCard: View {
                 .font(.headline)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
 
             Text("\(game.minPlayers)–\(game.maxPlayers) players")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.5))
-
-            HStack(spacing: 8) {
-                if game.hasPrivateInfo {
-                    Label("Private info", systemImage: "eye.slash.fill")
-                        .font(.caption2)
-                        .foregroundColor(.cyan)
-                }
-                if game.supportsRemote {
-                    Label("Remote", systemImage: "av.remote.fill")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-            }
         }
+        .padding(.horizontal, 12)
         .frame(width: 240, height: 200)
         .background(
             RoundedRectangle(cornerRadius: 20)
@@ -133,8 +156,37 @@ private struct TVGameCard: View {
                       : Color.white.opacity(0.07))
                 .shadow(color: isFocused ? .purple.opacity(0.6) : .clear, radius: 20)
         )
+        // Small fixed-size icon badges pinned to a corner, entirely
+        // independent of the text layout above -- unlike the previous
+        // full-text Label row, these can never grow wider than the card and
+        // spill past its rounded-rectangle background.
+        .overlay(alignment: .topTrailing) {
+            VStack(spacing: 6) {
+                if game.hasPrivateInfo {
+                    GameBadge(systemImage: "eye.slash.fill", color: .cyan)
+                }
+                if game.supportsRemote {
+                    GameBadge(systemImage: "av.remote.fill", color: .green)
+                }
+            }
+            .padding(10)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20))
         .scaleEffect(isFocused ? 1.06 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+    }
+}
+
+private struct GameBadge: View {
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.caption2.bold())
+            .foregroundColor(.white)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(color.opacity(0.85)))
     }
 }
 
@@ -155,5 +207,6 @@ private struct CategoryPill: View {
                 )
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
