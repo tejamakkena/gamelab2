@@ -3,7 +3,7 @@
 //  Host runs authoritative physics; clients relay input state
 // ============================================================
 
-const socket = io();
+const socket = io('/stickfight');
 const cleanup = new CleanupManager();
 
 // ── Canvas ─────────────────────────────────────────────────────

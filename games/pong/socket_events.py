@@ -15,7 +15,7 @@ def generate_room_code():
 
 def register_pong_events(socketio):
 
-    @socketio.on('create_room')
+    @socketio.on('create_room', namespace='/pong')
     def handle_create_room(data):
         if data.get('game_type') != 'pong':
             return
@@ -39,7 +39,7 @@ def register_pong_events(socketio):
             'is_host': True
         })
 
-    @socketio.on('join_room')
+    @socketio.on('join_room', namespace='/pong')
     def handle_join_room(data):
         if data.get('game_type') != 'pong':
             return
@@ -70,7 +70,7 @@ def register_pong_events(socketio):
         }, to=player_id)
         emit('player_joined', {'players': room['players']}, room=room_code, include_self=False)
 
-    @socketio.on('start_game')
+    @socketio.on('start_game', namespace='/pong')
     def handle_start_game(data):
         if data.get('game_type') != 'pong':
             return
@@ -90,7 +90,7 @@ def register_pong_events(socketio):
             'players': room['players']
         }, room=room_code)
 
-    @socketio.on('pong_paddle_update')
+    @socketio.on('pong_paddle_update', namespace='/pong')
     def handle_paddle_update(data):
         room_code = data.get('room_code', '').upper()
         if room_code not in pong_rooms:
@@ -101,7 +101,7 @@ def register_pong_events(socketio):
             'y': data.get('y')
         }, room=room_code, include_self=False)
 
-    @socketio.on('pong_ball_update')
+    @socketio.on('pong_ball_update', namespace='/pong')
     def handle_ball_update(data):
         room_code = data.get('room_code', '').upper()
         if room_code not in pong_rooms:
@@ -116,7 +116,7 @@ def register_pong_events(socketio):
             'paddles': data.get('paddles')
         }, room=room_code, include_self=False)
 
-    @socketio.on('pong_game_over')
+    @socketio.on('pong_game_over', namespace='/pong')
     def handle_game_over(data):
         room_code = data.get('room_code', '').upper()
         if room_code not in pong_rooms:
@@ -130,7 +130,7 @@ def register_pong_events(socketio):
             'score': data.get('score')
         }, room=room_code)
 
-    @socketio.on('leave_room')
+    @socketio.on('leave_room', namespace='/pong')
     def handle_leave_room(data):
         if data.get('game_type') != 'pong':
             return

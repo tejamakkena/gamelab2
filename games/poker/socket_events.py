@@ -93,8 +93,7 @@ def register_poker_events(socketio):
 
         print(f"Dealer: {room['dealer']}")
         print(
-            f"Small blind (${
-                room['small_blind']}): Player {small_blind_pos}")
+            f"Small blind (${room['small_blind']}): Player {small_blind_pos}")
         print(f"Big blind (${room['big_blind']}): Player {big_blind_pos}")
         print(f"First to act: Player {room['current_turn']}")
         print(f"Pot: ${room['pot']}")
@@ -116,10 +115,9 @@ def register_poker_events(socketio):
                 'player_id': player['id']}
 
             print(
-                f"📤 Sending to {
-                    player['name']}: Position={i}, Turn={
-                    room['current_turn']}, IsYourTurn={
-                    i == room['current_turn']}")
+                f"📤 Sending to {player['name']}: Position={i}, "
+                f"Turn={room['current_turn']}, "
+                f"IsYourTurn={i == room['current_turn']}")
 
             socketio.emit('hand_dealt', player_data, to=player['id'])
 
@@ -281,9 +279,8 @@ def register_poker_events(socketio):
             elif player['bet'] < room['current_bet']:
                 needs_to_act = True
                 print(
-                    f"  ➡️ Player {next_player} needs to match bet (${
-                        player['bet']} < ${
-                        room['current_bet']})")
+                    f"  ➡️ Player {next_player} needs to match bet "
+                    f"(${player['bet']} < ${room['current_bet']})")
 
             # 3. Someone raised after this player acted
             elif room.get('last_raiser', -1) >= 0 and not player.get('acted_after_raise', False):
@@ -313,8 +310,8 @@ def register_poker_events(socketio):
         room['current_turn'] = next_player
 
         print(
-            f"⏭️ Moving to player {next_player} ({
-                room['players'][next_player]['name']})")
+            f"⏭️ Moving to player {next_player} "
+            f"({room['players'][next_player]['name']})")
         print(f"Players acted so far: {room['players_acted']}")
         print(f"{'=' * 50}\n")
 
@@ -510,18 +507,16 @@ def register_poker_events(socketio):
         # Verify it's player's turn
         if room['current_turn'] != player_index:
             print(
-                f"❌ Not player's turn (current: {
-                    room['current_turn']}, player: {player_index})")
+                f"❌ Not player's turn (current: {room['current_turn']}, "
+                f"player: {player_index})")
             print(f"{'=' * 40}\n")
             emit('poker_error', {'message': 'Not your turn!'})
             return
 
         print(f"Player: {player['name']} (Position: {player_index})")
         print(
-            f"Current bet: ${
-                room['current_bet']}, Player bet: ${
-                player['bet']}, Chips: ${
-                player['chips']}")
+            f"Current bet: ${room['current_bet']}, "
+            f"Player bet: ${player['bet']}, Chips: ${player['chips']}")
 
         # Process action
         if action == 'fold':

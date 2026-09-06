@@ -23,7 +23,7 @@ def generate_room_code():
 def register_digit_guess_events(socketio):
     """Register all Digit Guess socket events"""
 
-    @socketio.on('create_room')
+    @socketio.on('create_room', namespace='/digit_guess')
     def handle_create_room(data):
         """Create a new Digit Guess room"""
         if data.get('game_type') != 'digit_guess':
@@ -67,7 +67,7 @@ def register_digit_guess_events(socketio):
             'is_host': True
         })
 
-    @socketio.on('join_room')
+    @socketio.on('join_room', namespace='/digit_guess')
     def handle_join_room(data):
         """Join an existing Digit Guess room"""
         room_code = data.get('room_code', '').upper().strip()
@@ -126,7 +126,7 @@ def register_digit_guess_events(socketio):
             'players': room['players']
         }, room=room_code, include_self=False)
 
-    @socketio.on('start_game')
+    @socketio.on('start_game', namespace='/digit_guess')
     def handle_start_game(data):
         """Start the Digit Guess game - move to number setting phase"""
         room_code = data.get('room_code', '').upper()
@@ -163,7 +163,7 @@ def register_digit_guess_events(socketio):
             'status': 'setting_numbers'
         }, room=room_code)
 
-    @socketio.on('set_secret_number')
+    @socketio.on('set_secret_number', namespace='/digit_guess')
     def handle_set_secret_number(data):
         """Player sets their secret number"""
         room_code = data.get('room_code', '').upper()
@@ -227,7 +227,7 @@ def register_digit_guess_events(socketio):
                 'players': room['players']
             }, room=room_code)
 
-    @socketio.on('make_guess')
+    @socketio.on('make_guess', namespace='/digit_guess')
     def handle_make_guess(data):
         """Player makes a guess at opponent's number"""
         room_code = data.get('room_code', '').upper()
@@ -314,7 +314,7 @@ def register_digit_guess_events(socketio):
             'guess_history': room['guesses']
         }, room=room_code)
 
-    @socketio.on('leave_room')
+    @socketio.on('leave_room', namespace='/digit_guess')
     def handle_leave_room(data):
         """Handle player leaving room"""
         room_code = data.get('room_code', '').upper()

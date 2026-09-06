@@ -17,7 +17,7 @@ def generate_room_code():
 
 def register_stickfight_events(socketio):
 
-    @socketio.on('create_room')
+    @socketio.on('create_room', namespace='/stickfight')
     def handle_create_room(data):
         if data.get('game_type') != 'stickfight':
             return
@@ -48,7 +48,7 @@ def register_stickfight_events(socketio):
             'is_host': True
         })
 
-    @socketio.on('join_room')
+    @socketio.on('join_room', namespace='/stickfight')
     def handle_join_room(data):
         if data.get('game_type') != 'stickfight':
             return
@@ -87,7 +87,7 @@ def register_stickfight_events(socketio):
         }, to=player_id)
         emit('player_joined', {'players': room['players']}, room=room_code, include_self=False)
 
-    @socketio.on('start_game')
+    @socketio.on('start_game', namespace='/stickfight')
     def handle_start_game(data):
         if data.get('game_type') != 'stickfight':
             return
@@ -105,7 +105,7 @@ def register_stickfight_events(socketio):
         room['status'] = 'playing'
         socketio.emit('game_started', {'players': room['players']}, room=room_code)
 
-    @socketio.on('sf_player_state')
+    @socketio.on('sf_player_state', namespace='/stickfight')
     def handle_player_state(data):
         """Relay player position/animation state to everyone else."""
         room_code = data.get('room_code', '').upper()
@@ -123,7 +123,7 @@ def register_stickfight_events(socketio):
             'attacking': data.get('attacking'),
         }, room=room_code, include_self=False)
 
-    @socketio.on('sf_attack_hit')
+    @socketio.on('sf_attack_hit', namespace='/stickfight')
     def handle_attack_hit(data):
         """Host broadcasts an attack hit (damage dealt to a player)."""
         room_code = data.get('room_code', '').upper()
@@ -139,7 +139,7 @@ def register_stickfight_events(socketio):
             'victim_health': data.get('victim_health')
         }, room=room_code)
 
-    @socketio.on('sf_game_over')
+    @socketio.on('sf_game_over', namespace='/stickfight')
     def handle_game_over(data):
         room_code = data.get('room_code', '').upper()
         if room_code not in stickfight_rooms:
@@ -154,7 +154,7 @@ def register_stickfight_events(socketio):
             'scores': data.get('scores')
         }, room=room_code)
 
-    @socketio.on('leave_room')
+    @socketio.on('leave_room', namespace='/stickfight')
     def handle_leave_room(data):
         if data.get('game_type') != 'stickfight':
             return

@@ -54,14 +54,23 @@ def open_room(app, socketio, tv, game_id="cipher_grid", players=4):
 
 
 class TestNamespaceIsolation:
-    def test_legacy_default_namespace_still_works(self, server):
-        # Five browser games register create_room on '/'; the hub must not
-        # disturb them.
+    def test_default_namespace_no_longer_answers_create_room(self, server):
+        # Five browser games (connect4, digit_guess, pong, stickfight,
+        # roadfighter) used to all register create_room on '/' -- a real bug
+        # found by hand: Flask-SocketIO keeps only the last registration for
+        # a given (namespace, event) pair, so roadfighter's handler silently
+        # ate every other game's create_room, discarding anything whose
+        # game_type wasn't 'roadfighter' with no error at all. See
+        # test_default_namespace_collision.py for the full writeup and the
+        # per-game regression coverage. Each of the five now has its own
+        # dedicated namespace (mirroring /native's own isolation below), so
+        # the bare default namespace must not answer create_room for any of
+        # them any more, roadfighter included.
         app, socketio = server
         legacy = socketio.test_client(app)
         assert legacy.is_connected()
         legacy.emit("create_room", {"game_type": "roadfighter", "player_name": "Racer"})
-        assert legacy.get_received()
+        assert not legacy.get_received()
 
     def test_hub_events_do_not_reach_the_default_namespace(self, server):
         app, socketio = server

@@ -179,8 +179,8 @@ def register_snake_events(socketio):
             room['host'] = room['players'][0]['id']
             room['players'][0]['is_host'] = True
             print(
-                f"👑 New host assigned in room {room_code}: {
-                    room['players'][0]['name']}")
+                f"👑 New host assigned in room {room_code}: "
+                f"{room['players'][0]['name']}")
 
         # Notify remaining players
         emit('snake_player_left', {
@@ -222,8 +222,8 @@ def register_snake_events(socketio):
         # Only host can start
         if room['host'] != player_id:
             print(
-                f"❌ Player {player_id} is not the host. Host is {
-                    room['host']}")
+                f"❌ Player {player_id} is not the host. Host is "
+                f"{room['host']}")
             emit('snake_error', {'message': 'Only host can start the game!'})
             return
 
@@ -358,8 +358,8 @@ def register_snake_events(socketio):
                 (p for p in room['players'] if p['id'] == player_id), None)
             if player:
                 print(
-                    f"🔌 Player {
-                        player['name']} disconnected from room {room_code}")
+                    f"🔌 Player {player['name']} disconnected from room "
+                    f"{room_code}")
                 handle_leave_room({'room_code': room_code})
                 break
 
