@@ -17,7 +17,7 @@ def generate_room_code():
 
 def register_roadfighter_events(socketio):
 
-    @socketio.on('create_room')
+    @socketio.on('create_room', namespace='/roadfighter')
     def handle_create_room(data):
         if data.get('game_type') != 'roadfighter':
             return
@@ -48,7 +48,7 @@ def register_roadfighter_events(socketio):
             'is_host': True
         })
 
-    @socketio.on('join_room')
+    @socketio.on('join_room', namespace='/roadfighter')
     def handle_join_room(data):
         if data.get('game_type') != 'roadfighter':
             return
@@ -87,7 +87,7 @@ def register_roadfighter_events(socketio):
         }, to=player_id)
         emit('player_joined', {'players': room['players']}, room=room_code, include_self=False)
 
-    @socketio.on('start_game')
+    @socketio.on('start_game', namespace='/roadfighter')
     def handle_start_game(data):
         if data.get('game_type') != 'roadfighter':
             return
@@ -105,7 +105,7 @@ def register_roadfighter_events(socketio):
         room['status'] = 'playing'
         socketio.emit('game_started', {'players': room['players']}, room=room_code)
 
-    @socketio.on('rf_player_update')
+    @socketio.on('rf_player_update', namespace='/roadfighter')
     def handle_player_update(data):
         """Relay car position to all other players."""
         room_code = data.get('room_code', '').upper()
@@ -120,7 +120,7 @@ def register_roadfighter_events(socketio):
             'alive': data.get('alive')
         }, room=room_code, include_self=False)
 
-    @socketio.on('rf_obstacles')
+    @socketio.on('rf_obstacles', namespace='/roadfighter')
     def handle_obstacles(data):
         """Host broadcasts obstacle list to all players (shared game state)."""
         room_code = data.get('room_code', '').upper()
@@ -134,7 +134,7 @@ def register_roadfighter_events(socketio):
             'scroll_y': data.get('scroll_y')
         }, room=room_code, include_self=False)
 
-    @socketio.on('rf_game_over')
+    @socketio.on('rf_game_over', namespace='/roadfighter')
     def handle_game_over(data):
         room_code = data.get('room_code', '').upper()
         if room_code not in roadfighter_rooms:
@@ -147,7 +147,7 @@ def register_roadfighter_events(socketio):
             'results': data.get('results')
         }, room=room_code)
 
-    @socketio.on('leave_room')
+    @socketio.on('leave_room', namespace='/roadfighter')
     def handle_leave_room(data):
         if data.get('game_type') != 'roadfighter':
             return

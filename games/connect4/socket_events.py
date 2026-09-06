@@ -59,7 +59,7 @@ def check_winner(board):
 def register_connect4_events(socketio):
     """Register all Connect4 socket events"""
 
-    @socketio.on('create_room')
+    @socketio.on('create_room', namespace='/connect4')
     def handle_create_room(data):
         """Create a new Connect4 room"""
         if data.get('game_type') != 'connect4':
@@ -104,7 +104,7 @@ def register_connect4_events(socketio):
             'is_host': True
         })
 
-    @socketio.on('join_room')
+    @socketio.on('join_room', namespace='/connect4')
     def handle_join_room(data):
         """Join an existing Connect4 room"""
         room_code = data.get('room_code', '').upper().strip()
@@ -161,7 +161,7 @@ def register_connect4_events(socketio):
             'players': room['players']
         }, room=room_code, include_self=False)
 
-    @socketio.on('start_game')
+    @socketio.on('start_game', namespace='/connect4')
     def handle_start_game(data):
         """Start the Connect4 game"""
         room_code = data.get('room_code', '').upper()
@@ -200,7 +200,7 @@ def register_connect4_events(socketio):
             'current_turn': room['current_turn']
         }, room=room_code)
 
-    @socketio.on('make_move')
+    @socketio.on('make_move', namespace='/connect4')
     def handle_make_move(data):
         """Handle a player's move"""
         room_code = data.get('room_code', '').upper()
@@ -294,7 +294,7 @@ def register_connect4_events(socketio):
             'current_turn': room['current_turn']
         }, room=room_code)
 
-    @socketio.on('leave_room')
+    @socketio.on('leave_room', namespace='/connect4')
     def handle_leave_room(data):
         """Handle player leaving room"""
         room_code = data.get('room_code', '').upper()

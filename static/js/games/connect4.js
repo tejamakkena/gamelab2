@@ -2,7 +2,7 @@ console.log('Connect4 script loading...');
 console.log('User:', window.user);
 
 // Socket connection
-const socket = io();
+const socket = io('/connect4');
 
 // Cleanup manager for proper resource cleanup
 const cleanup = new CleanupManager();

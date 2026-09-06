@@ -5,7 +5,7 @@ console.log('User:', window.user);
 const cleanup = new CleanupManager();
 
 // Socket connection
-const socket = io();
+const socket = io('/digit_guess');
 
 // Game state
 let gameState = {

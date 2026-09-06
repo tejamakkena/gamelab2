@@ -3,7 +3,7 @@
 //  Host runs physics + sends ball state; both relay paddle pos
 // ============================================================
 
-const socket = io();
+const socket = io('/pong');
 const cleanup = new CleanupManager();
 
 // ── Constants ─────────────────────────────────────────────────

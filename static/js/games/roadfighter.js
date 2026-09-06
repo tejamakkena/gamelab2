@@ -3,7 +3,7 @@
 //  Host generates obstacles; all players dodge in their lane
 // ============================================================
 
-const socket = io();
+const socket = io('/roadfighter');
 const cleanup = new CleanupManager();
 
 const canvas = document.getElementById('rf-canvas');
