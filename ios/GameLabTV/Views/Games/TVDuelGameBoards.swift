@@ -430,23 +430,18 @@ struct TVLudoBoardView: View {
                 // Ring board: 52 squares laid out in a circle keeps every token
                 // visible at TV distance without a cramped cross layout.
                 ZStack {
+                    // Extracted into their own subviews (below) rather than inline
+                    // closures here: two nested ForEach loops combining trig,
+                    // conditional binding, and several chained modifiers in one
+                    // expression tree made the type-checker time out. Each subview
+                    // now type-checks independently.
                     ForEach(0..<track, id: \.self) { i in
-                        let angle = Double(i) / Double(track) * 2 * .pi - .pi / 2
-                        Circle()
-                            .fill(.white.opacity(0.1))
-                            .frame(width: 30, height: 30)
-                            .offset(x: radius * cos(angle), y: radius * sin(angle))
+                        LudoTrackDot(index: i, track: track, radius: radius)
                     }
                     ForEach(Array(vm.state.seats.enumerated()), id: \.offset) { _, seat in
                         ForEach(Array(seat.absolute.enumerated()), id: \.offset) { _, abs in
-                            if let pos = abs {
-                                let angle = Double(pos) / Double(track) * 2 * .pi - .pi / 2
-                                Circle()
-                                    .fill(seatColors[seat.seat % 4])
-                                    .frame(width: 34, height: 34)
-                                    .overlay(Circle().stroke(.white, lineWidth: 2))
-                                    .offset(x: radius * cos(angle), y: radius * sin(angle))
-                            }
+                            LudoTokenDot(position: abs, track: track, radius: radius,
+                                        color: seatColors[seat.seat % 4])
                         }
                     }
                     VStack(spacing: 6) {
@@ -479,6 +474,43 @@ struct TVLudoBoardView: View {
             TVScoreStrip(players: vm.state.players)
         }
         .onAppear { vm.bind(roomCode: room.code) }
+    }
+}
+
+/// One background ring position on the Ludo track. Its own `body` gives the
+/// type-checker a small, isolated expression instead of one more closure
+/// nested inside TVLudoBoardView's already-heavy view tree.
+private struct LudoTrackDot: View {
+    let index: Int
+    let track: Int
+    let radius: CGFloat
+
+    var body: some View {
+        let angle = Double(index) / Double(track) * 2 * .pi - .pi / 2
+        Circle()
+            .fill(.white.opacity(0.1))
+            .frame(width: 30, height: 30)
+            .offset(x: radius * cos(angle), y: radius * sin(angle))
+    }
+}
+
+/// One player token on the Ludo track, or nothing if that token hasn't left
+/// the yard yet (`position == nil`).
+private struct LudoTokenDot: View {
+    let position: Int?
+    let track: Int
+    let radius: CGFloat
+    let color: Color
+
+    var body: some View {
+        if let pos = position {
+            let angle = Double(pos) / Double(track) * 2 * .pi - .pi / 2
+            Circle()
+                .fill(color)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .offset(x: radius * cos(angle), y: radius * sin(angle))
+        }
     }
 }
 
