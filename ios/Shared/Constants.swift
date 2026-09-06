@@ -2,12 +2,11 @@ import Foundation
 import SwiftUI
 
 enum AppConstants {
-    // TEMPORARY: hardcoded to a Mac's LAN IP for testing on real devices over
-    // Wi-Fi while `python app.py` runs locally. This only works while the
-    // phone/TV and that Mac are on the same network, and needs updating again
-    // if that Mac's IP changes (DHCP) -- switch to a stable deployed URL
-    // (see DOCKER_DEPLOYMENT.md) once ready to stop doing that by hand.
-    static let serverURL = URL(string: "http://10.1.53.27:5000")!
+    // Stable, permanent deployment -- no more rebuilding every time a LAN
+    // IP changes. Render's free tier sleeps after ~15 min idle and takes
+    // 30-60s to wake on the first request after that; that's expected, not
+    // a bug.
+    static let serverURL = URL(string: "https://gamelab2.onrender.com")!
 
     /// The native apps talk to their own Socket.IO namespace, kept separate
     /// from the browser games so the two cannot collide.

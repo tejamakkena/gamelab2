@@ -82,28 +82,40 @@ struct TVGameSelectionView: View {
                     spacing: 28
                 ) {
                     ForEach(displayedGames, id: \.self) { game in
-                        // Wrapping this in a Button (tried previously) turned
-                        // out worse: tvOS's focus engine draws its own
-                        // default focus/pressed "card" chrome underneath a
-                        // Button's content regardless of .buttonStyle(.plain)
-                        // -- exactly the stray white rounded rectangle
-                        // reported from testing on a real Apple TV. Custom-
-                        // styled focusable tap targets on tvOS need to stay
-                        // plain views: .focusable() makes the card reachable
-                        // by the remote's swipes (the original fix), and
-                        // .onLongPressGesture(minimumDuration: 0) is what
-                        // actually, reliably fires on a Select-button click
-                        // for a plain focusable view -- unlike .onTapGesture,
-                        // which tvOS doesn't consistently deliver from Select
-                        // on a non-Button view. No system chrome is drawn at
-                        // all this way; TVGameCard's own isFocused styling is
-                        // the only visual affordance.
-                        TVGameCard(game: game, isFocused: focusedGame == game)
-                            .focusable()
-                            .focused($focusedGame, equals: game)
-                            .onLongPressGesture(minimumDuration: 0) { pick(game) }
-                            .onPlayPauseCommand { pick(game) }
-                            .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        // Third attempt at this, so a full account of what
+                        // was tried and why, confirmed from real on-device
+                        // testing each time:
+                        //   1. Plain VStack + .onTapGesture: swipe worked
+                        //      (once .focusable() was added), but Select
+                        //      never fired the tap at all.
+                        //   2. Button + .buttonStyle(.plain): Select finally
+                        //      registered, but tvOS drew its own default
+                        //      focus/pressed "card" chrome underneath the
+                        //      button regardless of style -- the stray white
+                        //      rounded rectangle that was reported.
+                        //   3. Plain VStack + .onLongPressGesture(minimumDuration: 0):
+                        //      removed the white chrome, but on real
+                        //      hardware Select stopped registering again --
+                        //      apparently no more reliable than
+                        //      .onTapGesture was for a non-Button view.
+                        // (2) is the only one of the three that actually
+                        // made Select fire reliably, so Button is right --
+                        // what (2) needed was .focusEffectDisabled()
+                        // (tvOS 17+, matches this app's deployment target),
+                        // which turns off tvOS's own automatic focus
+                        // rendering on a focusable element while leaving it
+                        // fully interactive, so TVGameCard's own isFocused
+                        // styling becomes the only visual effect again.
+                        Button {
+                            pick(game)
+                        } label: {
+                            TVGameCard(game: game, isFocused: focusedGame == game)
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .focused($focusedGame, equals: game)
+                        .onPlayPauseCommand { pick(game) }
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
                 .padding(.vertical, 60)
