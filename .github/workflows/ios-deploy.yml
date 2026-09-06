@@ -40,6 +40,33 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
+      # A freshly xcode-select'd non-default Xcode copy may never have run
+      # Apple's first-launch initialization (accepting the license,
+      # registering with CoreSimulator); without it, -downloadPlatform fails
+      # with "Unable to connect to simulator" rather than downloading
+      # anything.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
+      # Explicitly download both platforms rather than assuming either is
+      # already present. This runner image's VM instances are not
+      # consistent about what's pre-cached: an earlier iteration of this
+      # workflow reordered the iOS build ahead of the tvOS platform install,
+      # on the theory that installing tvOS was transiently breaking iOS's
+      # own destination resolution right after -- but a later run failed on
+      # "iOS 18.2 is not installed" with the iOS build running first and no
+      # tvOS steps having touched anything yet, disproving that theory. The
+      # simpler, correct explanation: some VM instances just don't have iOS
+      # Simulator cached by default, the same as tvOS. -downloadPlatform is
+      # a no-op when the platform is already present, so doing this for both
+      # unconditionally costs nothing on instances where it's cached, and
+      # fixes the build on instances where it isn't.
+      - name: Install iOS platform
+        run: sudo xcodebuild -downloadPlatform iOS
+
+      - name: Install tvOS platform
+        run: sudo xcodebuild -downloadPlatform tvOS
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -57,26 +84,6 @@ jobs:
             -configuration Debug \
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO
-
-      # Installing the tvOS platform runs after the iOS build, not before it.
-      # A prior run confirmed -downloadPlatform tvOS genuinely succeeds
-      # (downloads and registers the tvOS Simulator runtime), but the very
-      # next xcodebuild invocation afterward failed to find the iOS platform
-      # too -- installing a new platform leaves Xcode's platform registry
-      # transiently unable to resolve destinations right after. Since the
-      # iOS build has no dependency on tvOS, doing it first sidesteps that
-      # disruption entirely instead of guessing at how to wait it out.
-      #
-      # A freshly xcode-select'd non-default Xcode copy may also never have
-      # run Apple's first-launch initialization (accepting the license,
-      # registering with CoreSimulator); without it, -downloadPlatform fails
-      # with "Unable to connect to simulator" rather than downloading
-      # anything.
-      - name: Run Xcode first launch
-        run: sudo xcodebuild -runFirstLaunch
-
-      - name: Install tvOS platform
-        run: sudo xcodebuild -downloadPlatform tvOS
 
       - name: Build tvOS (simulator, no signing)
         run: |
@@ -113,6 +120,15 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      # See build-check's identical steps for why: this runner's VM
+      # instances are inconsistent about pre-cached platform support, and
+      # -downloadPlatform is a no-op when already present.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
+      - name: Install iOS platform
+        run: sudo xcodebuild -downloadPlatform iOS
 
       - name: Install XcodeGen
         run: brew install xcodegen
