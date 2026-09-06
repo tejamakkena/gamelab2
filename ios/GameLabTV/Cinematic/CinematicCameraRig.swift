@@ -89,7 +89,8 @@ final class CinematicCameraRig {
     private func configureCamera() {
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = true
-        camera.exposureAdaptationBrightnessTarget = 0.2
+        camera.exposureAdaptationBrighteningSpeedFactor = 0.6
+        camera.exposureAdaptationDarkeningSpeedFactor = 0.3
         camera.exposureOffset = 0
 
         // Screen-space ambient occlusion -- soft contact shadows in creases
@@ -98,7 +99,7 @@ final class CinematicCameraRig {
         camera.screenSpaceAmbientOcclusionIntensity = 0.6
         camera.screenSpaceAmbientOcclusionRadius = 3.5
         camera.screenSpaceAmbientOcclusionBias = 0.03
-        camera.screenSpaceAmbientOcclusionSampleCount = 12
+        camera.screenSpaceAmbientOcclusionDepthThreshold = 0.5
 
         // Depth of field -- the real SceneKit property is `focusDistance`,
         // not `focalDistance`. Aperture kept fairly closed (higher fStop)
