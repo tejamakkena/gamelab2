@@ -67,6 +67,24 @@ ACTIONS = {
     "brick_breaker": [("paddle", {"x": 55})],
     "simon_says": [("pad", {"pad": "up"}), ("pad", {"pad": "down"})],
     "atlas": [("answer", {"place": "Agra"}), ("answer", {"place": "Nepal"})],
+    "connect4": [("drop", {"column": 0}), ("drop", {"column": 1})],
+    "memory": [("flip", {"index": 0}), ("flip", {"index": 1})],
+    "chess": [("select", {"row": 6, "col": 0}), ("move", {"from": [6, 0], "to": [4, 0]})],
+    "snake_ladder": [("roll", {"value": 4})],
+    "pong": [("paddle", {"position": 0.2})],
+    "poker": [("check", {}), ("bet", {"amount": 40}), ("fold", {})],
+    "tambola": [("mark", {"number": 1}), ("claim", {"type": "full_house"})],
+    "roulette": [("place_bet", {"target": "red", "amount": 10}), ("spin", {})],
+    "digit_guess": [("guess", {"code": "1234"})],
+    "mafia": [("vote", {"targetID": "p1"}), ("eliminate", {"targetID": "p1"}),
+              ("save", {"targetID": "p1"}), ("investigate", {"targetID": "p1"})],
+    "raja_mantri": [("accuse", {"targetID": "p1"})],
+    "trivia": [("answer", {"choiceIndex": 0, "questionID": "q1"})],
+    "heist": [("set_cameras", {"cameras": ["cam_tl"]}), ("move", {"direction": "right"})],
+    "stock_panic": [("trade", {"stock": "AAPL", "action": "buy"})],
+    "mind_meld": [("word", {"word": "red"})],
+    "hot_grid": [("pick_tile", {"index": 0})],
+    "speed_sculptor": [("drawing", {"lines": [[{"x": 0.1, "y": 0.1}]]})],
 }
 
 ALL_GAMES = sorted(ENGINES)
@@ -80,7 +98,19 @@ class TestRegistry:
     def test_unknown_ids_fall_back_to_the_placeholder(self):
         # Lets an id the Swift app knows about still be startable end to end.
         assert engine_for("not_a_game") is PlaceholderEngine
-        assert engine_for("trivia") is PlaceholderEngine
+        assert engine_for("some_future_game") is PlaceholderEngine
+
+    def test_every_legacy_game_id_now_has_a_real_engine(self):
+        # The 17 "legacy" GameID cases used to all fall back to the
+        # placeholder; this is the regression guard for that rollout.
+        legacy_ids = {
+            "trivia", "poker", "tambola", "mafia", "heist", "stock_panic",
+            "mind_meld", "hot_grid", "speed_sculptor", "pong", "connect4",
+            "chess", "snake_ladder", "roulette", "raja_mantri", "memory",
+            "digit_guess",
+        }
+        for gid in legacy_ids:
+            assert engine_for(gid) is not PlaceholderEngine, gid
 
     def test_player_bounds_are_sane(self):
         for gid, cls in ENGINES.items():
