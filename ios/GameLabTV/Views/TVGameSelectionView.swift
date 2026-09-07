@@ -10,6 +10,18 @@ struct TVGameSelectionView: View {
     @State private var hasAppeared = false
     @State private var isPulsing = false
 
+    // TEMPORARY diagnostic: four different Select-click mechanisms have each
+    // been reported as "still doesn't do anything" on real hardware, with no
+    // way from here to tell whether the input is reaching `pick(_:)` at all
+    // or whether it fires but something after it (onSelect/onSelectSolo ->
+    // the socket round-trip -> the screen transition) is what's silent. This
+    // makes that unambiguous with a full-screen flash + label the instant
+    // pick(_:) runs, before any of that downstream logic -- independent of
+    // TVGameCard's own focus styling, which was a red herring earlier: a
+    // Button's default focus chrome is a FOCUS effect, not proof a click
+    // fired. Remove this whole block once the real cause is confirmed.
+    @State private var debugLastInput: String? = nil
+
     // Observed rather than read off the singleton, so the dot actually updates
     // when the connection drops.
     @ObservedObject private var socket = GameSocketManager.shared
@@ -121,13 +133,17 @@ struct TVGameSelectionView: View {
                         // doesn't work at all. A cosmetic fix belongs in its
                         // own follow-up once clicking is confirmed solid.
                         Button {
+                            debugMark("Select", game)
                             pick(game)
                         } label: {
                             TVGameCard(game: game, isFocused: focusedGame == game)
                         }
                         .buttonStyle(.plain)
                         .focused($focusedGame, equals: game)
-                        .onPlayPauseCommand { pick(game) }
+                        .onPlayPauseCommand {
+                            debugMark("Play/Pause", game)
+                            pick(game)
+                        }
                         .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
@@ -141,6 +157,34 @@ struct TVGameSelectionView: View {
         .offset(y: hasAppeared ? 0 : 16)
         .onAppear {
             withAnimation(.easeOut(duration: 0.4)) { hasAppeared = true }
+        }
+        // TEMPORARY diagnostic overlay -- see debugLastInput's declaration.
+        // Impossible to miss: a full-screen flash naming exactly which input
+        // fired and for which game, the instant it fires, before anything
+        // else runs. If this never appears no matter what's pressed, the
+        // remote's input truly never reaches this view at all -- if it does
+        // appear but the screen never advances past this one, the bug is
+        // downstream in pick(_:)/onSelect/onSelectSolo or the server
+        // round-trip, not the button/gesture mechanism this has been
+        // chasing across four prior attempts.
+        .overlay {
+            if let debugLastInput {
+                Text(debugLastInput)
+                    .font(.system(size: 44, weight: .heavy))
+                    .foregroundColor(.black)
+                    .padding(40)
+                    .background(Color.yellow)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func debugMark(_ source: String, _ game: GameID) {
+        withAnimation(.easeIn(duration: 0.05)) {
+            debugLastInput = "\(source) fired: \(game.rawValue)"
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation(.easeOut(duration: 0.3)) { debugLastInput = nil }
         }
     }
 
