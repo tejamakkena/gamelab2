@@ -24,9 +24,13 @@ def _load_engines() -> None:
     Imported lazily inside a function so a syntax error in one engine cannot
     take down the whole hub at import time.
     """
-    from games.native_hub.engines import party, midgroup, duel, solo
+    from games.native_hub.engines import (
+        party, midgroup, duel, solo,
+        legacy_boards, legacy_cards, legacy_social, legacy_new,
+    )
 
-    for module in (party, midgroup, duel, solo):
+    for module in (party, midgroup, duel, solo,
+                   legacy_boards, legacy_cards, legacy_social, legacy_new):
         for gid, cls in module.ENGINES.items():
             register(gid, cls)
 
