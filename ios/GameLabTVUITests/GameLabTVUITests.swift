@@ -56,7 +56,50 @@ final class GameLabTVUITests: XCTestCase {
             "gameCard_trivia never gained focus, even after pressing Right -- can't attribute a " +
             "remote-button press to it without that."
         )
+
+        // A remote press sent the instant focus lands can race the focus
+        // engine's own settle/animation -- observed directly on a PR that
+        // touched nothing in this view or its test: identical code that had
+        // passed cleanly on the previous run (hasFocus confirmed true, then
+        // immediately "Pressing Select/Play-Pause button", then nothing)
+        // failed both tests the very next run. Giving the UI a brief beat to
+        // settle before the first press removes that race without weakening
+        // what's actually being asserted below.
+        Thread.sleep(forTimeInterval: 0.5)
         return triviaCard
+    }
+
+    /// Presses `button` on the remote and waits for `debugLastInput` to show
+    /// `expectedLabel`, retrying the press itself (not just the wait) a
+    /// couple of times before failing.
+    ///
+    /// This is deliberately about tolerating a dropped/raced Simulator
+    /// remote-input delivery, not about tolerating a real regression: a
+    /// genuine break in the Select/Play-Pause -> pick(_:) path (the exact
+    /// class of bug this whole test exists to catch) fails identically on
+    /// every attempt, so retrying costs nothing when the app is actually
+    /// broken and only helps when the Simulator dropped one input event.
+    private func pressAndExpectDebugLabel(
+        _ button: XCUIRemoteButton,
+        expectedLabel: String,
+        in app: XCUIApplication,
+        attempts: Int = 3
+    ) {
+        let debugLabel = app.staticTexts["debugLastInput"]
+        for attempt in 1...attempts {
+            remote.press(button)
+            if debugLabel.waitForExistence(timeout: 4) {
+                XCTAssertEqual(debugLabel.label, expectedLabel)
+                return
+            }
+            if attempt < attempts {
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+        XCTFail(
+            "debugLastInput never appeared after \(attempts) attempts pressing " +
+            "\(button) on the focused trivia card -- \(button) is not reaching pick(_:)."
+        )
     }
 
     func testSelectPressFiresPickForFocusedCard() {
@@ -64,15 +107,7 @@ final class GameLabTVUITests: XCTestCase {
         app.launch()
         _ = focusedTriviaCard(in: app)
 
-        remote.press(.select)
-
-        let debugLabel = app.staticTexts["debugLastInput"]
-        XCTAssertTrue(
-            debugLabel.waitForExistence(timeout: 5),
-            "debugLastInput never appeared after pressing Select on the focused trivia card -- " +
-            "Select is not reaching pick(_:)."
-        )
-        XCTAssertEqual(debugLabel.label, "Select fired: trivia")
+        pressAndExpectDebugLabel(.select, expectedLabel: "Select fired: trivia", in: app)
     }
 
     func testPlayPausePressFiresPickForFocusedCard() {
@@ -80,14 +115,6 @@ final class GameLabTVUITests: XCTestCase {
         app.launch()
         _ = focusedTriviaCard(in: app)
 
-        remote.press(.playPause)
-
-        let debugLabel = app.staticTexts["debugLastInput"]
-        XCTAssertTrue(
-            debugLabel.waitForExistence(timeout: 5),
-            "debugLastInput never appeared after pressing Play/Pause on the focused trivia card -- " +
-            "Play/Pause is not reaching pick(_:)."
-        )
-        XCTAssertEqual(debugLabel.label, "Play/Pause fired: trivia")
+        pressAndExpectDebugLabel(.playPause, expectedLabel: "Play/Pause fired: trivia", in: app)
     }
 }
