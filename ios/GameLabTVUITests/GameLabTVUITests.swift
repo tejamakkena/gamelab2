@@ -5,13 +5,24 @@ import XCTest
 /// Siri Remote actually invoke a game card's action on the game-selection
 /// screen at all?
 ///
-/// This deliberately tests nothing else. It needs no server connection and
-/// no real navigation past the selection screen to pass -- it only checks
-/// "does pressing this remote button invoke the button's/command's closure",
-/// via the `debugLastInput` diagnostic in TVGameSelectionView (compiled in
-/// only for `#if DEBUG` builds, which is what this test target -- and every
-/// other Simulator build in this repo -- runs as). Room creation and the
-/// server round-trip are out of scope here; no backend runs in CI.
+/// This deliberately tests nothing else -- it only checks "does pressing
+/// this remote button invoke the button's/command's closure" -- but it
+/// genuinely cannot assume the app stays on the selection screen while
+/// checking that anymore. It was originally written assuming exactly that
+/// ("no real navigation past the selection screen ... no backend runs in
+/// CI"), which was true for as long as a since-fixed bug (see PR #73) meant
+/// `create_room`'s response never actually reached anything listening for
+/// it. Now that it does, this test's own presses reach the real, live
+/// server configured in AppConstants.serverURL and can flip the screen
+/// straight to the lobby before either test ever gets to check for the
+/// `debugLastInput` diagnostic in TVGameSelectionView (compiled in only for
+/// `#if DEBUG` builds, which is what this test target -- and every other
+/// Simulator build in this repo -- runs as) -- confirmed directly from a
+/// real CI failure log: `gameCard_trivia` had vanished and the visible
+/// hierarchy showed a `Button, label: 'Waiting for 2 more…'` -- TVLobbyView,
+/// not a broken press. `pressAndExpectDebugLabel` below treats either
+/// signal (the banner, or the whole selection screen navigating away) as
+/// equally valid proof the press reached `pick(_:)`.
 final class GameLabTVUITests: XCTestCase {
 
     private let remote = XCUIRemote.shared
@@ -69,27 +80,22 @@ final class GameLabTVUITests: XCTestCase {
         return triviaCard
     }
 
-    /// Presses `button` on the remote and waits for `debugLastInput` to show
-    /// `expectedLabel`, retrying the press itself (not just the wait) a
-    /// few times, with a growing gap between attempts, before failing.
+    /// Presses `button` on the remote and confirms it reached `pick(_:)`,
+    /// retrying the press itself (not just the wait) a few times, with a
+    /// growing gap between attempts, before failing.
     ///
-    /// This is deliberately about tolerating a dropped/raced Simulator
-    /// remote-input delivery, not about tolerating a real regression: a
-    /// genuine break in the Select/Play-Pause -> pick(_:) path (the exact
-    /// class of bug this whole test exists to catch) fails identically on
-    /// every attempt, so retrying costs nothing when the app is actually
-    /// broken and only helps when the Simulator dropped one input event.
-    ///
-    /// A first version of this retried 3 times with a flat 0.5s gap and
-    /// still failed identically on every attempt, in both test methods,
-    /// across two independent app launches in the same job -- evidence
-    /// against a single dropped event and consistent with something
-    /// systemic to that job's Simulator instance taking longer than 0.5s
-    /// bursts to recover from (background indexing, scene-graph setup
-    /// finishing late, etc.). The re-focus check before each retry guards
-    /// against a still-unexplored possibility: something knocking focus
-    /// off the card between attempts, which a bare re-press could never
-    /// recover from on its own.
+    /// Two earlier versions of this treated only `debugLastInput` appearing
+    /// as success and both failed identically on every retry, in both test
+    /// methods, across independent app launches -- not the Simulator-input
+    /// flakiness that was the working theory at the time. The real CI log
+    /// showed why: the press *did* reach `pick(_:)` every time, and now that
+    /// PR #73's socket-handler fix is in, `pick(_:)` -> `createRoom` really
+    /// does round-trip with the live server and can flip the whole screen to
+    /// TVLobbyView -- unmounting `debugLastInput` (and `gameCard_trivia`
+    /// itself) -- before either test's wait ever caught the banner. That's
+    /// a second, independent proof the button's action fired: the selection
+    /// screen cannot navigate away on its own, only `pick(_:)` triggers
+    /// that. Whichever signal shows up first is accepted.
     private func pressAndExpectDebugLabel(
         _ button: XCUIRemote.Button,
         expectedLabel: String,
@@ -99,22 +105,35 @@ final class GameLabTVUITests: XCTestCase {
         let debugLabel = app.staticTexts["debugLastInput"]
         let triviaCard = app.buttons["gameCard_trivia"]
         for attempt in 1...attempts {
-            if !triviaCard.hasFocus {
+            if triviaCard.exists, !triviaCard.hasFocus {
                 remote.press(.right)
                 Thread.sleep(forTimeInterval: 1.0)
             }
             remote.press(button)
-            if debugLabel.waitForExistence(timeout: 5) {
-                XCTAssertEqual(debugLabel.label, expectedLabel)
-                return
+
+            let deadline = Date().addingTimeInterval(5)
+            while Date() < deadline {
+                if debugLabel.exists {
+                    XCTAssertEqual(debugLabel.label, expectedLabel)
+                    return
+                }
+                if !triviaCard.exists {
+                    // The selection screen itself is gone -- only
+                    // reachable via pick(_:) actually running and its
+                    // createRoom round-trip landing a room_updated back.
+                    return
+                }
+                Thread.sleep(forTimeInterval: 0.2)
             }
+
             if attempt < attempts {
                 Thread.sleep(forTimeInterval: Double(attempt) * 2.0)
             }
         }
         XCTFail(
-            "debugLastInput never appeared after \(attempts) attempts pressing " +
-            "\(button) on the focused trivia card -- \(button) is not reaching pick(_:)."
+            "Neither debugLastInput nor a navigated-away selection screen appeared after " +
+            "\(attempts) attempts pressing \(button) on the focused trivia card -- \(button) " +
+            "is not reaching pick(_:)."
         )
     }
 
