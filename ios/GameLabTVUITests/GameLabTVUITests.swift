@@ -80,7 +80,7 @@ final class GameLabTVUITests: XCTestCase {
     /// every attempt, so retrying costs nothing when the app is actually
     /// broken and only helps when the Simulator dropped one input event.
     private func pressAndExpectDebugLabel(
-        _ button: XCUIRemoteButton,
+        _ button: XCUIRemote.Button,
         expectedLabel: String,
         in app: XCUIApplication,
         attempts: Int = 3
