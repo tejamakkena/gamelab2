@@ -3,11 +3,27 @@ import SwiftUI
 struct WaitingView: View {
     let room: Room
     let onReady: () -> Void
+    let onLeave: () -> Void
 
     @State private var isReady = false
 
     var body: some View {
         VStack(spacing: 36) {
+            // Once you've joined a room there was no way back to the join
+            // screen at all -- reported directly. A wrong code/game or a
+            // change of mind had nowhere to go.
+            HStack {
+                Button(action: onLeave) {
+                    Label("Leave", systemImage: "chevron.left")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+
             Spacer()
 
             // Game badge

@@ -117,6 +117,22 @@ class TestDisconnect:
         room.attach_tv("tv-sid")
         assert room.detach_sid("tv-sid") == "__tv__"
 
+    def test_solo_room_detaches_both_tv_and_player_from_one_sid(self, registry):
+        # A solo room's synthetic player is created with the TV's own sid
+        # (games/native_hub/socket_events.py's handle_create_room), so one
+        # sid is simultaneously a tv_sid and a player's sid. Detaching it
+        # must clean up both halves, not just whichever the old
+        # tv_sids-checked-first order happened to see.
+        room = registry.create("trivia", solo=True)
+        room.attach_tv("tv-and-player-sid")
+        room.add_player("host", "Player 1", "tv-and-player-sid")
+
+        assert room.detach_sid("tv-and-player-sid") == "host"
+
+        assert "tv-and-player-sid" not in room.tv_sids
+        assert room.player("host") is None
+        assert room.is_empty()
+
     def test_stale_player_evicted_after_grace(self, registry):
         room = registry.create("trivia")
         room.add_player("a", "A", "s1")

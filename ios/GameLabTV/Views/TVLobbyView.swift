@@ -3,6 +3,17 @@ import SwiftUI
 /// Displayed on TV while players join via their phones.
 struct TVLobbyView: View {
     let room: Room
+    /// Whether *this* room was created via the solo path (TVRootViewModel's
+    /// own tracked flag -- the server's Room JSON carries no `solo` field at
+    /// all, see room_manager.Room.to_json). Needed explicitly now that
+    /// "Invite Friends" (TVGameSelectionView.soloChoiceGame) can put a
+    /// soloPlayable game into a real, non-solo room with zero players at
+    /// first: re-deriving "is this solo" from `room.players.count <= 1`, as
+    /// this view used to, was only ever safe because a solo room always
+    /// started with exactly one (synthetic) player -- it would have
+    /// misread a freshly created, still-empty "Invite Friends" room as solo
+    /// and shown Start Game as immediately clickable before anyone joined.
+    let isSolo: Bool
     let onStart: () -> Void
 
     var body: some View {
@@ -70,7 +81,6 @@ struct TVLobbyView: View {
                 Spacer()
 
                 // A solo room has one synthetic player and no phones to wait for.
-                let isSolo = room.gameID.soloPlayable && room.players.count <= 1
                 let canStart = isSolo || room.players.count >= room.gameID.minPlayers
                 Button(action: onStart) {
                     Label(canStart ? "Start Game" : "Waiting for \(room.gameID.minPlayers - room.players.count) more…",

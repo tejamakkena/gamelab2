@@ -10,6 +10,17 @@ struct TVGameSelectionView: View {
     @State private var hasAppeared = false
     @State private var isPulsing = false
 
+    // Every soloPlayable game also supports more than one player (Neon
+    // Snake, 2048, Simon Says: up to 4; Brick Breaker: up to 2; Atlas: up to
+    // 8) -- picking one used to always start it solo immediately with no
+    // way to invite anyone, despite the card's own "N–M players" caption
+    // advertising otherwise. Reported directly: Neon Snake showed no room
+    // code and no controller access at all, and Atlas -- whose only input
+    // style is typed text -- had no way to answer, since AtlasControllerView
+    // (the phone UI that types the answer) can never appear if no phone can
+    // ever join. This prompt gives a real choice instead of assuming solo.
+    @State private var soloChoiceGame: GameID? = nil
+
     // Gives the first game card a deterministic initial focus target instead
     // of leaving it to the focus engine's default first-focusable-view guess
     // (which would otherwise land on the "All" sidebar pill), so
@@ -231,6 +242,27 @@ struct TVGameSelectionView: View {
             }
         }
         #endif
+        .confirmationDialog(
+            "How do you want to play?",
+            isPresented: Binding(
+                get: { soloChoiceGame != nil },
+                set: { if !$0 { soloChoiceGame = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: soloChoiceGame
+        ) { game in
+            Button("Play Solo Now") {
+                soloChoiceGame = nil
+                onSelectSolo?(game)
+            }
+            Button("Invite Friends") {
+                soloChoiceGame = nil
+                onSelect(game)
+            }
+            Button("Cancel", role: .cancel) { soloChoiceGame = nil }
+        } message: { game in
+            Text("Play \(game.displayName) alone with the Siri Remote, or get a room code so up to \(game.maxPlayers) friends can join on their phones.")
+        }
     }
 
     #if DEBUG
@@ -250,14 +282,16 @@ struct TVGameSelectionView: View {
         }
     }
 
-    /// A solo-capable game starts immediately with no room code and no lobby;
-    /// everything else goes through the normal join flow.
+    /// A solo-capable game prompts for Solo vs. Invite Friends (see
+    /// soloChoiceGame's own doc comment); everything else goes straight
+    /// through the normal join flow. Falls back to the normal flow too when
+    /// no solo path was even wired up by the caller.
     private func pick(_ game: GameID) {
-        if game.soloPlayable, let onSelectSolo {
-            onSelectSolo(game)
-        } else {
+        guard game.soloPlayable, onSelectSolo != nil else {
             onSelect(game)
+            return
         }
+        soloChoiceGame = game
     }
 }
 

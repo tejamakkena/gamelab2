@@ -3,6 +3,13 @@ import SwiftUI
 struct RootControllerView: View {
     @StateObject private var vm = ControllerRootViewModel()
 
+    // Mirrors the TV's mid-game quit confirmation (RootTVView): leaving a
+    // game in progress has real consequences (the room, and anyone else in
+    // it, loses this seat), so it's confirmed the same way rather than a
+    // bare exposed leave button like WaitingView's -- nothing is lost yet
+    // there.
+    @State private var showLeaveConfirm = false
+
     var body: some View {
         ZStack {
             Color(hex: "0a0a14").ignoresSafeArea()
@@ -18,7 +25,7 @@ struct RootControllerView: View {
                 ErrorJoinView(message: message, onRetry: vm.returnToJoin)
 
             case .waiting(let room):
-                WaitingView(room: room, onReady: vm.markReady)
+                WaitingView(room: room, onReady: vm.markReady, onLeave: vm.leaveRoom)
 
             case .playing(let room, let privateData):
                 ControllerGameView(
@@ -26,6 +33,19 @@ struct RootControllerView: View {
                     privateData: privateData,
                     onAction: vm.sendAction
                 )
+                .safeAreaInset(edge: .top) {
+                    HStack {
+                        Button { showLeaveConfirm = true } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                }
 
             case .results(let room):
                 ResultsControllerView(room: room, onLeave: vm.leaveRoom)
@@ -33,6 +53,14 @@ struct RootControllerView: View {
         }
         .environmentObject(vm)
         .animation(.easeInOut(duration: 0.3), value: vm.screen.id)
+        .confirmationDialog(
+            "Leave this game?",
+            isPresented: $showLeaveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Leave Game", role: .destructive) { vm.leaveRoom() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 }
 
