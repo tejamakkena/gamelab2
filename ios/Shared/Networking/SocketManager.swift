@@ -11,7 +11,28 @@ final class GameSocketManager: ObservableObject {
 
     private var manager: SocketManager?
     private var socket: SocketIOClient?
-    private var handlers: [String: (Any) -> Void] = [:]
+
+    /// The real decode-and-dispatch closure for each event, keyed by its raw
+    /// socket.io event name -- not a placeholder. This is what makes `on(_:handler:)`
+    /// safe to call before `connect(to:)` has ever run.
+    ///
+    /// SwiftUI evaluates a view's `@StateObject` initializer (and therefore, for
+    /// example, `TVRootViewModel.init()`'s own `socket.on(.roomUpdated) { ... }`
+    /// call) before that view's `.onAppear` ever fires -- and `connect(to:)` was
+    /// only ever called from `.onAppear`. `socket` here was still `nil` at that
+    /// point, so `socket?.on(key) { ... }` was a silent no-op: the handler was
+    /// never actually attached to anything, permanently, for the lifetime of the
+    /// app. The previous `handlers` dict existed only as an inert per-event
+    /// marker (`{ _ in _ = self }`) that `reattachHandlers()` never even read --
+    /// its body was just a comment. Server events like `room_updated` were
+    /// arriving at the transport layer the whole time; nothing on the Swift side
+    /// was ever listening for them, on every single game, unconditionally.
+    ///
+    /// Storing the actual dispatch closure here means `attachAllHandlers()` can
+    /// wire up everything that was registered -- before `connect(to:)`, after
+    /// it, or on a prior connection that then dropped -- the moment a real
+    /// socket exists, and identically on every reconnect.
+    private var handlers: [String: ([Any]) -> Void] = [:]
 
     private init() {}
 
@@ -34,10 +55,16 @@ final class GameSocketManager: ObservableObject {
             DispatchQueue.main.async { self?.isConnected = false }
         }
 
-        // Re-attach all registered handlers after reconnect
+        // Re-attach every registered handler after a reconnect -- socket.io
+        // itself doesn't remember per-event listeners across a fresh
+        // connection the way this layer needs it to.
         socket?.on(clientEvent: .reconnect) { [weak self] _, _ in
-            self?.reattachHandlers()
+            self?.attachAllHandlers()
         }
+
+        // Wire up anything registered via on(_:handler:) before this socket
+        // existed at all -- the exact scenario a view model's init() hits.
+        attachAllHandlers()
 
         socket?.connect()
     }
@@ -57,19 +84,19 @@ final class GameSocketManager: ObservableObject {
 
     // MARK: - Listen
 
-    /// Register a typed handler for a server event. Replaces any previous handler for the same event.
+    /// Register a typed handler for a server event. Replaces any previous
+    /// handler for the same event. Safe to call at any time, including
+    /// before `connect(to:)` has ever run -- see `handlers`' own doc comment.
     func on<T: Decodable>(_ event: ServerEvent, handler: @escaping (T) -> Void) {
         let key = event.rawValue
-        socket?.off(key)
-        socket?.on(key) { data, _ in
+        handlers[key] = { data in
             guard let raw = data.first,
                   let jsonData = try? JSONSerialization.data(withJSONObject: raw),
                   let decoded = try? JSONDecoder().decode(T.self, from: jsonData)
             else { return }
             DispatchQueue.main.async { handler(decoded) }
         }
-        // Store a type-erased copy for reconnect
-        handlers[key] = { [weak self] _ in _ = self }
+        attach(key)
     }
 
     func off(_ event: ServerEvent) {
@@ -79,8 +106,18 @@ final class GameSocketManager: ObservableObject {
 
     // MARK: - Private
 
-    private func reattachHandlers() {
-        // Handlers are re-registered by the owning view models via on(_:handler:)
-        // after receiving the reconnect notification. Nothing extra needed here.
+    /// Attaches a single stored handler to the real socket, if one exists yet.
+    /// A no-op (handler stays queued in `handlers`) when called before
+    /// `connect(to:)` -- `attachAllHandlers()` picks it up once a socket does.
+    private func attach(_ key: String) {
+        guard let socket, let dispatch = handlers[key] else { return }
+        socket.off(key)
+        socket.on(key) { data, _ in dispatch(data) }
+    }
+
+    private func attachAllHandlers() {
+        for key in handlers.keys {
+            attach(key)
+        }
     }
 }
