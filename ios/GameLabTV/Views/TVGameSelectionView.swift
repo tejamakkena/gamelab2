@@ -106,13 +106,26 @@ struct TVGameSelectionView: View {
                         // rendering on a focusable element while leaving it
                         // fully interactive, so TVGameCard's own isFocused
                         // styling becomes the only visual effect again.
+                        // .focusEffectDisabled() (attempt 4) turned out to be
+                        // worse, not better: confirmed on real hardware that
+                        // adding it made Select stop registering ANYTHING at
+                        // all -- no visual change, nothing -- whereas plain
+                        // Button + .buttonStyle(.plain) alone (attempt 2,
+                        // reverted to here) is the one and only configuration
+                        // out of four tried that has ever actually been
+                        // confirmed on real hardware to register a click.
+                        // Keeping the unwanted white focus-chrome for now
+                        // (it's a real, separate, purely cosmetic tvOS quirk
+                        // with .plain on some OS versions) rather than
+                        // trading working functionality for a fix that
+                        // doesn't work at all. A cosmetic fix belongs in its
+                        // own follow-up once clicking is confirmed solid.
                         Button {
                             pick(game)
                         } label: {
                             TVGameCard(game: game, isFocused: focusedGame == game)
                         }
                         .buttonStyle(.plain)
-                        .focusEffectDisabled()
                         .focused($focusedGame, equals: game)
                         .onPlayPauseCommand { pick(game) }
                         .transition(.scale(scale: 0.85).combined(with: .opacity))
