@@ -63,7 +63,7 @@ jobs:
       # fixes the build on instances where it isn't.
       - name: Install iOS platform
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             sudo xcodebuild -downloadPlatform iOS && exit 0
             echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
             sleep 20
@@ -72,7 +72,7 @@ jobs:
 
       - name: Install tvOS platform
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             sudo xcodebuild -downloadPlatform tvOS && exit 0
             echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
             sleep 20
@@ -141,7 +141,7 @@ jobs:
 
       - name: Install iOS platform
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             sudo xcodebuild -downloadPlatform iOS && exit 0
             echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
             sleep 20
@@ -299,7 +299,7 @@ jobs:
       # a no-op when already present and cheap insurance otherwise.
       - name: Install tvOS platform
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5 6; do
             sudo xcodebuild -downloadPlatform tvOS && exit 0
             echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
             sleep 20
