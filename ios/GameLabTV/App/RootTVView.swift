@@ -3,6 +3,14 @@ import SwiftUI
 struct RootTVView: View {
     @StateObject private var vm = TVRootViewModel()
 
+    // Menu on the Siri Remote had no handler anywhere in this app, so tvOS
+    // fell back to its own default: exit straight to the system Home
+    // Screen, mid-game, with no warning -- reported directly. .onExitCommand
+    // below intercepts it instead. Gated to "not already on the selection
+    // screen": at the top level, Menu exiting the app to the real tvOS Home
+    // Screen is normal, expected platform behavior worth leaving alone.
+    @State private var showQuitConfirm = false
+
     var body: some View {
         ZStack {
             // Background gradient — persists across all screens
@@ -19,7 +27,7 @@ struct RootTVView: View {
                                     onSelectSolo: vm.createSoloRoom)
 
             case .lobby(let room):
-                TVLobbyView(room: room, onStart: vm.startGame)
+                TVLobbyView(room: room, isSolo: vm.isSolo, onStart: vm.startGame)
 
             case .playing(let room):
                 TVGameBoardView(room: room)
@@ -29,6 +37,30 @@ struct RootTVView: View {
             }
         }
         .environmentObject(vm)
+        .onExitCommand {
+            switch vm.screen {
+            case .gameSelection:
+                break   // Let Menu do its normal, expected thing here.
+            case .results:
+                // Nothing left to lose by leaving -- same as tapping "Play
+                // Again" on TVResultsView, just via the remote's Menu button.
+                vm.quitToSelection()
+            case .lobby, .playing:
+                showQuitConfirm = true
+            }
+        }
+        .confirmationDialog(
+            "Quit to Home Screen?",
+            isPresented: $showQuitConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Yes, Quit to Home Screen", role: .destructive) {
+                vm.quitToSelection()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll leave this game and return to the game list. Anyone else playing will be disconnected.")
+        }
     }
 }
 
@@ -111,6 +143,22 @@ final class TVRootViewModel: ObservableObject {
     func returnToSelection() {
         isSolo = false
         screen = .gameSelection
+    }
+
+    /// Menu-button quit, after the user confirms. Tells the server the TV is
+    /// leaving (so the room doesn't linger forever waiting for a board that's
+    /// gone -- see room_manager.detach_sid) before dropping back to the
+    /// selection screen locally.
+    func quitToSelection() {
+        let code: String?
+        switch screen {
+        case .lobby(let room), .playing(let room), .results(let room): code = room.code
+        case .gameSelection: code = nil
+        }
+        if let code {
+            socket.emit(.leaveRoom, payload: ["roomCode": code])
+        }
+        returnToSelection()
     }
 }
 

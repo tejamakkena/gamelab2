@@ -149,14 +149,31 @@ class Room:
         self.touch()
 
     def detach_sid(self, sid: str) -> str | None:
-        """Detach whatever this socket was. Returns '__tv__', a player id, or None."""
-        if sid in self.tv_sids:
+        """Detach whatever this socket was. Returns a player id (including a
+        solo room's synthetic player, whose sid doubles as its own TV's --
+        see below), '__tv__' (a TV/spectator board with no matching player),
+        or None.
+
+        A solo room's one synthetic player is created with the TV's own sid
+        (``handle_create_room``), so that single sid is in *both* ``tv_sids``
+        and ``players`` at once. Checking ``tv_sids`` first and returning
+        immediately -- the original shape of this method -- meant a solo
+        room's TV could never actually detach its player half: the seat, and
+        its now-dead sid, stayed in ``players`` forever, ``connected`` still
+        ``True``, so ``is_empty()`` (and therefore the reaper's empty-grace
+        cleanup) could never see the room as empty. Checking for a matching
+        player unconditionally, before deciding what to return, detaches
+        both halves of a solo room's combined sid in one call.
+        """
+        was_tv = sid in self.tv_sids
+        if was_tv:
             self.tv_sids.discard(sid)
-            self.mark_empty_if_needed()
-            return "__tv__"
 
         player = self.player_by_sid(sid)
         if player is None:
+            if was_tv:
+                self.mark_empty_if_needed()
+                return "__tv__"
             return None
 
         if self.state is RoomState.LOBBY:

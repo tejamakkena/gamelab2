@@ -109,53 +109,68 @@ struct TVNeonSnakeBoardView: View {
     @EnvironmentObject private var root: TVRootViewModel
     @StateObject private var vm = SnakeBoardViewModel()
 
-    private let cell: CGFloat = 34
-
     var body: some View {
         VStack(spacing: 0) {
             SoloHUD(title: "🐍 Neon Snake", score: vm.state.score, subtitle: nil)
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.cyan.opacity(0.3), lineWidth: 3)
-                    .background(RoundedRectangle(cornerRadius: 20).fill(Color.black.opacity(0.4)))
+            // Reported directly as "not full screen": a fixed 34pt cell sized
+            // the whole board purely off Neon Snake's own 20x20 default grid
+            // (680x680pt), regardless of how much bigger the actual TV
+            // screen is -- leaving huge black margins on any real display.
+            // Deriving the cell size from the space actually available here
+            // makes the board scale to fill it instead.
+            GeometryReader { geo in
+                let margin: CGFloat = 40
+                let availableWidth = max(geo.size.width - margin * 2, 1)
+                let availableHeight = max(geo.size.height - margin * 2, 1)
+                let cell = max(12, min(availableWidth / CGFloat(max(vm.state.width, 1)),
+                                        availableHeight / CGFloat(max(vm.state.height, 1))))
 
-                Canvas { ctx, _ in
-                    let f = vm.state.food
-                    ctx.fill(Path(roundedRect: CGRect(x: CGFloat(f.x) * cell + 3,
-                                                      y: CGFloat(f.y) * cell + 3,
-                                                      width: cell - 6, height: cell - 6),
-                                  cornerRadius: 6),
-                             with: .color(.yellow))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.cyan.opacity(0.3), lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 20).fill(Color.black.opacity(0.4)))
 
-                    for (i, body) in vm.state.bodies.enumerated() {
-                        let alive = i < vm.state.colors.count ? vm.state.colors[i] : false
-                        for (j, c) in body.enumerated() {
-                            let shade = alive ? 1.0 - Double(j) / Double(max(body.count, 12)) * 0.55 : 0.2
-                            ctx.fill(
-                                Path(roundedRect: CGRect(x: CGFloat(c.x) * cell + 2,
-                                                         y: CGFloat(c.y) * cell + 2,
-                                                         width: cell - 4, height: cell - 4),
-                                     cornerRadius: 7),
-                                with: .color(.cyan.opacity(shade))
-                            )
+                    Canvas { ctx, _ in
+                        let f = vm.state.food
+                        ctx.fill(Path(roundedRect: CGRect(x: CGFloat(f.x) * cell + 3,
+                                                          y: CGFloat(f.y) * cell + 3,
+                                                          width: cell - 6, height: cell - 6),
+                                      cornerRadius: 6),
+                                 with: .color(.yellow))
+
+                        for (i, body) in vm.state.bodies.enumerated() {
+                            let alive = i < vm.state.colors.count ? vm.state.colors[i] : false
+                            for (j, c) in body.enumerated() {
+                                let shade = alive ? 1.0 - Double(j) / Double(max(body.count, 12)) * 0.55 : 0.2
+                                ctx.fill(
+                                    Path(roundedRect: CGRect(x: CGFloat(c.x) * cell + 2,
+                                                             y: CGFloat(c.y) * cell + 2,
+                                                             width: cell - 4, height: cell - 4),
+                                         cornerRadius: 7),
+                                    with: .color(.cyan.opacity(shade))
+                                )
+                            }
                         }
                     }
-                }
-                .frame(width: CGFloat(vm.state.width) * cell,
-                       height: CGFloat(vm.state.height) * cell)
+                    .frame(width: CGFloat(vm.state.width) * cell,
+                           height: CGFloat(vm.state.height) * cell)
 
-                if vm.state.finished { GameOverBanner(score: vm.state.score) }
+                    if vm.state.finished { GameOverBanner(score: vm.state.score) }
+                }
+                .frame(width: CGFloat(vm.state.width) * cell + 8,
+                       height: CGFloat(vm.state.height) * cell + 8)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(width: CGFloat(vm.state.width) * cell + 8,
-                   height: CGFloat(vm.state.height) * cell + 8)
-            Spacer()
             RemoteHint(text: "Swipe or click the remote's edges to steer")
         }
         .remoteDPad { event in
-            if let dir = event.directionName {
-                root.sendAction("turn", ["direction": dir])
-            }
+            // Now that "Invite Friends" can put phones in this same room
+            // (see TVGameSelectionView.soloChoiceGame), the TV itself is no
+            // longer necessarily a registered player -- only true in solo
+            // mode is the deviceID this would send actually a player the
+            // server recognizes.
+            guard root.isSolo, let dir = event.directionName else { return }
+            root.sendAction("turn", ["direction": dir])
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
@@ -253,9 +268,10 @@ struct TVTwenty48BoardView: View {
             RemoteHint(text: "Swipe the remote's touch surface to slide the tiles")
         }
         .remoteSwipe { event in
-            if let dir = event.directionName {
-                root.sendAction("swipe", ["direction": dir])
-            }
+            // See TVNeonSnakeBoardView's identical guard: only in solo mode
+            // is the TV's own deviceID a player the server recognizes.
+            guard root.isSolo, let dir = event.directionName else { return }
+            root.sendAction("swipe", ["direction": dir])
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
@@ -312,57 +328,69 @@ struct TVBrickBreakerBoardView: View {
     @EnvironmentObject private var root: TVRootViewModel
     @StateObject private var vm = BrickViewModel()
 
-    private let scale: CGFloat = 7.0
-
     var body: some View {
         VStack(spacing: 0) {
             SoloHUD(title: "🧱 Brick Breaker", score: vm.state.score,
                     subtitle: String(repeating: "♥", count: max(0, vm.state.lives)))
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.orange.opacity(0.3), lineWidth: 3)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.4)))
+            // Same fix as Neon Snake: a fixed scale sized the arena purely
+            // off its own default 100x140 unit grid, regardless of the
+            // actual screen -- deriving it from the space available here
+            // instead lets the arena fill it (preserving its aspect ratio).
+            GeometryReader { geo in
+                let margin: CGFloat = 40
+                let availableWidth = max(geo.size.width - margin * 2, 1)
+                let availableHeight = max(geo.size.height - margin * 2, 1)
+                let scale = max(1, min(availableWidth / CGFloat(max(vm.state.width, 1)),
+                                        availableHeight / CGFloat(max(vm.state.height, 1))))
 
-                // State fields decode as Double (server JSON), scale is CGFloat --
-                // each Double sub-expression is wrapped once before scaling, since
-                // Swift has no automatic Double<->CGFloat conversion.
-                Canvas { ctx, _ in
-                    for brick in vm.state.bricks {
-                        // Colour by row so the wall reads as bands.
-                        let band = Int(brick.y / 7) % 5
-                        let colors: [Color] = [.red, .orange, .yellow, .green, .cyan]
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.4)))
+
+                    // State fields decode as Double (server JSON), scale is CGFloat --
+                    // each Double sub-expression is wrapped once before scaling, since
+                    // Swift has no automatic Double<->CGFloat conversion.
+                    Canvas { ctx, _ in
+                        for brick in vm.state.bricks {
+                            // Colour by row so the wall reads as bands.
+                            let band = Int(brick.y / 7) % 5
+                            let colors: [Color] = [.red, .orange, .yellow, .green, .cyan]
+                            ctx.fill(
+                                Path(roundedRect: CGRect(x: CGFloat(brick.x) * scale, y: CGFloat(brick.y) * scale,
+                                                         width: CGFloat(brick.w) * scale, height: CGFloat(brick.h) * scale),
+                                     cornerRadius: 4),
+                                with: .color(colors[band])
+                            )
+                        }
                         ctx.fill(
-                            Path(roundedRect: CGRect(x: CGFloat(brick.x) * scale, y: CGFloat(brick.y) * scale,
-                                                     width: CGFloat(brick.w) * scale, height: CGFloat(brick.h) * scale),
-                                 cornerRadius: 4),
-                            with: .color(colors[band])
+                            Path(ellipseIn: CGRect(x: CGFloat(vm.state.ball.x - 1.6) * scale,
+                                                   y: CGFloat(vm.state.ball.y - 1.6) * scale,
+                                                   width: 3.2 * scale, height: 3.2 * scale)),
+                            with: .color(.white)
+                        )
+                        ctx.fill(
+                            Path(roundedRect: CGRect(
+                                x: CGFloat(vm.state.paddle - vm.state.paddleWidth / 2) * scale,
+                                y: CGFloat(vm.state.height - 10) * scale,
+                                width: CGFloat(vm.state.paddleWidth) * scale, height: 3 * scale),
+                                 cornerRadius: 5),
+                            with: .color(.cyan)
                         )
                     }
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: CGFloat(vm.state.ball.x - 1.6) * scale,
-                                               y: CGFloat(vm.state.ball.y - 1.6) * scale,
-                                               width: 3.2 * scale, height: 3.2 * scale)),
-                        with: .color(.white)
-                    )
-                    ctx.fill(
-                        Path(roundedRect: CGRect(
-                            x: CGFloat(vm.state.paddle - vm.state.paddleWidth / 2) * scale,
-                            y: CGFloat(vm.state.height - 10) * scale,
-                            width: CGFloat(vm.state.paddleWidth) * scale, height: 3 * scale),
-                             cornerRadius: 5),
-                        with: .color(.cyan)
-                    )
-                }
-                .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
+                    .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
 
-                if vm.state.finished { GameOverBanner(score: vm.state.score) }
+                    if vm.state.finished { GameOverBanner(score: vm.state.score) }
+                }
+                .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
-            Spacer()
             RemoteHint(text: "Drag across the remote to move the paddle")
         }
         .remoteScrub { event in
+            // See TVNeonSnakeBoardView's identical guard: only in solo mode
+            // is the TV's own deviceID a player the server recognizes.
+            guard root.isSolo else { return }
             if case .scrub(let t) = event {
                 root.sendAction("paddle", ["x": t * vm.state.width])
             }
@@ -463,7 +491,9 @@ struct TVSimonSaysBoardView: View {
                        : "Repeat it with the remote's D-pad")
         }
         .remoteDPad { event in
-            guard vm.state.phase == "input", let dir = event.directionName else { return }
+            // See TVNeonSnakeBoardView's identical guard: only in solo mode
+            // is the TV's own deviceID a player the server recognizes.
+            guard root.isSolo, vm.state.phase == "input", let dir = event.directionName else { return }
             vm.flash(dir)
             root.sendAction("pad", ["pad": dir])
         }
