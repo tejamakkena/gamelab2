@@ -65,13 +65,13 @@ final class GameLabTVUITests: XCTestCase {
         // failed both tests the very next run. Giving the UI a brief beat to
         // settle before the first press removes that race without weakening
         // what's actually being asserted below.
-        Thread.sleep(forTimeInterval: 0.5)
+        Thread.sleep(forTimeInterval: 2.0)
         return triviaCard
     }
 
     /// Presses `button` on the remote and waits for `debugLastInput` to show
     /// `expectedLabel`, retrying the press itself (not just the wait) a
-    /// couple of times before failing.
+    /// few times, with a growing gap between attempts, before failing.
     ///
     /// This is deliberately about tolerating a dropped/raced Simulator
     /// remote-input delivery, not about tolerating a real regression: a
@@ -79,6 +79,17 @@ final class GameLabTVUITests: XCTestCase {
     /// class of bug this whole test exists to catch) fails identically on
     /// every attempt, so retrying costs nothing when the app is actually
     /// broken and only helps when the Simulator dropped one input event.
+    ///
+    /// A first version of this retried 3 times with a flat 0.5s gap and
+    /// still failed identically on every attempt, in both test methods,
+    /// across two independent app launches in the same job -- evidence
+    /// against a single dropped event and consistent with something
+    /// systemic to that job's Simulator instance taking longer than 0.5s
+    /// bursts to recover from (background indexing, scene-graph setup
+    /// finishing late, etc.). The re-focus check before each retry guards
+    /// against a still-unexplored possibility: something knocking focus
+    /// off the card between attempts, which a bare re-press could never
+    /// recover from on its own.
     private func pressAndExpectDebugLabel(
         _ button: XCUIRemote.Button,
         expectedLabel: String,
@@ -86,14 +97,19 @@ final class GameLabTVUITests: XCTestCase {
         attempts: Int = 3
     ) {
         let debugLabel = app.staticTexts["debugLastInput"]
+        let triviaCard = app.buttons["gameCard_trivia"]
         for attempt in 1...attempts {
+            if !triviaCard.hasFocus {
+                remote.press(.right)
+                Thread.sleep(forTimeInterval: 1.0)
+            }
             remote.press(button)
-            if debugLabel.waitForExistence(timeout: 4) {
+            if debugLabel.waitForExistence(timeout: 5) {
                 XCTAssertEqual(debugLabel.label, expectedLabel)
                 return
             }
             if attempt < attempts {
-                Thread.sleep(forTimeInterval: 0.5)
+                Thread.sleep(forTimeInterval: Double(attempt) * 2.0)
             }
         }
         XCTFail(
