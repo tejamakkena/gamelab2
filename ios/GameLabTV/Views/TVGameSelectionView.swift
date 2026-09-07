@@ -10,6 +10,13 @@ struct TVGameSelectionView: View {
     @State private var hasAppeared = false
     @State private var isPulsing = false
 
+    // Gives the first game card a deterministic initial focus target instead
+    // of leaving it to the focus engine's default first-focusable-view guess
+    // (which would otherwise land on the "All" sidebar pill). This also
+    // means GameLabTVUITests doesn't need to reproduce an exact D-pad
+    // navigation sequence just to reach a card before pressing Select.
+    @Namespace private var defaultFocusNamespace
+
     // TEMPORARY diagnostic: four different Select-click mechanisms have each
     // been reported as "still doesn't do anything" on real hardware, with no
     // way from here to tell whether the input is reaching `pick(_:)` at all
@@ -20,7 +27,20 @@ struct TVGameSelectionView: View {
     // TVGameCard's own focus styling, which was a red herring earlier: a
     // Button's default focus chrome is a FOCUS effect, not proof a click
     // fired. Remove this whole block once the real cause is confirmed.
+    //
+    // #if DEBUG: this used to ship (unintentionally) into real TestFlight
+    // builds -- a yellow full-screen banner is not something real users
+    // should ever see. It's gated to DEBUG now that GameLabTVUITests exists
+    // to answer the "does Select even fire pick(_:)" question automatically,
+    // in a Simulator, on every PR -- which is the actual replacement for the
+    // 15 rounds of manual on-device testing this was added for. DEBUG is
+    // available here because local/CI Simulator builds (build-check, and the
+    // new tv-ui-test job) default to the Debug configuration, while the real
+    // TestFlight archive (deploy-tvos) explicitly passes
+    // -configuration Release, which #if DEBUG excludes.
+    #if DEBUG
     @State private var debugLastInput: String? = nil
+    #endif
 
     // Observed rather than read off the singleton, so the dot actually updates
     // when the connection drops.
@@ -133,15 +153,21 @@ struct TVGameSelectionView: View {
                         // doesn't work at all. A cosmetic fix belongs in its
                         // own follow-up once clicking is confirmed solid.
                         Button {
+                            #if DEBUG
                             debugMark("Select", game)
+                            #endif
                             pick(game)
                         } label: {
                             TVGameCard(game: game, isFocused: focusedGame == game)
                         }
                         .buttonStyle(.plain)
                         .focused($focusedGame, equals: game)
+                        .accessibilityIdentifier("gameCard_\(game.rawValue)")
+                        .prefersDefaultFocus(game == GameID.allCases.first, in: defaultFocusNamespace)
                         .onPlayPauseCommand {
+                            #if DEBUG
                             debugMark("Play/Pause", game)
+                            #endif
                             pick(game)
                         }
                         .transition(.scale(scale: 0.85).combined(with: .opacity))
@@ -153,6 +179,7 @@ struct TVGameSelectionView: View {
             }
             .focusSection()
         }
+        .focusScope(defaultFocusNamespace)
         .opacity(hasAppeared ? 1 : 0)
         .offset(y: hasAppeared ? 0 : 16)
         .onAppear {
@@ -167,6 +194,13 @@ struct TVGameSelectionView: View {
         // downstream in pick(_:)/onSelect/onSelectSolo or the server
         // round-trip, not the button/gesture mechanism this has been
         // chasing across four prior attempts.
+        //
+        // #if DEBUG (see debugLastInput's declaration for why): GameLabTVUITests
+        // reads this Text's accessibilityIdentifier ("debugLastInput") and its
+        // label to assert Select/Play-Pause actually reached pick(_:), in a
+        // tvOS Simulator, on every PR -- automating the exact check this
+        // banner used to require a human with a real Apple TV for.
+        #if DEBUG
         .overlay {
             if let debugLastInput {
                 Text(debugLastInput)
@@ -174,11 +208,14 @@ struct TVGameSelectionView: View {
                     .foregroundColor(.black)
                     .padding(40)
                     .background(Color.yellow)
+                    .accessibilityIdentifier("debugLastInput")
                     .transition(.opacity)
             }
         }
+        #endif
     }
 
+    #if DEBUG
     private func debugMark(_ source: String, _ game: GameID) {
         withAnimation(.easeIn(duration: 0.05)) {
             debugLastInput = "\(source) fired: \(game.rawValue)"
@@ -187,6 +224,7 @@ struct TVGameSelectionView: View {
             withAnimation(.easeOut(duration: 0.3)) { debugLastInput = nil }
         }
     }
+    #endif
 
     private func selectCategory(_ category: GameCategory?) {
         withAnimation(.easeInOut(duration: 0.25)) {

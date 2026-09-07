@@ -114,6 +114,78 @@ jobs:
             -destination generic/platform=tvOS \
             CODE_SIGNING_ALLOWED=NO
 
+  # ── tvOS UI test: does Select/Play-Pause actually fire a game card's action? ─
+  # Unlike build-check's tvOS step above (generic/platform=tvOS, which is a
+  # device-generic destination with no instantiated Simulator and so cannot
+  # run tests), this targets a real "platform=tvOS Simulator" destination
+  # with `xcodebuild test`, running GameLabTVUITests -- which answers,
+  # automatically and on every PR, the exact question 15 rounds of manual
+  # on-device testing were spent chasing: does a Siri Remote Select (or
+  # Play/Pause) press reach `pick(_:)` in TVGameSelectionView at all. See
+  # that view's `#if DEBUG`-only debugLastInput diagnostic, which the test
+  # reads.
+  tv-ui-test:
+    name: tvOS UI test (Select/Play-Pause reach pick(_:)?)
+    runs-on: macos-26
+    if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      # See build-check's identical step for why this is needed: a freshly
+      # xcode-select'd non-default Xcode copy may never have run Apple's
+      # first-launch initialization, and -downloadPlatform fails with
+      # "Unable to connect to simulator" without it.
+      - name: Run Xcode first launch
+        run: sudo xcodebuild -runFirstLaunch
+
+      # Unlike build-check's tvOS build (which only needs the SDK, bundled
+      # with Xcode, via generic/platform=tvOS), running tests needs an
+      # actual tvOS Simulator *runtime* installed -- so this step isn't
+      # optional here the way it effectively is for build-check's tvOS leg.
+      # Mirrors build-check's retry loop: this runner image's VM instances
+      # are inconsistent about what's pre-cached, and -downloadPlatform is a
+      # no-op when the platform is already present.
+      - name: Install tvOS platform
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            sudo xcodebuild -downloadPlatform tvOS && exit 0
+            echo "Attempt $attempt failed (often a transient CoreSimulator connection race) -- retrying in 20s..."
+            sleep 20
+          done
+          exit 1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve SPM packages
+        run: xcodebuild -resolvePackageDependencies -project GameLab.xcodeproj -scheme GameLabTV
+
+      # Debugging aid if the destination below doesn't resolve on this
+      # runner image: lists every Simulator device/OS combination actually
+      # available, so a failure here points straight at a real device name
+      # to use instead of "Apple TV" guessed below.
+      - name: List available Simulators
+        run: xcrun simctl list devices available
+
+      - name: Run tvOS UI tests (Simulator)
+        run: |
+          xcodebuild test \
+            -project GameLab.xcodeproj \
+            -scheme GameLabTV \
+            -destination 'platform=tvOS Simulator,name=Apple TV' \
+            -only-testing:GameLabTVUITests \
+            CODE_SIGNING_ALLOWED=NO
+
   # ── Deploy iOS controller app to TestFlight ─────────────────────────────────
   deploy-ios:
     name: Deploy iOS → TestFlight

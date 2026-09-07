@@ -110,3 +110,40 @@ targets:
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
           PROVISIONING_PROFILE_SPECIFIER: ""
+
+    # Per-target scheme convenience (see the top-level `Scheme` docs in
+    # XcodeGen's ProjectSpec): this augments the normal auto-generated
+    # GameLabTV scheme with a test action wired to GameLabTVUITests, rather
+    # than replacing it -- build/run/archive on this scheme (used by
+    # build-check and deploy-tvos) are untouched.
+    scheme:
+      testTargets:
+        - GameLabTVUITests
+
+  # ── tvOS UI tests ──────────────────────────────────────────────────────────
+  # Exists to answer, automatically and in a Simulator, the exact question 15
+  # rounds of manual on-device testing were spent chasing: does pressing
+  # Select (or Play/Pause) on the Siri Remote actually invoke a game card's
+  # action at all. See TVGameSelectionView's debugLastInput diagnostic (now
+  # #if DEBUG-only) for the mechanism this reads.
+  GameLabTVUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    deploymentTarget: "17.0"
+
+    sources:
+      - path: GameLabTVUITests
+
+    dependencies:
+      - target: GameLabTV
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gamelab.tv.uitests
+        SWIFT_VERSION: "5.9"
+        CURRENT_PROJECT_VERSION: 1
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER: ""
