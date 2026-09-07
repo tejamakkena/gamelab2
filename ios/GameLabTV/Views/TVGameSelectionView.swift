@@ -12,10 +12,23 @@ struct TVGameSelectionView: View {
 
     // Gives the first game card a deterministic initial focus target instead
     // of leaving it to the focus engine's default first-focusable-view guess
-    // (which would otherwise land on the "All" sidebar pill). This also
-    // means GameLabTVUITests doesn't need to reproduce an exact D-pad
-    // navigation sequence just to reach a card before pressing Select.
-    @Namespace private var defaultFocusNamespace
+    // (which would otherwise land on the "All" sidebar pill), so
+    // GameLabTVUITests doesn't need to reproduce an exact D-pad navigation
+    // sequence just to reach a card before pressing Select.
+    //
+    // Deliberately NOT using .prefersDefaultFocus(_:in:): the first attempt
+    // at this used exactly that, and GameLabTVUITests' own first real CI run
+    // showed Select/Play-Pause never reaching pick(_:) at all -- consistent
+    // with a known tvOS gotcha where .prefersDefaultFocus racing a LazyVGrid's
+    // own child layout can silently lose to whatever non-lazy view (here, the
+    // sidebar's "All" pill) is already laid out by the time the focus engine
+    // resolves an initial target. Setting the existing, already-working
+    // $focusedGame binding directly (below, on .onAppear) sidesteps that
+    // race entirely -- it's the same binding swipe navigation already uses
+    // successfully, just assigned imperatively instead of declaratively.
+    // GameLabTVUITests keeps its own defensive hasFocus check + Right-press
+    // fallback regardless, so a future regression here fails loudly there
+    // with a clear message instead of silently pressing the wrong element.
 
     // TEMPORARY diagnostic: four different Select-click mechanisms have each
     // been reported as "still doesn't do anything" on real hardware, with no
@@ -163,7 +176,6 @@ struct TVGameSelectionView: View {
                         .buttonStyle(.plain)
                         .focused($focusedGame, equals: game)
                         .accessibilityIdentifier("gameCard_\(game.rawValue)")
-                        .prefersDefaultFocus(game == GameID.allCases.first, in: defaultFocusNamespace)
                         .onPlayPauseCommand {
                             #if DEBUG
                             debugMark("Play/Pause", game)
@@ -179,11 +191,17 @@ struct TVGameSelectionView: View {
             }
             .focusSection()
         }
-        .focusScope(defaultFocusNamespace)
         .opacity(hasAppeared ? 1 : 0)
         .offset(y: hasAppeared ? 0 : 16)
         .onAppear {
             withAnimation(.easeOut(duration: 0.4)) { hasAppeared = true }
+            // Imperatively assign initial focus onto the first card, on the
+            // same $focusedGame binding swipe navigation already uses
+            // successfully -- see this property's own doc comment for why
+            // this replaced .prefersDefaultFocus(_:in:).
+            if focusedGame == nil {
+                focusedGame = displayedGames.first
+            }
         }
         // TEMPORARY diagnostic overlay -- see debugLastInput's declaration.
         // Impossible to miss: a full-screen flash naming exactly which input
