@@ -155,27 +155,30 @@ struct TVGameSelectionView: View {
                         //      apparently no more reliable than
                         //      .onTapGesture was for a non-Button view.
                         // (2) is the only one of the three that actually
-                        // made Select fire reliably, so Button is right --
-                        // what (2) needed was .focusEffectDisabled()
-                        // (tvOS 17+, matches this app's deployment target),
-                        // which turns off tvOS's own automatic focus
-                        // rendering on a focusable element while leaving it
-                        // fully interactive, so TVGameCard's own isFocused
-                        // styling becomes the only visual effect again.
-                        // .focusEffectDisabled() (attempt 4) turned out to be
-                        // worse, not better: confirmed on real hardware that
-                        // adding it made Select stop registering ANYTHING at
-                        // all -- no visual change, nothing -- whereas plain
-                        // Button + .buttonStyle(.plain) alone (attempt 2,
-                        // reverted to here) is the one and only configuration
-                        // out of four tried that has ever actually been
-                        // confirmed on real hardware to register a click.
-                        // Keeping the unwanted white focus-chrome for now
-                        // (it's a real, separate, purely cosmetic tvOS quirk
-                        // with .plain on some OS versions) rather than
-                        // trading working functionality for a fix that
-                        // doesn't work at all. A cosmetic fix belongs in its
-                        // own follow-up once clicking is confirmed solid.
+                        // made Select fire reliably, so Button is right.
+                        // Attempt 4 tried .focusEffectDisabled() to remove
+                        // (2)'s remaining cosmetic issue -- tvOS's own
+                        // default focus/pressed "card" chrome bleeding
+                        // through underneath the button regardless of
+                        // .buttonStyle(.plain) -- and made things worse, not
+                        // better: confirmed on real hardware that adding it
+                        // made Select stop registering ANYTHING at all. That
+                        // ruled out .focusEffectDisabled() specifically (a
+                        // documented, independently-reported tvOS
+                        // reliability issue, not unique to this app), not
+                        // Button itself, so this cosmetic fix -- promised as
+                        // "its own follow-up once clicking is confirmed
+                        // solid" -- takes a different path: a fully custom
+                        // ButtonStyle. Unlike .plain (an Apple-provided style
+                        // that still injects some baseline chrome on tvOS,
+                        // per the .plain quirk above), a from-scratch style
+                        // renders exactly and only configuration.label, with
+                        // no built-in chrome to bleed through -- and it
+                        // doesn't touch .focusEffectDisabled() at all, so
+                        // Select delivery is unaffected. GameLabTVUITests'
+                        // automated Select/Play-Pause checks are the safety
+                        // net confirming that on every future PR, which
+                        // didn't exist yet during the four earlier attempts.
                         Button {
                             #if DEBUG
                             debugMark("Select", game)
@@ -184,7 +187,7 @@ struct TVGameSelectionView: View {
                         } label: {
                             TVGameCard(game: game, isFocused: focusedGame == game)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(NoChromeButtonStyle())
                         .focused($focusedGame, equals: game)
                         .accessibilityIdentifier("gameCard_\(game.rawValue)")
                         .onPlayPauseCommand {
@@ -344,6 +347,19 @@ private struct TVGameCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .scaleEffect(isFocused ? 1.06 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+    }
+}
+
+/// Renders exactly `configuration.label` -- nothing else. `.buttonStyle(.plain)`
+/// is Apple-provided and, on tvOS, still draws some of its own default
+/// focus/pressed chrome underneath a Button's content regardless of style;
+/// a style built from scratch has no such built-in chrome to bleed through,
+/// so TVGameCard's own isFocused-driven purple background/glow/scale is the
+/// only visual effect. See the game grid's own comment for why this
+/// replaced .plain instead of .focusEffectDisabled().
+private struct NoChromeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
 

@@ -37,6 +37,24 @@ struct RootTVView: View {
             }
         }
         .environmentObject(vm)
+        // onExitCommand only fires "while the view has focus" (Apple's own
+        // docs) -- routed through the focus responder chain like every
+        // other remote command. Confirmed directly on real hardware: Menu
+        // still exited the whole app on Atlas, which (like Trivia, Poker,
+        // and every other display-only, non-remote-controlled TV board) has
+        // zero focusable elements of its own, so there was nothing for the
+        // focus engine to route Menu through -- it fell back to tvOS's own
+        // default (exit to the system Home Screen) every time. Making the
+        // whole screen itself focusable gives it a guaranteed fallback focus
+        // target on exactly those screens, without taking focus away from a
+        // screen's own real controls (the selection grid's cards, the
+        // lobby's Start button, a solo game's remote input) -- SwiftUI still
+        // prefers a more specific descendant's focusable content when one
+        // exists. .focusEffectDisabled() only suppresses this fallback's own
+        // default focus chrome (a full-screen halo would be worse than the
+        // bug); it does not affect any other view's focus effect.
+        .focusable(true)
+        .focusEffectDisabled()
         .onExitCommand {
             switch vm.screen {
             case .gameSelection:
