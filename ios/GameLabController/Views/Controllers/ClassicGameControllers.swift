@@ -280,18 +280,57 @@ struct MemoryControllerView: View {
 
 // MARK: - Roulette Controller
 
+/// Reported directly from on-device testing: "controls on the adding the bets
+/// is little cropped where delete options is not highlighted."
+///
+/// The cause was a fixed-width row that could not fit on a narrow phone. The
+/// chip selector laid out four `.frame(width: 64)` buttons plus 3×10pt of
+/// spacing (286pt), a `Spacer()`, and the Clear button — all inside a
+/// `.padding(.horizontal, 20)`, with the Clear button carrying a *further*
+/// `.padding(.trailing, 20)` of its own. On a 375pt-wide phone only 335pt is
+/// available, so the Spacer collapsed to zero and Clear was pushed off the
+/// right edge: cropped, and (as a 12pt red-at-70% caption with no background)
+/// unreadable and effectively untappable even where it wasn't.
+///
+/// The layout is now built so nothing can overflow at any width:
+///   * Chips share the row equally (`maxWidth: .infinity`) instead of each
+///     claiming a fixed 64pt, so four of them fit any iPhone down to an SE.
+///   * Clear gets its own full-width row — a real destructive button with a
+///     44pt-plus tap target, an icon, a label and the amount it will refund —
+///     so it can never be squeezed out by a neighbour again.
+///   * Exactly one horizontal padding is applied, on the scroll content, so
+///     no child can double up and push itself past the edge.
+///   * Spin lives in a fixed bottom bar outside the ScrollView, so it stays
+///     reachable without scrolling past nine bet tiles, and sits above the
+///     home indicator rather than under it.
 struct RouletteControllerView: View {
     let privateData: [String: Any]
     let onAction: (String, [String: Any]) -> Void
 
     private var chips: Int { privateData["chips"] as? Int ?? 100 }
-    private var currentBets: [String: Int] { privateData["bets"] as? [String: Int] ?? [:] }
+
+    /// Defensive about the wire type: a JSON object arrives as `[String: Any]`
+    /// holding bridged `NSNumber`s, and a straight `as? [String: Int]` is the
+    /// kind of cast that fails silently and would leave Spin permanently
+    /// disabled with no clue why.
+    private var currentBets: [String: Int] {
+        if let typed = privateData["bets"] as? [String: Int] { return typed }
+        guard let raw = privateData["bets"] as? [String: Any] else { return [:] }
+        return raw.compactMapValues { $0 as? Int }
+    }
+
     private var isSpinning: Bool { privateData["isSpinning"] as? Bool ?? false }
     private var lastResult: Int? { privateData["lastResult"] as? Int }
+
+    private var stakedTotal: Int { currentBets.values.reduce(0, +) }
+    private var hasBets: Bool { stakedTotal > 0 }
 
     @State private var selectedChip = 5
 
     private let chipValues = [1, 5, 25, 100]
+    // These ids are the server's contract: RouletteEngine only accepts a
+    // `target` that is a key of ROULETTE_PAYOUTS, and an `amount` that is a
+    // positive Int no larger than the player's chips.
     private let betTargets: [(String, String)] = [
         ("red", "🔴 Red"), ("black", "⚫ Black"),
         ("odd", "Odd"), ("even", "Even"),
@@ -300,72 +339,190 @@ struct RouletteControllerView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                HStack {
-                    Text("🎡 Roulette").font(.title2.bold()).foregroundColor(.white)
-                    Spacer()
-                    Text("$\(chips)").font(.headline.bold()).foregroundColor(.green)
-                }
-                .padding(.horizontal, 20).padding(.top, 20)
+        VStack(spacing: 0) {
+            header
 
-                if let result = lastResult {
-                    Text("Last spin: \(result)").font(.subheadline)
-                        .foregroundColor(.yellow).padding(.horizontal, 20)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    chipSelector
+                    clearButton
+                    betGrid
                 }
-
-                // Chip selector
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Chip value").font(.caption.bold()).foregroundColor(.white.opacity(0.4))
-                        .padding(.horizontal, 20)
-                    HStack(spacing: 10) {
-                        ForEach(chipValues, id: \.self) { val in
-                            Button(action: { selectedChip = val }) {
-                                Text("$\(val)").font(.headline)
-                                    .frame(width: 64, height: 44)
-                                    .background(RoundedRectangle(cornerRadius: 10)
-                                        .fill(selectedChip == val ? Color.yellow.opacity(0.8) : Color.white.opacity(0.1)))
-                                    .foregroundColor(selectedChip == val ? .black : .white)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Spacer()
-                        Button(action: clearBets) {
-                            Label("Clear", systemImage: "trash").font(.caption)
-                                .foregroundColor(.red.opacity(0.7))
-                        }
-                        .buttonStyle(.plain).padding(.trailing, 20)
-                    }
-                    .padding(.horizontal, 20)
-                }
-
-                // Bet targets
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                          spacing: 10) {
-                    ForEach(betTargets, id: \.0) { id, label in
-                        BetTile(
-                            label: label,
-                            betAmount: currentBets[id] ?? 0,
-                            onTap: { placeBet(on: id) }
-                        )
-                    }
-                }
-                .padding(.horizontal, 16)
-
-                // Spin button
-                Button(action: spin) {
-                    Text(isSpinning ? "Spinning…" : "🎰 Spin!")
-                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 18)
-                        .background(RoundedRectangle(cornerRadius: 14)
-                            .fill(isSpinning ? Color.white.opacity(0.1) : Color.green.opacity(0.85)))
-                        .foregroundColor(isSpinning ? .white.opacity(0.4) : .black)
-                }
-                .buttonStyle(.plain).disabled(isSpinning || currentBets.isEmpty).padding(.horizontal, 20)
-                .padding(.bottom, 30)
+                // The one and only horizontal inset in this screen. Every row
+                // below is width-flexible, so nothing can extend past it.
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
+            // Never bounce past the top on a screen this short — the header is
+            // pinned, so a rubber-band there just looks like a glitch.
+            .scrollBounceBehavior(.basedOnSize)
+
+            spinBar
         }
         .background(Color(hex: "060d00").ignoresSafeArea())
     }
+
+    // MARK: Sections
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("🎡 Roulette")
+                .font(.title2.bold())
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Spacer(minLength: 8)
+
+            if let result = lastResult {
+                Text("Last spin \(result)")
+                    .font(.caption.bold())
+                    .foregroundColor(.yellow)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.yellow.opacity(0.15)))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+
+            Text("$\(chips)")
+                .font(.headline.bold())
+                .foregroundColor(.green)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(Color.white.opacity(0.04))
+    }
+
+    private var chipSelector: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Chip value")
+                .font(.caption.bold())
+                .foregroundColor(.white.opacity(0.45))
+
+            HStack(spacing: 10) {
+                ForEach(chipValues, id: \.self) { val in
+                    let affordable = val <= chips && !isSpinning
+                    Button(action: { selectedChip = val }) {
+                        Text("$\(val)")
+                            .font(.headline)
+                            // Equal shares of whatever width the phone has —
+                            // this is what stops the row overflowing at all.
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(selectedChip == val
+                                          ? Color.yellow.opacity(0.85)
+                                          : Color.white.opacity(0.1))
+                            )
+                            .foregroundColor(selectedChip == val ? .black : .white)
+                            .opacity(affordable ? 1 : 0.35)
+                    }
+                    .buttonStyle(.plain)
+                    // Mirrors the server rule (`amount > chips` is ignored), so
+                    // a denomination you can't cover reads as unavailable
+                    // instead of as a dead tap.
+                    .disabled(!affordable)
+                }
+            }
+        }
+    }
+
+    /// Deliberately its own full-width row rather than a trailing item on the
+    /// chip row: that is exactly the arrangement that cropped it before.
+    private var clearButton: some View {
+        Button(action: clearBets) {
+            HStack(spacing: 8) {
+                Image(systemName: "trash.fill")
+                Text(hasBets ? "Clear bets · $\(stakedTotal)" : "Clear bets")
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                if hasBets {
+                    Text("refunds your stake")
+                        .font(.caption2)
+                        .foregroundColor(.red.opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundColor(hasBets ? Color(hex: "FF6B6B") : .white.opacity(0.3))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.horizontal, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(hasBets ? Color.red.opacity(0.14) : Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(hasBets ? Color.red.opacity(0.45) : Color.white.opacity(0.08),
+                                          lineWidth: 1.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasBets || isSpinning)
+    }
+
+    private var betGrid: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Place a bet")
+                .font(.caption.bold())
+                .foregroundColor(.white.opacity(0.45))
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                spacing: 10
+            ) {
+                ForEach(betTargets, id: \.0) { id, label in
+                    BetTile(
+                        label: label,
+                        betAmount: currentBets[id] ?? 0,
+                        isEnabled: !isSpinning && selectedChip <= chips,
+                        onTap: { placeBet(on: id) }
+                    )
+                }
+            }
+        }
+    }
+
+    /// Pinned outside the ScrollView so it is always visible and always above
+    /// the home indicator, rather than being the ninth thing you have to
+    /// scroll to on a small phone.
+    private var spinBar: some View {
+        let canSpin = !isSpinning && hasBets
+        return VStack(spacing: 0) {
+            Divider().background(Color.white.opacity(0.08))
+
+            Button(action: spin) {
+                Text(isSpinning ? "Spinning…" : "🎰 Spin!")
+                    .font(.headline.bold())
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(canSpin ? Color.green.opacity(0.85) : Color.white.opacity(0.1))
+                    )
+                    .foregroundColor(canSpin ? .black : .white.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSpin)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+
+            if !hasBets && !isSpinning {
+                Text("Tap a bet above to stake your $\(selectedChip) chip")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.35))
+                    .padding(.bottom, 10)
+            }
+        }
+        .background(Color.white.opacity(0.03))
+    }
+
+    // MARK: Actions — these match RouletteEngine.handle_action exactly.
 
     private func placeBet(on target: String) {
         guard !isSpinning, selectedChip <= chips else { return }
@@ -373,10 +530,12 @@ struct RouletteControllerView: View {
     }
 
     private func clearBets() {
+        guard !isSpinning else { return }
         onAction("clear_bets", [:])
     }
 
     private func spin() {
+        guard !isSpinning else { return }
         onAction("spin", [:])
     }
 }
@@ -384,24 +543,41 @@ struct RouletteControllerView: View {
 private struct BetTile: View {
     let label: String
     let betAmount: Int
+    let isEnabled: Bool
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 4) {
-                Text(label).font(.body).foregroundColor(.white)
-                if betAmount > 0 {
-                    Text("$\(betAmount)").font(.caption.bold()).foregroundColor(.green)
-                }
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                // Always present (empty when unstaked) so a landing bet can't
+                // change the tile's height and reflow the whole grid under
+                // the thumb that just tapped it.
+                Text(betAmount > 0 ? "$\(betAmount)" : " ")
+                    .font(.caption.bold())
+                    .foregroundColor(.green)
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity).padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 12)
-                .fill(betAmount > 0 ? Color.green.opacity(0.2) : Color.white.opacity(0.07))
-                .overlay(RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(betAmount > 0 ? Color.green.opacity(0.5) : Color.white.opacity(0.08),
-                                  lineWidth: 1.5)))
+            .frame(maxWidth: .infinity, minHeight: 62)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(betAmount > 0 ? Color.green.opacity(0.2) : Color.white.opacity(0.07))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(betAmount > 0 ? Color.green.opacity(0.5) : Color.white.opacity(0.08),
+                                          lineWidth: 1.5)
+                    )
+            )
+            .opacity(isEnabled ? 1 : 0.4)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
 

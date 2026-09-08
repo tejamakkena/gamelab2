@@ -31,6 +31,16 @@ final class GameLabTVUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Polls `hasFocus` without touching the remote, so waiting for focus can
+    /// never itself move focus.
+    private func waitForFocus(on element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasFocus == true"),
+            object: element
+        )
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     /// Launches fresh and returns the trivia game card with focus actually
     /// on it, so a remote-button press below can be attributed to that card.
     ///
@@ -41,9 +51,8 @@ final class GameLabTVUITests: XCTestCase {
     /// child-layout timing (see the "ScrollView and prefersDefaultFocus
     /// currently incompatible?" report on Apple's developer forums). The
     /// view now assigns `$focusedGame` imperatively on `.onAppear` instead,
-    /// which doesn't have the same race. This helper keeps a real `hasFocus`
-    /// check (and a single Right-press nudge if it's somehow still false)
-    /// as a defensive fallback regardless -- so a future focus-assignment
+    /// which doesn't have the same race. This helper still insists on a real
+    /// `hasFocus` before pressing anything -- so a future focus-assignment
     /// regression fails loudly here with a clear message, rather than this
     /// test silently pressing Select/Play-Pause against the wrong element.
     private func focusedTriviaCard(in app: XCUIApplication) -> XCUIElement {
@@ -53,19 +62,19 @@ final class GameLabTVUITests: XCTestCase {
             "gameCard_trivia never appeared -- the game-selection screen didn't load."
         )
 
-        if !triviaCard.hasFocus {
-            remote.press(.right)
-        }
-
-        let gainedFocus = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "hasFocus == true"),
-            object: triviaCard
-        )
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [gainedFocus], timeout: 3),
-            .completed,
-            "gameCard_trivia never gained focus, even after pressing Right -- can't attribute a " +
-            "remote-button press to it without that."
+        // Wait for the view's own focus assignment rather than racing it.
+        // The original order checked hasFocus the instant the element
+        // existed and pressed Right if it was still false -- but on a cold
+        // launch TVGameSelectionView's .onAppear assignment lands a beat
+        // after the card is first queryable, so that press moved focus onto
+        // the *second* card, from which trivia can never come back, and the
+        // wait that followed could then only ever time out. Richer card
+        // rendering made that race start losing; the ordering was always
+        // wrong, and no press belongs in a step that only waits.
+        XCTAssertTrue(
+            waitForFocus(on: triviaCard, timeout: 8),
+            "gameCard_trivia never gained focus on its own -- TVGameSelectionView's "
+            + ".onAppear focus assignment is not reaching it."
         )
 
         // A remote press sent the instant focus lands can race the focus

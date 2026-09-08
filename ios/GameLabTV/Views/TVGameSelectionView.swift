@@ -94,11 +94,16 @@ struct TVGameSelectionView: View {
                 Divider().background(Color.white.opacity(0.2))
 
                 VStack(alignment: .leading, spacing: 12) {
-                    CategoryPill(label: "All", isSelected: selectedCategory == nil) {
+                    CategoryPill(label: "All", accent: .cyan, isSelected: selectedCategory == nil) {
                         selectCategory(nil)
                     }
+                    // Each pill carries its category's own accent (the same one
+                    // its cards wear), so the sidebar doubles as the grid's
+                    // colour legend rather than nine identical cyan pills.
                     ForEach(GameCategory.allCases, id: \.self) { cat in
-                        CategoryPill(label: cat.rawValue, isSelected: selectedCategory == cat) {
+                        CategoryPill(label: cat.rawValue,
+                                     accent: cat.tvStyle.accent,
+                                     isSelected: selectedCategory == cat) {
                             selectCategory(selectedCategory == cat ? nil : cat)
                         }
                     }
@@ -300,39 +305,74 @@ struct TVGameSelectionView: View {
 
 // MARK: - Subviews
 
+/// One game tile.
+///
+/// Reported twice, verbatim: "Game icons are still the emoji with the names
+/// which feels too basic. Can I have some animations." So the flat purple
+/// rectangle is gone: every card now wears its `GameCategory`'s own gradient
+/// (see `TVCategoryStyle`), a category-tinted spotlight and ring behind the
+/// emoji, and a category glyph in the corner -- all drawn procedurally, no
+/// image assets.
+///
+/// The motion budget is spent deliberately, and only on the focused card:
+///
+///   * Unfocused cards are completely still. Every continuous effect below is
+///     gated on `isFocused`, and its driving `@State` is only ever animated
+///     while this card holds focus. Forty-one cards shimmering at once would
+///     be visual noise on a TV and a pointless GPU load on an Apple TV, and
+///     `LazyVGrid` keeps offscreen ones from existing at all.
+///   * Exactly one card is focusable at a time, so at most one card is ever
+///     running these four cheap, GPU-friendly effects: an emoji float, a
+///     breathing ring/glow, a diagonal sheen sweep, and a slow 3D sway.
+///   * No `Timer` anywhere -- everything is a SwiftUI `repeatForever`
+///     animation, so it stops with the view and costs nothing when idle.
+///
+/// Legibility is protected independently of all of that: the title and player
+/// count sit above a bottom scrim and carry their own drop shadow, so no
+/// gradient or sheen can wash them out.
+///
+/// Note what this deliberately does NOT touch: the enclosing `Button`,
+/// `NoChromeButtonStyle`, `.focused`, `.accessibilityIdentifier` and
+/// `.onPlayPauseCommand` wiring in the grid above. That combination took
+/// roughly fifteen rounds of on-device debugging to land (see the grid's own
+/// comment for the four configurations that each broke Select delivery or
+/// focus), and this is purely a restyling of the Button's *label*.
 private struct TVGameCard: View {
     let game: GameID
     let isFocused: Bool
 
+    // Continuous-motion drivers. Each is only ever animated (and only ever
+    // non-default) while this card is focused -- see `setMotion(_:)`.
+    @State private var bob = false      // emoji float
+    @State private var halo = false     // ring + glow breathing
+    @State private var sheenSweep = false
+    @State private var sway = false     // slow 3D parallax tilt
+
+    private static let cardWidth: CGFloat = 240
+    private static let cardHeight: CGFloat = 244
+    private static let corner: CGFloat = 24
+
+    private var style: TVCategoryStyle { game.category.tvStyle }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+    }
+
     var body: some View {
-        VStack(spacing: 14) {
-            Text(game.emoji)
-                .font(.system(size: 64))
-
-            Text(game.displayName)
-                .font(.headline)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-
-            Text("\(game.minPlayers)–\(game.maxPlayers) players")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.5))
+        ZStack {
+            backgroundLayers
+            cardContent
         }
-        .padding(.horizontal, 12)
-        .frame(width: 240, height: 200)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(isFocused
-                      ? Color.purple.opacity(0.4)
-                      : Color.white.opacity(0.07))
-                .shadow(color: isFocused ? .purple.opacity(0.6) : .clear, radius: 20)
-        )
+        .frame(width: Self.cardWidth, height: Self.cardHeight)
+        // Overlays (not ZStack siblings) so the oversized sheen rect can
+        // overflow the card and be cut back by the clipShape below, instead
+        // of stretching the ZStack and squashing the gradients with it.
+        .overlay { sheen }
+        .overlay(alignment: .topLeading) { categoryGlyph }
         // Small fixed-size icon badges pinned to a corner, entirely
-        // independent of the text layout above -- unlike the previous
-        // full-text Label row, these can never grow wider than the card and
-        // spill past its rounded-rectangle background.
+        // independent of the text layout -- unlike the old full-text Label
+        // row, these can never grow wider than the card and spill past its
+        // rounded-rectangle background.
         .overlay(alignment: .topTrailing) {
             VStack(spacing: 6) {
                 if game.hasPrivateInfo {
@@ -344,9 +384,180 @@ private struct TVGameCard: View {
             }
             .padding(10)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .scaleEffect(isFocused ? 1.06 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+        .clipShape(shape)
+        .overlay { borderStroke }
+        // One composited layer, so the glow below is a single shadow of the
+        // finished card rather than a separate shadow per sublayer.
+        .compositingGroup()
+        .shadow(color: style.accent.opacity(isFocused ? (halo ? 0.7 : 0.32) : 0),
+                radius: isFocused ? (halo ? 30 : 18) : 0,
+                y: isFocused ? 10 : 0)
+        .rotation3DEffect(.degrees(isFocused ? 6 : 0),
+                          axis: (x: 1, y: 0, z: 0), perspective: 0.5)
+        .rotation3DEffect(.degrees(isFocused ? (sway ? 3 : -3) : 0),
+                          axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+        .scaleEffect(isFocused ? 1.08 : 1.0)
+        .animation(.spring(response: 0.32, dampingFraction: 0.68), value: isFocused)
+        .onChange(of: isFocused) { _, focused in setMotion(focused) }
+        // A card can be created by LazyVGrid *after* the grid has already
+        // handed it focus (initial focus is assigned in the parent's
+        // .onAppear), in which case no isFocused change ever arrives here.
+        .onAppear { if isFocused { setMotion(true) } }
+    }
+
+    // MARK: Layers
+
+    private var backgroundLayers: some View {
+        ZStack {
+            shape.fill(Color.white.opacity(0.06))
+
+            shape.fill(
+                LinearGradient(colors: [style.top, style.bottom],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            )
+            .opacity(isFocused ? 0.5 : 0.16)
+
+            // Soft category-tinted spotlight behind the emoji.
+            RadialGradient(
+                colors: [style.accent.opacity(isFocused ? 0.45 : 0.14), .clear],
+                center: UnitPoint(x: 0.5, y: 0.34),
+                startRadius: 6,
+                endRadius: isFocused ? 150 : 115
+            )
+
+            // Bottom scrim: guarantees the title and player count stay legible
+            // no matter how bright a category's gradient or the sheen gets.
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.42),
+                    .init(color: .black.opacity(0.45), location: 1.0)
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+    }
+
+    private var cardContent: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.black.opacity(0.18))
+                    .frame(width: 104, height: 104)
+
+                Circle()
+                    .strokeBorder(
+                        AngularGradient(colors: [style.top, style.bottom, style.top],
+                                        center: .center),
+                        lineWidth: isFocused ? 3 : 1.5
+                    )
+                    .frame(width: 104, height: 104)
+                    .opacity(isFocused ? (halo ? 1.0 : 0.45) : 0.28)
+                    .scaleEffect(isFocused && halo ? 1.06 : 1.0)
+
+                Text(game.emoji)
+                    .font(.system(size: 58))
+                    .shadow(color: style.accent.opacity(isFocused ? 0.85 : 0), radius: 14)
+                    .offset(y: bob ? -5 : 0)
+            }
+            .frame(height: 108)
+
+            Text(game.displayName)
+                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .shadow(color: .black.opacity(0.6), radius: 4, y: 1)
+
+            Text("\(game.minPlayers)–\(game.maxPlayers) players")
+                .font(.system(size: 19, weight: .medium))
+                .foregroundColor(.white.opacity(isFocused ? 0.85 : 0.55))
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+    }
+
+    /// A diagonal highlight that slides across the focused card. The rect is
+    /// deliberately far larger than the card so the bright band is fully
+    /// offscreen at both ends of the loop -- which is why restarting it (an
+    /// un-autoreversed `repeatForever`) is invisible, and why snapping it back
+    /// to its start when focus leaves is invisible too.
+    ///
+    /// Built only while focused rather than kept at `.opacity(0)`, so the
+    /// other forty cards don't each carry an oversized (if invisible) gradient
+    /// layer around for nothing.
+    @ViewBuilder
+    private var sheen: some View {
+        if isFocused {
+            LinearGradient(
+                stops: [
+                    .init(color: .white.opacity(0),    location: 0.34),
+                    .init(color: .white.opacity(0.22), location: 0.50),
+                    .init(color: .white.opacity(0),    location: 0.66)
+                ],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(width: Self.cardWidth * 2.2, height: Self.cardHeight * 2.2)
+            .rotationEffect(.degrees(-20))
+            .offset(x: sheenSweep ? Self.cardWidth * 1.3 : -Self.cardWidth * 1.3)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private var categoryGlyph: some View {
+        Image(systemName: style.symbol)
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(.white.opacity(isFocused ? 0.95 : 0.5))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Color.black.opacity(0.3)))
+            .padding(10)
+    }
+
+    private var borderStroke: some View {
+        shape.strokeBorder(
+            LinearGradient(
+                colors: [style.top.opacity(isFocused ? 0.95 : 0.30),
+                         style.bottom.opacity(isFocused ? 0.6 : 0.12)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            ),
+            lineWidth: isFocused ? 2.5 : 1.2
+        )
+    }
+
+    // MARK: Motion
+
+    /// Starts or stops every continuous effect in one place, so "only the
+    /// focused card moves" is a single invariant rather than something each
+    /// modifier has to be trusted to re-derive.
+    private func setMotion(_ running: Bool) {
+        guard running else {
+            withAnimation(.easeOut(duration: 0.3)) {
+                bob = false
+                halo = false
+                sway = false
+            }
+            // Not animated: this only rearms the sweep for the next time this
+            // card is focused. The sheen view itself is already gone by now
+            // (it only exists while focused), so nothing visible snaps.
+            sheenSweep = false
+            return
+        }
+        withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+            bob = true
+        }
+        withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+            halo = true
+        }
+        withAnimation(.easeInOut(duration: 3.1).repeatForever(autoreverses: true)) {
+            sway = true
+        }
+        withAnimation(.linear(duration: 2.6).repeatForever(autoreverses: false)) {
+            sheenSweep = true
+        }
     }
 }
 
@@ -378,19 +589,28 @@ private struct GameBadge: View {
 
 private struct CategoryPill: View {
     let label: String
+    /// The same accent this category's cards use, so the sidebar reads as the
+    /// grid's legend. Filled when selected; shown as a leading dot otherwise.
+    let accent: Color
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.body)
-                .foregroundColor(isSelected ? .black : .white.opacity(0.7))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule().fill(isSelected ? Color.cyan : Color.white.opacity(0.1))
-                )
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 10, height: 10)
+                    .opacity(isSelected ? 0 : 1)
+                Text(label)
+                    .font(.body)
+                    .foregroundColor(isSelected ? .black : .white.opacity(0.7))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule().fill(isSelected ? accent : Color.white.opacity(0.1))
+            )
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
