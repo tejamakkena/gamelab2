@@ -5,6 +5,7 @@ sends them on the player's behalf when the remote is used, so no separate input
 path is needed on the server.
 """
 
+import math
 import random
 import time
 
@@ -247,7 +248,20 @@ class Twenty48Engine(NativeGameEngine):
 
 
 class BrickBreakerEngine(NativeGameEngine):
-    """Paddle and bricks. Swipe the remote, or tilt a phone if one is connected."""
+    """Paddle and bricks. Slide a thumb on the Siri Remote, or on a phone.
+
+    The arena is deliberately *landscape*. It used to be 100 wide by 140 tall
+    -- portrait content on a 16:9 living-room TV -- which is why the board
+    could never fill the screen no matter how the Swift side scaled it: the
+    height ran out long before the width did, leaving most of an Apple TV
+    screen as black margin. ``W`` stays at exactly 100.0 because the phone
+    controller derives its own 0..W drag range from
+    ``private_state["width"]`` (ios/GameLabController/.../DuelControllers.swift).
+
+    Every geometry constant the TV needs in order to draw the arena is
+    published in ``public_state`` rather than hard-coded on the Swift side, so
+    the picture and the physics cannot drift apart.
+    """
 
     game_id = "brick_breaker"
     min_players = 1
@@ -255,105 +269,176 @@ class BrickBreakerEngine(NativeGameEngine):
     tick_hz = 30.0
     heavy_state = True
 
-    W, H = 100.0, 140.0
-    PADDLE_W = 20.0
-    COLS, ROWS = 8, 5
+    W, H = 100.0, 62.0
+    PADDLE_W = 16.0
+    PADDLE_H = 1.8
+    PADDLE_Y = 56.0              # top edge of the paddle
+    BALL_R = 1.1
+    COLS, ROWS = 10, 5
+    BRICK_H = 3.0
+    ROW_PITCH = 4.0
+    TOP_MARGIN = 9.0             # clear band the TV overlays its HUD on
+    SIDE_MARGIN = 3.0
     LIVES = 3
+    SERVE_DELAY = 1.2            # ready-set-go pause before each launch
+    BASE_SPEED = 34.0
+    MAX_SPEED = 62.0
+    SUBSTEPS = 2                 # so a fast ball cannot tunnel through a brick
 
     def __init__(self, room, broadcaster):
         super().__init__(room, broadcaster)
         self.bricks: list[dict] = []
-        self.paddle = 50.0
-        self.bx, self.by = 50.0, 100.0
-        self.vx, self.vy = 30.0, -45.0
+        self.paddle = self.W / 2
+        self.bx, self.by = self.W / 2, self.PADDLE_Y - self.BALL_R
+        self.speed = self.BASE_SPEED
+        self.vx, self.vy = 0.0, -self.BASE_SPEED
         self.lives = self.LIVES
         self.score = 0
-        self._finished = False
+        self.serving = True
         self.serve_at = 0.0
+        self.won = False
+        self._finished = False
 
     def start(self, players):
+        cell = (self.W - self.SIDE_MARGIN * 2) / self.COLS
         self.bricks = [
             {"id": r * self.COLS + c,
-             "x": 4 + c * (self.W - 8) / self.COLS,
-             "y": 12 + r * 7,
-             "w": (self.W - 8) / self.COLS - 1.5,
-             "h": 5.0,
+             "row": r,
+             "x": self.SIDE_MARGIN + c * cell,
+             "y": self.TOP_MARGIN + r * self.ROW_PITCH,
+             "w": cell - 1.0,
+             "h": self.BRICK_H,
              "alive": True}
             for r in range(self.ROWS) for c in range(self.COLS)
         ]
         self._serve()
 
     def _serve(self):
-        self.bx, self.by = self.paddle, self.H - 16
-        self.vx = random.uniform(-25, 25)
-        self.vy = -45.0
-        self.serve_at = time.time() + 1.0
+        """Park the ball on the paddle and start the pre-launch countdown."""
+        self.serving = True
+        self.serve_at = time.time() + self.SERVE_DELAY
+        self.speed = self.BASE_SPEED
+        angle = random.uniform(-0.5, 0.5)          # radians away from straight up
+        self.vx = math.sin(angle) * self.speed
+        self.vy = -math.cos(angle) * self.speed
+        self.bx = self.paddle
+        self.by = self.PADDLE_Y - self.BALL_R
 
     def handle_action(self, player_id, action, data):
         if action == "paddle":
             x = data.get("x")
-            if isinstance(x, (int, float)):
+            if isinstance(x, (int, float)) and not isinstance(x, bool):
                 self.paddle = max(self.PADDLE_W / 2,
                                   min(self.W - self.PADDLE_W / 2, float(x)))
 
     def tick(self, dt):
-        if self._finished or time.time() < self.serve_at:
+        if self._finished:
             return
-        dt = min(dt, 0.05)
+
+        if self.serving:
+            # The ball rides the paddle until it launches, so the board is
+            # never a still picture and steering is visible before the serve.
+            self.bx = self.paddle
+            self.by = self.PADDLE_Y - self.BALL_R
+            if time.time() < self.serve_at:
+                return
+            self.serving = False
+
+        step = min(dt, 0.05) / self.SUBSTEPS
+        for _ in range(self.SUBSTEPS):
+            if self._finished or self.serving:
+                break
+            self._advance(step)
+
+        for player in self.room.players:
+            player.score = self.score
+
+    def _advance(self, dt):
         self.bx += self.vx * dt
         self.by += self.vy * dt
 
-        if self.bx <= 1.5:
-            self.bx, self.vx = 1.5, abs(self.vx)
-        elif self.bx >= self.W - 1.5:
-            self.bx, self.vx = self.W - 1.5, -abs(self.vx)
-        if self.by <= 1.5:
-            self.by, self.vy = 1.5, abs(self.vy)
+        # Walls
+        if self.bx <= self.BALL_R:
+            self.bx, self.vx = self.BALL_R, abs(self.vx)
+        elif self.bx >= self.W - self.BALL_R:
+            self.bx, self.vx = self.W - self.BALL_R, -abs(self.vx)
+        if self.by <= self.BALL_R:
+            self.by, self.vy = self.BALL_R, abs(self.vy)
 
-        # Paddle
-        if self.H - 12 <= self.by <= self.H - 8 and self.vy > 0:
-            if abs(self.bx - self.paddle) <= self.PADDLE_W / 2:
-                offset = (self.bx - self.paddle) / (self.PADDLE_W / 2)
-                self.vx = offset * 45.0
-                self.vy = -abs(self.vy)
+        # Paddle. The contact point sets the outgoing angle, so the player
+        # aims with the paddle's edges rather than only blocking with it.
+        if (self.vy > 0
+                and self.PADDLE_Y - self.BALL_R <= self.by <= self.PADDLE_Y + self.PADDLE_H
+                and abs(self.bx - self.paddle) <= self.PADDLE_W / 2 + self.BALL_R):
+            offset = max(-1.0, min(1.0, (self.bx - self.paddle) / (self.PADDLE_W / 2)))
+            self.speed = min(self.MAX_SPEED, self.speed * 1.02)
+            angle = offset * 1.05                  # up to ~60 degrees off vertical
+            self.vx = math.sin(angle) * self.speed
+            self.vy = -abs(math.cos(angle)) * self.speed
+            self.by = self.PADDLE_Y - self.BALL_R
 
         # Bricks
         for brick in self.bricks:
             if not brick["alive"]:
                 continue
-            if (brick["x"] <= self.bx <= brick["x"] + brick["w"]
-                    and brick["y"] <= self.by <= brick["y"] + brick["h"]):
-                brick["alive"] = False
+            if not (brick["x"] - self.BALL_R <= self.bx <= brick["x"] + brick["w"] + self.BALL_R
+                    and brick["y"] - self.BALL_R <= self.by <= brick["y"] + brick["h"] + self.BALL_R):
+                continue
+            brick["alive"] = False
+            self.score += 10 * (self.ROWS - brick["row"])   # top rows are worth more
+            self.speed = min(self.MAX_SPEED, self.speed * 1.01)
+            # Bounce off whichever face was actually crossed, not always vertically.
+            dx = min(abs(self.bx - brick["x"]), abs(self.bx - (brick["x"] + brick["w"])))
+            dy = min(abs(self.by - brick["y"]), abs(self.by - (brick["y"] + brick["h"])))
+            if dx < dy:
+                self.vx = -self.vx
+            else:
                 self.vy = -self.vy
-                self.score += 10
-                break
+            self._renormalise()
+            break
 
-        if self.by > self.H:
+        if self.by - self.BALL_R > self.H:
             self.lives -= 1
             if self.lives <= 0:
                 self._finished = True
             else:
                 self._serve()
+            return
 
         if not any(b["alive"] for b in self.bricks):
             self.score += 200
+            self.won = True
             self._finished = True
 
-        for player in self.room.players:
-            player.score = self.score
+    def _renormalise(self):
+        """Keep the speed constant across an axis flip."""
+        magnitude = math.hypot(self.vx, self.vy)
+        if magnitude < 1e-6:
+            self.vx, self.vy = 0.0, -self.speed
+            return
+        factor = self.speed / magnitude
+        self.vx *= factor
+        self.vy *= factor
 
     def public_state(self):
         return {
             "width": self.W, "height": self.H,
-            "ball": {"x": round(self.bx, 1), "y": round(self.by, 1)},
-            "paddle": round(self.paddle, 1),
+            "ball": {"x": round(self.bx, 2), "y": round(self.by, 2)},
+            "ballR": self.BALL_R,
+            "paddle": round(self.paddle, 2),
             "paddleWidth": self.PADDLE_W,
+            "paddleY": self.PADDLE_Y,
+            "paddleHeight": self.PADDLE_H,
             "bricks": [
-                {"id": b["id"], "x": round(b["x"], 1), "y": round(b["y"], 1),
-                 "w": round(b["w"], 1), "h": b["h"]}
+                {"id": b["id"], "row": b["row"],
+                 "x": round(b["x"], 2), "y": round(b["y"], 2),
+                 "w": round(b["w"], 2), "h": b["h"]}
                 for b in self.bricks if b["alive"]
             ],
+            "rows": self.ROWS,
             "lives": self.lives, "score": self.score,
+            "serving": self.serving,
+            "won": self.won,
             "finished": self._finished,
         }
 

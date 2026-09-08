@@ -375,6 +375,65 @@ class TestGameRules:
         assert 4 in engine.boards[roster[0].id]
         assert engine.scores[roster[0].id] >= 4
 
+    def test_brick_breaker_launches_itself_with_no_serve_action(self):
+        # Reported as "no dropping blocks or something moving": worth pinning
+        # down that nothing has to be *sent* for the ball to start moving --
+        # the only gate is the ready-set-go pause, which the pump waits out.
+        engine, _ = make("brick_breaker", players=1)
+        assert engine.public_state()["serving"] is True
+
+        engine.serve_at = 0.0                       # skip the pre-launch pause
+        before = engine.public_state()["ball"]
+        engine.tick(1 / 30)
+        after = engine.public_state()["ball"]
+
+        assert engine.public_state()["serving"] is False
+        assert (after["x"], after["y"]) != (before["x"], before["y"])
+        assert after["y"] < before["y"]             # launched upward
+
+    def test_brick_breaker_arena_is_landscape_and_fully_described(self):
+        # The TV draws the arena purely from these; a portrait arena is what
+        # left an Apple TV screen mostly black.
+        engine, _ = make("brick_breaker", players=1)
+        state = engine.public_state()
+        assert state["width"] > state["height"]
+        for key in ("ballR", "paddleY", "paddleHeight", "paddleWidth", "rows"):
+            assert key in state, key
+        assert len(state["bricks"]) == engine.COLS * engine.ROWS
+        assert {b["row"] for b in state["bricks"]} == set(range(engine.ROWS))
+
+    def test_brick_breaker_ball_stays_inside_the_walls(self):
+        engine, _ = make("brick_breaker", players=1)
+        engine.serve_at = 0.0
+        for _ in range(400):
+            engine.tick(1 / 30)
+            engine.serve_at = 0.0                   # never wait out a re-serve
+            ball = engine.public_state()["ball"]
+            assert -0.01 <= ball["x"] <= engine.W + 0.01
+            assert ball["y"] >= -0.01               # only the floor is an exit
+
+    def test_brick_breaker_paddle_action_clamps_to_the_arena(self):
+        engine, roster = make("brick_breaker", players=1)
+        engine.handle_action(roster[0].id, "paddle", {"x": 9999})
+        assert engine.paddle == engine.W - engine.PADDLE_W / 2
+        engine.handle_action(roster[0].id, "paddle", {"x": -9999})
+        assert engine.paddle == engine.PADDLE_W / 2
+        engine.handle_action(roster[0].id, "paddle", {"x": "left"})
+        assert engine.paddle == engine.PADDLE_W / 2      # junk ignored, not raised
+
+    def test_brick_breaker_clearing_the_wall_wins(self):
+        engine, _ = make("brick_breaker", players=1)
+        for brick in engine.bricks[:-1]:
+            brick["alive"] = False
+        last = engine.bricks[-1]
+        engine.serving = False
+        engine.serve_at = 0.0
+        engine.bx = last["x"] + last["w"] / 2
+        engine.by = last["y"] + last["h"] / 2
+        engine.vx, engine.vy = 0.0, -1.0
+        engine.tick(1 / 30)
+        assert engine.is_over() and engine.public_state()["won"] is True
+
     def test_battleship_hit_keeps_the_turn(self):
         engine, roster = make("battleship", players=2)
         shooter = engine.current_player_id()
