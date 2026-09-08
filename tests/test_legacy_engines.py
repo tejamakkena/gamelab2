@@ -15,6 +15,7 @@ concrete action per game confirmed to actually change server state.
 import pytest
 
 from app import create_app
+from games.native_hub.engines.legacy_cards import RouletteEngine
 from utils.room_manager import rooms
 
 NS = "/native"
@@ -186,7 +187,12 @@ class TestTambola:
 
 
 class TestRoulette:
-    def test_bet_and_spin_resolves(self, server, tv):
+    def test_bet_and_spin_resolves(self, server, tv, monkeypatch):
+        # The product value is a deliberately cinematic 6s (the TV board
+        # animates the ball over exactly that window); no reason to spend it
+        # here, so this asserts the behaviour at a length the suite can wait
+        # out rather than hard-coding whatever the constant happens to be.
+        monkeypatch.setattr(RouletteEngine, "SPIN_SECONDS", 0.3)
         app, socketio = server
         code, phones = open_room(app, socketio, tv, "roulette", players=2)
         start_and_settle(socketio, tv, code)
@@ -196,7 +202,7 @@ class TestRoulette:
         after = latest(phones[0], "private_state")["privateData"]
         assert after["bets"].get("red") == 10
         act(socketio, phones[0], code, "dev-0", "spin", {})
-        socketio.sleep(2.3)
+        socketio.sleep(1.0)
         board = latest(tv, "game_state")["boardState"]
         assert board["lastResult"] is not None
 
