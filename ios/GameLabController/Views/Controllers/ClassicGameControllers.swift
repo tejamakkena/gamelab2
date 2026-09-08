@@ -346,6 +346,7 @@ struct RouletteControllerView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     chipSelector
                     clearButton
+                    numberGrid
                     betGrid
                 }
                 // The one and only horizontal inset in this screen. Every row
@@ -466,9 +467,35 @@ struct RouletteControllerView: View {
         .disabled(!hasBets || isSpinning)
     }
 
+    /// Straight-up bets on a single pocket, "0" through "36" -- the actual
+    /// numbers a real roulette table lets you stake, and the reason a placed
+    /// bet was never showing up as a chip on the TV's number grid: there was
+    /// no way to bet on a number at all before RouletteEngine grew this.
+    private var numberGrid: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bet on a number")
+                .font(.caption.bold())
+                .foregroundColor(.white.opacity(0.45))
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6),
+                spacing: 6
+            ) {
+                ForEach(0...36, id: \.self) { number in
+                    NumberBetTile(
+                        number: number,
+                        betAmount: currentBets["\(number)"] ?? 0,
+                        isEnabled: !isSpinning && selectedChip <= chips,
+                        onTap: { placeBet(on: "\(number)") }
+                    )
+                }
+            }
+        }
+    }
+
     private var betGrid: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Place a bet")
+            Text("Or an outside bet")
                 .font(.caption.bold())
                 .foregroundColor(.white.opacity(0.45))
 
@@ -572,6 +599,54 @@ private struct BetTile: View {
                         RoundedRectangle(cornerRadius: 12)
                             .strokeBorder(betAmount > 0 ? Color.green.opacity(0.5) : Color.white.opacity(0.08),
                                           lineWidth: 1.5)
+                    )
+            )
+            .opacity(isEnabled ? 1 : 0.4)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+}
+
+/// One pocket in the number grid, coloured to match its real felt colour so
+/// the 37-cell grid reads at a glance the same way the TV's wheel does.
+private struct NumberBetTile: View {
+    let number: Int
+    let betAmount: Int
+    let isEnabled: Bool
+    let onTap: () -> Void
+
+    // Same 18 numbers as RouletteWheel.redNumbers / RED_NUMBERS on the
+    // engine -- kept local rather than shared across targets, matching how
+    // this file already keeps its own small colour/rule duplicates.
+    private static let redNumbers: Set<Int> = [
+        1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
+    ]
+
+    private var fill: Color {
+        if number == 0 { return Color(hex: "0b7a3b") }
+        return Self.redNumbers.contains(number) ? Color(hex: "c0202a") : Color(hex: "15161a")
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 1) {
+                Text("\(number)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Text(betAmount > 0 ? "$\(betAmount)" : " ")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.yellow)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(fill)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(betAmount > 0 ? Color.yellow : Color.white.opacity(0.15),
+                                          lineWidth: betAmount > 0 ? 2 : 1)
                     )
             )
             .opacity(isEnabled ? 1 : 0.4)

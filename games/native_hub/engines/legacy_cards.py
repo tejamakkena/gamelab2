@@ -416,12 +416,31 @@ ROULETTE_PAYOUTS = {
     "red": 2, "black": 2, "odd": 2, "even": 2,
     "1-12": 3, "13-24": 3, "25-36": 3, "low": 2, "high": 2,
 }
+# A straight-up bet on a single pocket ("0".."36") pays real-table 35-to-1 --
+# 36x the stake back, same "total return" convention as ROULETTE_PAYOUTS
+# above, not the "35 to 1" profit-only phrasing. These aren't in
+# ROULETTE_PAYOUTS itself because there are 37 of them and they're
+# data-derived (the target IS the number), not a fixed name.
+STRAIGHT_UP_PAYOUT = 36
+STRAIGHT_UP_TARGETS = {str(n) for n in range(37)}
 
 
 def _number_color(n):
     if n == 0:
         return "green"
     return "red" if n in RED_NUMBERS else "black"
+
+
+def _is_valid_bet_target(target):
+    return target in ROULETTE_PAYOUTS or target in STRAIGHT_UP_TARGETS
+
+
+def _payout_multiplier(bet_type):
+    if bet_type in ROULETTE_PAYOUTS:
+        return ROULETTE_PAYOUTS[bet_type]
+    if bet_type in STRAIGHT_UP_TARGETS:
+        return STRAIGHT_UP_PAYOUT
+    return None
 
 
 def _bet_wins(bet_type, number, color):
@@ -443,6 +462,8 @@ def _bet_wins(bet_type, number, color):
         return 13 <= number <= 24
     if bet_type == "25-36":
         return 25 <= number <= 36
+    if bet_type in STRAIGHT_UP_TARGETS:
+        return number == int(bet_type)
     return False
 
 
@@ -489,7 +510,8 @@ class RouletteEngine(NativeGameEngine):
         if action == "place_bet":
             target = data.get("target")
             amount = data.get("amount")
-            if target not in ROULETTE_PAYOUTS or not isinstance(amount, int) or amount <= 0:
+            if (not isinstance(target, str) or not _is_valid_bet_target(target)
+                    or isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0):
                 return
             if amount > self.chips[player_id]:
                 return
@@ -515,7 +537,7 @@ class RouletteEngine(NativeGameEngine):
             else random.randint(0, 36)
         color = _number_color(result)
         for pid, player_bets in self.bets.items():
-            won = sum(amount * ROULETTE_PAYOUTS[target]
+            won = sum(amount * _payout_multiplier(target)
                       for target, amount in player_bets.items()
                       if _bet_wins(target, result, color))
             self.chips[pid] = self.chips.get(pid, 0) + won
@@ -536,6 +558,14 @@ class RouletteEngine(NativeGameEngine):
         # clock does not have to agree with the server's for the ball to
         # land on time.
         remaining = max(0.0, self.spin_deadline - time.time()) if self.is_spinning else 0.0
+        # Per-target totals across every player, not per-player -- once bets
+        # are on the table in a real casino they're visible to the whole
+        # room, and the TV needs "how much is on red" / "how much is on 17"
+        # to draw chip stacks on the felt, not who put it there.
+        by_target: dict[str, int] = {}
+        for player_bets in self.bets.values():
+            for target, amount in player_bets.items():
+                by_target[target] = by_target.get(target, 0) + amount
         return {
             "isSpinning": self.is_spinning,
             "lastResult": self.last_result,
@@ -543,6 +573,7 @@ class RouletteEngine(NativeGameEngine):
             "spinRemaining": round(remaining, 2),
             "spinSeconds": self.SPIN_SECONDS,
             "playerBets": {pid: sum(b.values()) for pid, b in self.bets.items()},
+            "betsByTarget": by_target,
             "chips": dict(self.chips),
             "round": self.round,
             "maxRounds": self.MAX_ROUNDS,

@@ -434,6 +434,55 @@ class TestGameRules:
         engine.tick(1 / 30)
         assert engine.is_over() and engine.public_state()["won"] is True
 
+    def test_roulette_accepts_straight_up_number_bets(self):
+        # Reported directly: "players betting on the board doesn't show up
+        # as the placed chips on the numbers" -- there was no way to bet on
+        # a single number at all, only the 9 outside bets (red/black/etc),
+        # so a number could never carry a bet to display in the first place.
+        engine, roster = make("roulette", players=1)
+        pid = roster[0].id
+        engine.handle_action(pid, "place_bet", {"target": "17", "amount": 10})
+        assert engine.bets[pid].get("17") == 10
+        assert engine.chips[pid] == engine.STARTING_CHIPS - 10
+
+        # Junk targets are still rejected, same as before.
+        engine.handle_action(pid, "place_bet", {"target": "37", "amount": 10})
+        engine.handle_action(pid, "place_bet", {"target": "-1", "amount": 10})
+        engine.handle_action(pid, "place_bet", {"target": "red7", "amount": 10})
+        assert set(engine.bets[pid]) == {"17"}
+
+    def test_roulette_straight_up_bet_pays_36x_on_a_hit(self):
+        engine, roster = make("roulette", players=1)
+        pid = roster[0].id
+        engine.handle_action(pid, "place_bet", {"target": "17", "amount": 10})
+        before = engine.chips[pid]
+        engine.handle_action(pid, "spin", {})
+        engine.pending_result = 17          # force the winning number
+        engine.spin_deadline = 0.0
+        engine.tick(1 / 30)
+        assert engine.last_result == 17
+        assert engine.chips[pid] == before + 10 * 36
+
+    def test_roulette_bool_amount_is_not_a_valid_bet(self):
+        # isinstance(True, int) is True in Python -- a bare isinstance(amount,
+        # int) check would have silently accepted a bool as a bet amount.
+        engine, roster = make("roulette", players=1)
+        pid = roster[0].id
+        engine.handle_action(pid, "place_bet", {"target": "red", "amount": True})
+        assert engine.bets[pid] == {}
+        assert engine.chips[pid] == engine.STARTING_CHIPS
+
+    def test_roulette_publishes_bets_aggregated_by_target(self):
+        # The TV draws chip stacks per cell from this; it must be a total
+        # across every player's bet on that cell, not per-player.
+        engine, roster = make("roulette", players=2)
+        engine.handle_action(roster[0].id, "place_bet", {"target": "red", "amount": 10})
+        engine.handle_action(roster[1].id, "place_bet", {"target": "red", "amount": 15})
+        engine.handle_action(roster[1].id, "place_bet", {"target": "17", "amount": 5})
+        by_target = engine.public_state()["betsByTarget"]
+        assert by_target["red"] == 25
+        assert by_target["17"] == 5
+
     def test_battleship_hit_keeps_the_turn(self):
         engine, roster = make("battleship", players=2)
         shooter = engine.current_player_id()
