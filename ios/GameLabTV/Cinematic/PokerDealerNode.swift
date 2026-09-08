@@ -93,7 +93,11 @@ final class PokerDealerNode {
         let visor = SCNNode(geometry: SCNCylinder(radius: 0.135, height: 0.03))
         visor.geometry?.materials = [visorColor]
         visor.position = SCNVector3(0, 0.06, 0.03)
-        visor.eulerAngles = SCNVector3(-.pi / 7, 0, 0)
+        // Bare `.pi` here is ambiguous -- SCNVector3's component type isn't
+        // pinned down for the compiler until it also resolves the unary
+        // minus, and it won't guess. Spelling out Float.pi is what actually
+        // compiles.
+        visor.eulerAngles = SCNVector3(-Float.pi / 7, 0, 0)
         head.addChildNode(visor)
 
         // MARK: Arms
