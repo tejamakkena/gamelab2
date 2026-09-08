@@ -613,8 +613,10 @@ struct TeenPattiControllerView: View {
 
 // MARK: - Solo games (phone acts as an optional second controller)
 
-/// Directional controller used by Neon Snake and Simon Says when a phone is
-/// present. The TV's Siri Remote sends the same actions.
+/// Directional controller used by Neon Snake when a phone is present. The
+/// TV's Siri Remote sends the same actions. (Simon Says used to share this
+/// too, but its four directions are really four colors on the TV -- see
+/// SimonSaysControllerView below.)
 struct DPadControllerView: View {
     let title: String
     let actionName: String
@@ -650,6 +652,65 @@ struct DPadControllerView: View {
                 .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.09)))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Colored-pad controller for Simon Says. Reported directly: reusing
+/// DPadControllerView's plain white arrows here meant a phone player had to
+/// remember "up = green, right = red, down = yellow, left = blue" instead of
+/// just tapping the color they watched flash -- exactly backwards for a game
+/// that's supposed to be easier on the phone. Same cross layout and same
+/// four colors as TVSimonSaysBoardView's `pad(_:)`/`colors`, so the two
+/// screens read as the same game.
+///
+/// Also (unlike the plain D-pad) gates on turn/phase the way the TV's own
+/// `.remoteDPad` handler does, so a phone player sees "Watch the
+/// sequence…" / "Your turn" instead of five always-tappable buttons that
+/// silently no-op server-side outside the input phase.
+struct SimonSaysControllerView: View {
+    let privateData: [String: Any]
+    let onAction: (String, [String: Any]) -> Void
+
+    private var phase: String { privateData.str("phase") }
+    private var isMyTurn: Bool { privateData.bool("isMyTurn") }
+    private var isOut: Bool { privateData.bool("isOut") }
+    private var round: Int { privateData.int("round") }
+
+    private var canTap: Bool { isMyTurn && phase == "input" && !isOut }
+
+    private let colors: [String: Color] = [
+        "up": .green, "right": .red, "down": .yellow, "left": .blue,
+    ]
+
+    var body: some View {
+        ControllerShell(
+            title: "🟩 Simon Says",
+            subtitle: isOut ? "You're out"
+                : phase == "show" ? "Watch the sequence…"
+                : isMyTurn ? "Your turn — round \(round)"
+                : "Waiting for your turn"
+        ) {
+            VStack(spacing: 14) {
+                Spacer()
+                pad("up")
+                HStack(spacing: 14) { pad("left"); pad("right") }
+                pad("down")
+                Spacer()
+                Text("You can also use the Apple TV remote")
+                    .font(.caption).foregroundColor(.white.opacity(0.35))
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+
+    private func pad(_ direction: String) -> some View {
+        Button(action: { onAction("pad", ["pad": direction]) }) {
+            RoundedRectangle(cornerRadius: 20)
+                .fill((colors[direction] ?? .gray).opacity(canTap ? 0.85 : 0.25))
+                .frame(width: 100, height: 84)
+        }
+        .buttonStyle(.plain)
+        .disabled(!canTap)
     }
 }
 

@@ -69,9 +69,7 @@ struct ControllerGameView: View {
                                payloadKey: "direction",
                                privateData: privateData, onAction: onAction)
         case .simonSays:
-            DPadControllerView(title: "🟩 Simon Says", actionName: "pad",
-                               payloadKey: "pad",
-                               privateData: privateData, onAction: onAction)
+            SimonSaysControllerView(privateData: privateData, onAction: onAction)
         case .twenty48:      SwipeControllerView(privateData: privateData, onAction: onAction)
         case .brickBreaker:  PaddleControllerView(privateData: privateData, onAction: onAction)
         case .atlas:         AtlasControllerView(privateData: privateData, onAction: onAction)
