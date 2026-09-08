@@ -210,9 +210,20 @@ final class RouletteWheelModel: ObservableObject {
 
 // MARK: - The wheel face
 
-/// Drawn once and simply rotated — flattened with `.drawingGroup()` so 37
-/// wedges plus their numerals cost one composited layer per frame instead of
-/// a full SwiftUI layout pass.
+/// Drawn once and simply rotated as a whole by the caller, so the 37 wedges,
+/// frets and numerals are laid out once per state change rather than on
+/// every animation frame.
+///
+/// Deliberately NOT wrapped in `.drawingGroup()`: an earlier version was, to
+/// flatten those 37+37 shapes and numerals into one composited layer, and
+/// the wheel's numbers came back completely invisible on a real Apple TV --
+/// reported directly -- while rendering fine in the Simulator the whole
+/// pipeline had actually been verified against. Rotated/positioned `Text`
+/// silently failing inside a `.drawingGroup()`'s offscreen Metal render pass
+/// is a real, independently-reported SwiftUI/Metal interaction, and the
+/// Simulator's software renderer doesn't reproduce it -- which is also why
+/// neither `build-check` nor `GameLabTVUITests` (neither of which renders a
+/// gameplay screen at all) had any chance of catching this before it shipped.
 private struct RouletteWheelFace: View {
 
     var body: some View {
@@ -229,7 +240,15 @@ private struct RouletteWheelFace: View {
                             colors: [Color(hex: "6b3b1d"), Color(hex: "a56435"),
                                      Color(hex: "6b3b1d"), Color(hex: "8a4f28"),
                                      Color(hex: "6b3b1d")],
-                            center: .center
+                            center: .center,
+                            // AngularGradient's startAngle/endAngle default to
+                            // .zero -- a zero-degree sweep, which renders as a
+                            // single solid colour, not a gradient. Every
+                            // report of "AngularGradient shows one flat
+                            // colour" traces back to this; a real sweep needs
+                            // both spelled out.
+                            startAngle: .degrees(0),
+                            endAngle: .degrees(360)
                         )
                     )
                     .overlay(Circle().strokeBorder(Color.black.opacity(0.55), lineWidth: size * 0.012))
@@ -315,7 +334,6 @@ private struct RouletteWheelFace: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
-        .drawingGroup()
     }
 }
 
@@ -560,6 +578,7 @@ struct TVRouletteBoardView: View {
                     .strokeBorder(isWinner ? Color(hex: "ffe9a8") : .white.opacity(0.18),
                                   lineWidth: isWinner ? 4 : 1)
             )
+            .overlay(alignment: .bottom) { chipStack(for: "\(n)") }
             .scaleEffect(isWinner ? 1.14 : 1)
             .shadow(color: isWinner ? Color(hex: "ffe9a8").opacity(0.9) : .clear, radius: 14)
             .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isWinner)
@@ -581,8 +600,46 @@ struct TVRouletteBoardView: View {
                     .strokeBorder(isWinner ? Color(hex: "ffe9a8") : .white.opacity(0.18),
                                   lineWidth: isWinner ? 4 : 1)
             )
+            .overlay(alignment: .topTrailing) { chipStack(for: target) }
             .shadow(color: isWinner ? Color(hex: "ffe9a8").opacity(0.8) : .clear, radius: 12)
             .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isWinner)
+    }
+
+    /// A little stack of chips over a cell with money on it, sized loosely by
+    /// how much is staked -- reads as "there's real weight here" without
+    /// needing an exact chip-counting simulation.
+    @ViewBuilder
+    private func chipStack(for target: String) -> some View {
+        if let amount = vm.state.betsByTarget[target], amount > 0 {
+            ZStack {
+                ForEach(0..<min(3, 1 + amount / 50), id: \.self) { i in
+                    Circle()
+                        .fill(chipColor(for: amount))
+                        .frame(width: 18, height: 18)
+                        .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 1.5))
+                        .offset(y: -CGFloat(i) * 4)
+                }
+                Text("\(amount)")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundColor(.white)
+                    .offset(y: -CGFloat(min(2, amount / 50)) * 4)
+            }
+            .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+            .transition(.scale.combined(with: .opacity))
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: amount)
+            // Nudged half outside the cell so it reads as a chip resting ON
+            // the number rather than a badge clipped to its bounds.
+            .offset(y: -6)
+        }
+    }
+
+    private func chipColor(for amount: Int) -> Color {
+        switch amount {
+        case ..<25:   return Color(hex: "e5e7eb")   // white/grey — small stake
+        case ..<100:  return Color(hex: "3b82f6")   // blue
+        case ..<500:  return Color(hex: "16a34a")   // green
+        default:      return Color(hex: "1f2937")   // black — big money
+        }
     }
 
     /// Which outside bets the last number paid out — mirrors `_bet_wins` on
@@ -665,6 +722,11 @@ struct RouletteBoardState {
     var spinRemaining: Double = 0
     var spinSeconds: Double = 6
     var playerBets: [String: Int] = [:]
+    /// Every current bet's total, keyed by target ("red", "17", ...) rather
+    /// than by player -- what actually drives the chip stacks drawn on the
+    /// felt, since once money is on the table which player placed it isn't
+    /// what the board needs to show.
+    var betsByTarget: [String: Int] = [:]
     var chips: [String: Int] = [:]
     var round = 0
     var maxRounds = 0
@@ -678,6 +740,11 @@ struct RouletteBoardState {
         if let v = data["spinRemaining"]?.value { spinRemaining = Self.double(v) ?? spinRemaining }
         if let v = data["spinSeconds"]?.value { spinSeconds = Self.double(v) ?? spinSeconds }
         if let v = data["playerBets"]?.value as? [String: Int] { playerBets = v }
+        // Cleared to empty when the field goes missing rather than only
+        // assigned when present: an empty round (nobody's staked anything
+        // yet, or bets were just cleared) must not go on showing the
+        // PREVIOUS round's chip stacks.
+        betsByTarget = (data["betsByTarget"]?.value as? [String: Int]) ?? [:]
         if let v = data["chips"]?.value as? [String: Int] { chips = v }
         if let v = data["round"]?.value as? Int { round = v }
         if let v = data["maxRounds"]?.value as? Int { maxRounds = v }
