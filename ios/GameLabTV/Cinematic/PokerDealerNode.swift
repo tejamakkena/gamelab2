@@ -102,10 +102,18 @@ final class PokerDealerNode {
 
         // MARK: Arms
 
-        func buildArm(xSign: Float) -> (shoulder: SCNNode, elbow: SCNNode) {
+        // `root` is threaded in as a parameter rather than the nested
+        // function reaching for `rootNode` (a stored property) itself --
+        // referencing self here, even just implicitly through a nested
+        // function, makes *calling* that function count as "using self"
+        // for two-phase initialization, and leftShoulder/rightShoulder/
+        // rightElbow (below) aren't set yet at the point this is called.
+        // Taking the node as a plain parameter means the function never
+        // touches self at all, so calling it is just an ordinary call.
+        func buildArm(xSign: Float, root: SCNNode) -> (shoulder: SCNNode, elbow: SCNNode) {
             let shoulder = SCNNode()
             shoulder.position = SCNVector3(xSign * 0.22, 1.42, 0)
-            rootNode.addChildNode(shoulder)
+            root.addChildNode(shoulder)
 
             let upperArm = SCNNode(geometry: SCNCapsule(capRadius: 0.06, height: 0.35))
             upperArm.geometry?.materials = [vest]
@@ -129,8 +137,8 @@ final class PokerDealerNode {
             return (shoulder, elbow)
         }
 
-        leftShoulder = buildArm(xSign: -1).shoulder
-        let right = buildArm(xSign: 1)
+        leftShoulder = buildArm(xSign: -1, root: rootNode).shoulder
+        let right = buildArm(xSign: 1, root: rootNode)
         rightShoulder = right.shoulder
         rightElbow = right.elbow
 
