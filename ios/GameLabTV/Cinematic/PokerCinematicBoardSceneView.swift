@@ -68,10 +68,19 @@ struct PokerCinematicBoardSceneView: UIViewRepresentable {
             faceUp.roughness.contents = 0.3
             faceUpMaterial = faceUp
 
+            // `tableRadius` is a stored property, so reading it here (even
+            // just as a bare identifier) captures `self` -- and this
+            // closure runs while `communitySlotNodes` (one of self's own
+            // stored properties) is still mid-assignment, which the
+            // compiler rejects outright ("'self' captured by a closure
+            // before all members were initialized"). Copying it to a local
+            // constant first means the closure captures a plain Float
+            // instead of self.
+            let radius = tableRadius
             communitySlotNodes = (0..<5).map { i -> SCNNode in
                 let slot = SCNNode(geometry: SCNBox(width: 0.34, height: 0.02, length: 0.46, chamferRadius: 0.03))
                 slot.geometry?.materials = [faceDown]
-                slot.position = SCNVector3(Float(i - 2) * 0.42, 0.045, -tableRadius * 0.4)
+                slot.position = SCNVector3(Float(i - 2) * 0.42, 0.045, -radius * 0.4)
                 return slot
             }
 
