@@ -250,8 +250,6 @@ struct TVAirHockeyBoardView: View {
     let room: Room
     @StateObject private var vm = TVBoardModel(initial: AirHockeyState()) { $0.update(from: $1) }
 
-    private let scale: CGFloat = 6.0
-
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -269,51 +267,65 @@ struct TVAirHockeyBoardView: View {
                 Spacer()
             }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(.white.opacity(0.25), lineWidth: 3)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.45)))
+            // Reported alongside Neon Snake/Brick Breaker: a fixed 6pt scale
+            // sized the rink purely off its own default 100x160 unit grid,
+            // regardless of how much bigger the actual TV screen is. Deriving
+            // the scale from the space actually available here instead lets
+            // the rink fill it (preserving its aspect ratio).
+            GeometryReader { geo in
+                let margin: CGFloat = 40
+                let availableWidth = max(geo.size.width - margin * 2, 1)
+                let availableHeight = max(geo.size.height - margin * 2, 1)
+                let scale = max(1, min(availableWidth / CGFloat(max(vm.state.width, 1)),
+                                        availableHeight / CGFloat(max(vm.state.height, 1))))
 
-                Canvas { ctx, size in
-                    // Centre line and circle
-                    var line = Path()
-                    line.move(to: CGPoint(x: 0, y: size.height / 2))
-                    line.addLine(to: CGPoint(x: size.width, y: size.height / 2))
-                    ctx.stroke(line, with: .color(.white.opacity(0.15)), lineWidth: 2)
-                    ctx.stroke(Path(ellipseIn: CGRect(x: size.width / 2 - 60,
-                                                      y: size.height / 2 - 60,
-                                                      width: 120, height: 120)),
-                               with: .color(.white.opacity(0.15)), lineWidth: 2)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(.white.opacity(0.25), lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.45)))
 
-                    // Paddles. state fields decode as Double (server JSON), scale is
-                    // CGFloat -- Swift has no automatic Double<->CGFloat conversion,
-                    // so each Double sub-expression is wrapped once before scaling.
-                    for (i, p) in vm.state.paddles.enumerated() {
-                        let y: CGFloat = i == 0 ? 6 * scale : CGFloat(vm.state.height - 6) * scale
+                    Canvas { ctx, size in
+                        // Centre line and circle
+                        var line = Path()
+                        line.move(to: CGPoint(x: 0, y: size.height / 2))
+                        line.addLine(to: CGPoint(x: size.width, y: size.height / 2))
+                        ctx.stroke(line, with: .color(.white.opacity(0.15)), lineWidth: 2)
+                        ctx.stroke(Path(ellipseIn: CGRect(x: size.width / 2 - 60,
+                                                          y: size.height / 2 - 60,
+                                                          width: 120, height: 120)),
+                                   with: .color(.white.opacity(0.15)), lineWidth: 2)
+
+                        // Paddles. state fields decode as Double (server JSON), scale is
+                        // CGFloat -- Swift has no automatic Double<->CGFloat conversion,
+                        // so each Double sub-expression is wrapped once before scaling.
+                        for (i, p) in vm.state.paddles.enumerated() {
+                            let y: CGFloat = i == 0 ? 6 * scale : CGFloat(vm.state.height - 6) * scale
+                            ctx.fill(
+                                Path(roundedRect: CGRect(
+                                    x: CGFloat(p.x - vm.state.paddleWidth / 2) * scale, y: y - 8,
+                                    width: CGFloat(vm.state.paddleWidth) * scale, height: 16),
+                                     cornerRadius: 8),
+                                with: .color(i == 0 ? .cyan : .pink))
+                        }
+
                         ctx.fill(
-                            Path(roundedRect: CGRect(
-                                x: CGFloat(p.x - vm.state.paddleWidth / 2) * scale, y: y - 8,
-                                width: CGFloat(vm.state.paddleWidth) * scale, height: 16),
-                                 cornerRadius: 8),
-                            with: .color(i == 0 ? .cyan : .pink))
+                            Path(ellipseIn: CGRect(x: CGFloat(vm.state.puck.x - 3) * scale,
+                                                   y: CGFloat(vm.state.puck.y - 3) * scale,
+                                                   width: 6 * scale, height: 6 * scale)),
+                            with: .color(.white))
                     }
+                    .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
 
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: CGFloat(vm.state.puck.x - 3) * scale,
-                                               y: CGFloat(vm.state.puck.y - 3) * scale,
-                                               width: 6 * scale, height: 6 * scale)),
-                        with: .color(.white))
+                    if vm.state.finished {
+                        Text("GAME OVER").font(.system(size: 54, weight: .heavy)).tracking(5)
+                            .foregroundColor(.yellow)
+                            .padding(34)
+                            .background(RoundedRectangle(cornerRadius: 20).fill(.black.opacity(0.8)))
+                    }
                 }
-                .frame(width: CGFloat(vm.state.width) * scale, height: CGFloat(vm.state.height) * scale)
-
-                if vm.state.finished {
-                    Text("GAME OVER").font(.system(size: 54, weight: .heavy)).tracking(5)
-                        .foregroundColor(.yellow)
-                        .padding(34)
-                        .background(RoundedRectangle(cornerRadius: 20).fill(.black.opacity(0.8)))
-                }
+                .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(width: CGFloat(vm.state.width) * scale + 8, height: CGFloat(vm.state.height) * scale + 8)
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
@@ -544,54 +556,65 @@ struct TVCarromBoardView: View {
     let room: Room
     @StateObject private var vm = TVBoardModel(initial: CarromState()) { $0.update(from: $1) }
 
-    private let scale: CGFloat = 8.0
-
     var body: some View {
         VStack(spacing: 0) {
             TVRoundHeader(emoji: "⚫", title: "Carrom", round: 0, totalRounds: 0, secondsLeft: 0,
                           phaseLabel: "first to \(vm.state.targetScore)")
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(hex: "d9b382"))
+            // Same fix as Neon Snake/Brick Breaker/Air Hockey: a fixed 8pt
+            // scale sized the board purely off its own default 100x100 unit
+            // grid, regardless of how much bigger the actual TV screen is.
+            // Deriving the scale from the space actually available here
+            // instead lets the board (square, so width and height agree)
+            // fill it.
+            GeometryReader { geo in
+                let margin: CGFloat = 40
+                let availableWidth = max(geo.size.width - margin * 2, 1)
+                let availableHeight = max(geo.size.height - margin * 2, 1)
+                let scale = max(1, min(availableWidth / CGFloat(max(vm.state.board, 1)),
+                                        availableHeight / CGFloat(max(vm.state.board, 1))))
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color(hex: "d9b382"))
+                        .frame(width: CGFloat(vm.state.board) * scale, height: CGFloat(vm.state.board) * scale)
+                        .overlay(RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color(hex: "6b4f2a"), lineWidth: 10))
+
+                    Canvas { ctx, size in
+                        // Pockets
+                        for p in [CGPoint(x: 0, y: 0), CGPoint(x: size.width, y: 0),
+                                  CGPoint(x: 0, y: size.height),
+                                  CGPoint(x: size.width, y: size.height)] {
+                            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 28, y: p.y - 28,
+                                                            width: 56, height: 56)),
+                                     with: .color(.black))
+                        }
+                        ctx.stroke(Path(ellipseIn: CGRect(x: size.width / 2 - 45,
+                                                          y: size.height / 2 - 45,
+                                                          width: 90, height: 90)),
+                                   with: .color(Color(hex: "6b4f2a").opacity(0.5)), lineWidth: 3)
+
+                        // coin.x/y and strikerX decode as Double (server JSON); scale is
+                        // CGFloat, so each is wrapped before scaling -- see AirHockey above.
+                        for coin in vm.state.coins {
+                            let color: Color = coin.kind == "queen" ? .red
+                                             : coin.kind == "black" ? .black
+                                             : Color(hex: "f5e6c8")
+                            ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(coin.x) * scale - 12,
+                                                            y: CGFloat(coin.y) * scale - 12,
+                                                            width: 24, height: 24)),
+                                     with: .color(color))
+                        }
+                        // Striker
+                        ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(vm.state.strikerX) * scale - 16,
+                                                        y: 92 * scale - 16,
+                                                        width: 32, height: 32)),
+                                 with: .color(.cyan))
+                    }
                     .frame(width: CGFloat(vm.state.board) * scale, height: CGFloat(vm.state.board) * scale)
-                    .overlay(RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color(hex: "6b4f2a"), lineWidth: 10))
-
-                Canvas { ctx, size in
-                    // Pockets
-                    for p in [CGPoint(x: 0, y: 0), CGPoint(x: size.width, y: 0),
-                              CGPoint(x: 0, y: size.height),
-                              CGPoint(x: size.width, y: size.height)] {
-                        ctx.fill(Path(ellipseIn: CGRect(x: p.x - 28, y: p.y - 28,
-                                                        width: 56, height: 56)),
-                                 with: .color(.black))
-                    }
-                    ctx.stroke(Path(ellipseIn: CGRect(x: size.width / 2 - 45,
-                                                      y: size.height / 2 - 45,
-                                                      width: 90, height: 90)),
-                               with: .color(Color(hex: "6b4f2a").opacity(0.5)), lineWidth: 3)
-
-                    // coin.x/y and strikerX decode as Double (server JSON); scale is
-                    // CGFloat, so each is wrapped before scaling -- see AirHockey above.
-                    for coin in vm.state.coins {
-                        let color: Color = coin.kind == "queen" ? .red
-                                         : coin.kind == "black" ? .black
-                                         : Color(hex: "f5e6c8")
-                        ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(coin.x) * scale - 12,
-                                                        y: CGFloat(coin.y) * scale - 12,
-                                                        width: 24, height: 24)),
-                                 with: .color(color))
-                    }
-                    // Striker
-                    ctx.fill(Path(ellipseIn: CGRect(x: CGFloat(vm.state.strikerX) * scale - 16,
-                                                    y: 92 * scale - 16,
-                                                    width: 32, height: 32)),
-                             with: .color(.cyan))
                 }
-                .frame(width: CGFloat(vm.state.board) * scale, height: CGFloat(vm.state.board) * scale)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            Spacer()
             TVScoreStrip(players: vm.state.players)
         }
         .onAppear { vm.bind(roomCode: room.code) }
