@@ -31,6 +31,38 @@ struct RootTVView: View {
 
             case .playing(let room):
                 TVGameBoardView(room: room)
+                    // onExitCommand only fires "while the view has focus"
+                    // (Apple's own docs) -- routed through the focus
+                    // responder chain like every other remote command.
+                    // Confirmed directly on real hardware: Menu still
+                    // exited the whole app on Atlas, which (like Trivia,
+                    // Poker, and every other display-only,
+                    // non-remote-controlled TV board) has zero focusable
+                    // elements of its own, so there was nothing for the
+                    // focus engine to route Menu through here.
+                    //
+                    // A first version of this fix made RootTVView's entire
+                    // outer ZStack focusable, unconditionally, on every
+                    // screen -- and broke TVGameSelectionView's own
+                    // deliberate focus assignment outright (confirmed by
+                    // GameLabTVUITests' very next CI run: "gameCard_trivia
+                    // never gained focus" -- a strictly worse regression
+                    // than the bug this was fixing). Scoping the fallback to
+                    // exactly the case that needs it -- a `.playing` game
+                    // with no remote-input support of its own, so nothing
+                    // else on screen could be focusable anyway -- means
+                    // TVGameSelectionView's view subtree is never touched by
+                    // this modifier at all, for any screen.
+                    //
+                    // TVLobbyView's own Start button is a real, separate gap
+                    // this doesn't cover: it's `.disabled` (and so
+                    // unfocusable) while waiting for enough players, which
+                    // likely leaves Menu broken during that specific window
+                    // too. Left as a known follow-up rather than widening
+                    // this fix's blast radius any further right after the
+                    // regression above.
+                    .focusable(!room.gameID.supportsRemote)
+                    .focusEffectDisabled()
 
             case .results(let room):
                 TVResultsView(room: room, onPlayAgain: vm.returnToSelection)

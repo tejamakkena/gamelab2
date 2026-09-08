@@ -8,6 +8,13 @@ struct JoinRoomView: View {
     @State private var shakeCode = false
     @FocusState private var focusedField: Field?
 
+    // The TV app has always shown a "Server connected" / "Reconnecting…"
+    // dot (TVGameSelectionView); this app never has, so there was no way
+    // for someone stuck on a join to tell whether their phone's socket
+    // was even connected in the first place versus a bad room code or a
+    // lost server reply -- all three look identical without this.
+    @ObservedObject private var socket = GameSocketManager.shared
+
     private enum Field { case code, name }
 
     var body: some View {
@@ -26,6 +33,16 @@ struct JoinRoomView: View {
                     Text("Your phone is the controller")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.4))
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(socket.isConnected ? Color.green : Color.red)
+                            .frame(width: 8, height: 8)
+                        Text(socket.isConnected ? "Server connected" : "Reconnecting…")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    .padding(.top, 4)
                 }
                 .padding(.top, 60)
 

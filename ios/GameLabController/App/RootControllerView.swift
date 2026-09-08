@@ -142,10 +142,15 @@ final class ControllerRootViewModel: ObservableObject {
     private let socket = GameSocketManager.shared
     private let playerID = AppConstants.deviceID
 
+    /// See joinRoom(code:name:)'s own comment: a bounded fallback for a join
+    /// that never gets any response back at all.
+    private var joinTimeoutTask: Task<Void, Never>?
+
     init() {
         // Server confirms the join — transition to lobby
         socket.on(.roomJoined) { [weak self] (response: RoomJoinedResponse) in
             guard let self else { return }
+            self.joinTimeoutTask?.cancel()
             self.screen = .waiting(response.room)
         }
 
@@ -176,6 +181,7 @@ final class ControllerRootViewModel: ObservableObject {
         // Server-side errors (room not found, room full, invalid action, etc.)
         socket.on(.error) { [weak self] (r: ErrorResponse) in
             guard let self else { return }
+            self.joinTimeoutTask?.cancel()
             // Only show error overlay from loading state; in-game errors stay silent
             if case .loading = self.screen {
                 self.screen = .error(r.message)
@@ -191,6 +197,22 @@ final class ControllerRootViewModel: ObservableObject {
             playerID: playerID,
             isTV: false
         ))
+
+        // Reported directly: the screen got stuck on "Joining room..."
+        // forever with no way out but force-quitting. Whatever the exact
+        // cause on a given attempt -- a dropped emit, a lost reply, a code
+        // for a room that's since moved on -- neither roomJoined nor error
+        // ever arriving left this screen with no path forward at all. A
+        // bounded wait with a clear, actionable error is a safety net
+        // regardless of the underlying cause.
+        joinTimeoutTask?.cancel()
+        joinTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            if case .loading = self.screen {
+                self.screen = .error("Couldn't join — check the room code and try again.")
+            }
+        }
     }
 
     func markReady() {
