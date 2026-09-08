@@ -151,48 +151,70 @@ struct TVPokerBoardView: View {
     @StateObject private var vm = PokerBoardViewModel()
 
     var body: some View {
-        VStack(spacing: 32) {
-            // Phase + pot
-            HStack(spacing: 32) {
-                VStack(spacing: 4) {
-                    Text(vm.state.phase.uppercased()).font(.caption.bold()).tracking(3)
-                        .foregroundColor(.yellow.opacity(0.7))
-                    Text("🃏 Poker").font(.title2.bold()).foregroundColor(.white)
-                }
-                Spacer()
-                VStack(spacing: 4) {
-                    Text("POT").font(.caption.bold()).tracking(2).foregroundColor(.white.opacity(0.4))
-                    Text("$\(vm.state.pot)").font(.system(size: 36, weight: .bold)).foregroundColor(.yellow)
-                }
-            }
-            .padding(.horizontal, 60).padding(.top, 40)
+        ZStack {
+            // The real 3D table: felt, seat markers, community-card slots,
+            // and a procedurally-animated dealer, shot with the cinematic
+            // camera rig. All of the actual game *state* below is rendered
+            // as legible SwiftUI text over the top of it -- the 3D scene is
+            // atmosphere, not the source of truth for any number on screen.
+            PokerCinematicBoardSceneView(state: vm.state)
+                .ignoresSafeArea()
 
-            // Community cards
-            VStack(spacing: 12) {
-                Text("Community Cards").font(.subheadline).foregroundColor(.white.opacity(0.4))
-                HStack(spacing: 16) {
-                    ForEach(0..<5, id: \.self) { idx in
-                        if idx < vm.state.communityCards.count {
-                            TVCardView(card: vm.state.communityCards[idx])
-                        } else {
-                            TVCardBack()
+            // Subtle top/bottom gradients so HUD text stays readable over
+            // whatever is directly behind it in the live 3D scene.
+            VStack {
+                LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 160)
+                Spacer()
+                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 220)
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                // Phase + pot
+                HStack(spacing: 32) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(vm.state.phase.uppercased()).font(.caption.bold()).tracking(3)
+                            .foregroundColor(.yellow.opacity(0.85))
+                        Text("🃏 Poker").font(.title2.bold()).foregroundColor(.white)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("POT").font(.caption.bold()).tracking(2).foregroundColor(.white.opacity(0.6))
+                        Text("$\(vm.state.pot)").font(.system(size: 36, weight: .bold)).foregroundColor(.yellow)
+                    }
+                }
+                .padding(.horizontal, 60).padding(.top, 40)
+
+                // Community cards, positioned to roughly sit over the
+                // physical card slots on the 3D table beneath.
+                VStack(spacing: 10) {
+                    Text("Community Cards").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                    HStack(spacing: 16) {
+                        ForEach(0..<5, id: \.self) { idx in
+                            if idx < vm.state.communityCards.count {
+                                TVCardView(card: vm.state.communityCards[idx])
+                            } else {
+                                TVCardBack()
+                            }
                         }
                     }
                 }
-            }
+                .padding(.top, 28)
 
-            // Player seats around table
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: min(room.players.count, 4)),
-                      spacing: 20) {
-                ForEach(vm.state.playerSeats) { seat in
-                    PokerSeatView(seat: seat)
-                }
-            }
-            .padding(.horizontal, 60)
+                Spacer()
 
-            Spacer()
+                // Every seat's chips/bet/status/turn, in a ring echoing the
+                // table below -- see PokerSeatRingOverlay for why this is a
+                // deliberately independent HUD layout rather than a live
+                // 3D-to-screen projection of the SceneKit seat markers.
+                PokerSeatRingOverlay(seats: vm.state.playerSeats)
+                    .frame(height: 260)
+                    .padding(.bottom, 24)
+            }
         }
-        .background(Color(hex: "001a00").ignoresSafeArea())
         .onAppear { vm.bind(roomCode: room.code) }
     }
 }
@@ -234,11 +256,17 @@ struct PokerBoardState {
     var pot = 0
     var phase = "pre-flop"
     var playerSeats: [PokerSeat] = []
+    /// `PokerEngine.base_public()`'s "winner" field -- the player ID who
+    /// took the pot, set the moment a hand ends (fold-out or showdown).
+    /// Drives the dealer's showdown reaction gesture; nil while a hand is
+    /// still in progress.
+    var winnerID: String?
 
     mutating func update(from data: [String: AnyCodable]) {
         if let v = data["pot"]?.value as? Int             { pot = v }
         if let v = data["phase"]?.value as? String        { phase = v }
         if let v = data["communityCards"]?.value as? [String] { communityCards = v }
+        if let winnerField = data["winner"]                { winnerID = winnerField.value as? String }
         if let seats = data["players"]?.value as? [[String: Any]] {
             playerSeats = seats.compactMap { d -> PokerSeat? in
                 guard let id = d["id"] as? String, let name = d["name"] as? String else { return nil }
@@ -263,7 +291,31 @@ struct PokerBoardState {
     }
 }
 
-private struct PokerSeatView: View {
+/// Every seat's name/chips/bet/status/turn indicator, fanned along a shallow
+/// bottom arc so the HUD echoes the seat ring standing on the 3D table
+/// beneath it -- deliberately as an independent, fixed 2D layout rather than
+/// a true 3D-to-screen projection of the SceneKit seat markers, so it stays
+/// perfectly legible through every cinematic camera move instead of sliding
+/// around (or off-screen) as the rig's shots change.
+private struct PokerSeatRingOverlay: View {
+    let seats: [PokerSeat]
+
+    var body: some View {
+        GeometryReader { geo in
+            let count = max(seats.count, 1)
+            ForEach(Array(seats.enumerated()), id: \.element.id) { i, seat in
+                let t = count == 1 ? 0.5 : CGFloat(i) / CGFloat(count - 1)
+                let angle = Double.pi * (0.12 + 0.76 * Double(t))
+                let x = geo.size.width / 2 - CGFloat(cos(angle)) * (geo.size.width / 2 - 90)
+                let y = geo.size.height * 0.12 + CGFloat(sin(angle)) * (geo.size.height * 0.8)
+                PokerSeatBadge(seat: seat)
+                    .position(x: x, y: y)
+            }
+        }
+    }
+}
+
+private struct PokerSeatBadge: View {
     let seat: PokerSeat
     var body: some View {
         VStack(spacing: 6) {
@@ -278,13 +330,13 @@ private struct PokerSeatView: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14)
-            .fill(seat.isCurrentTurn ? Color.yellow.opacity(0.1) : Color.white.opacity(0.05))
+            .fill(seat.isCurrentTurn ? Color.yellow.opacity(0.18) : Color.black.opacity(0.45))
             .overlay(RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(seat.isCurrentTurn ? Color.yellow.opacity(0.5) : Color.clear, lineWidth: 2)))
+                .strokeBorder(seat.isCurrentTurn ? Color.yellow.opacity(0.7) : Color.white.opacity(0.12), lineWidth: 2)))
     }
     private func statusColor(_ s: String) -> Color {
-        switch s { case "active": return .white; case "folded": return .red.opacity(0.6);
-                   case "all-in": return .orange; default: return .white.opacity(0.3) }
+        switch s { case "active": return .white; case "folded": return .red.opacity(0.7);
+                   case "all-in": return .orange; default: return .white.opacity(0.4) }
     }
 }
 
