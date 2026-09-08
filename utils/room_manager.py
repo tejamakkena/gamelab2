@@ -81,6 +81,15 @@ class Room:
     players: list[Player] = field(default_factory=list)   # phones only
     tv_sids: set[str] = field(default_factory=set)        # TV / board sockets
     solo: bool = False
+    # The solo placeholder's identity, held here rather than added to
+    # `players` immediately at create_room time -- deferred until start_game
+    # actually fires, and only materialized then if nobody real has joined by
+    # that point. Lets a solo room's lobby (with its real room code) sit open
+    # long enough for a phone to join it normally, in which case the real
+    # phone player is used instead and this placeholder is never created at
+    # all. See games/native_hub/socket_events.py's handle_start_game.
+    pending_host_id: str | None = None
+    pending_host_name: str = "Player 1"
     engine: Any = None
     # Bumped on start and on finish. A background pump captures the value it was
     # spawned with and exits as soon as it no longer matches, so a pump from a

@@ -106,10 +106,20 @@ final class TVRootViewModel: ObservableObject {
             guard let self else { return }
             switch response.state {
             case .lobby:
+                // Used to auto-emit startGame instantly here for a solo
+                // room, skipping the lobby (and its room code) entirely.
+                // Reported directly: that left Atlas -- whose only input is
+                // typed text -- with no way to ever bring in a phone,
+                // because the room had already started before one could
+                // join it. Letting the lobby show normally, same as any
+                // other room, means the code stays up long enough for a
+                // phone to join for real (the server only creates the solo
+                // placeholder player if nobody has, in handle_start_game) --
+                // and "Start Game" is already enabled the instant this
+                // screen appears (TVLobbyView's own isSolo-driven canStart),
+                // so a single Select still starts it immediately for anyone
+                // who just wants to play with the remote alone.
                 self.screen = .lobby(response)
-                if self.isSolo {
-                    self.socket.emit(.startGame, payload: ["roomCode": response.code])
-                }
             case .playing: self.screen = .playing(response)
             case .results: self.screen = .results(response)
             }

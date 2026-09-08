@@ -250,13 +250,44 @@ class TestGameAction:
 
 
 class TestSoloRoom:
-    def test_starts_with_a_single_synthetic_player(self, tv):
+    def test_placeholder_player_is_deferred_until_start_not_created_immediately(self, tv):
+        # Reported directly: a solo game (Atlas, whose only input is typed
+        # text) had no way to ever bring in a phone, because this player
+        # used to be created immediately on create_room and the room
+        # auto-started before a phone could join it. The room must sit with
+        # zero players right up until start_game, so its lobby (and real
+        # room code) stays genuinely open for one to join in the meantime.
         tv.emit("create_room", {"gameID": "neon_snake", "hostName": "Solo",
                                 "hostID": "tv-solo", "solo": True}, namespace=NS)
         room = latest(tv, "room_updated")
-        assert len(room["players"]) == 1
+        assert room["players"] == []
+
         tv.emit("start_game", {"roomCode": room["code"]}, namespace=NS)
-        assert latest(tv, "room_updated")["state"] == "playing"
+        started = latest(tv, "room_updated")
+        assert started["state"] == "playing"
+        assert len(started["players"]) == 1
+
+    def test_a_phone_joining_before_start_replaces_the_placeholder_entirely(self, server, tv):
+        # The other half of the same fix: once a phone joins for real, the
+        # placeholder must never appear at all -- otherwise a game like
+        # Atlas would seat a ghost "Player 1" that can never answer
+        # alongside the real player, breaking turn order instead of fixing
+        # it. See AtlasEngine.tick's own elimination-on-timeout rule for why
+        # that combination is actively harmful, not just redundant.
+        app, socketio = server
+        tv.emit("create_room", {"gameID": "atlas", "hostName": "Solo",
+                                "hostID": "tv-solo", "solo": True}, namespace=NS)
+        code = latest(tv, "room_updated")["code"]
+
+        phone = socketio.test_client(app, namespace=NS)
+        phone.emit("join_room", {"roomCode": code, "playerName": "Real Player",
+                                 "playerID": "dev-real", "isTV": False}, namespace=NS)
+        phone.get_received(NS)
+
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+        started = latest(tv, "room_updated")
+        assert started["state"] == "playing"
+        assert [p["id"] for p in started["players"]] == ["dev-real"]
 
     def test_the_tv_can_send_actions_for_itself(self, server, tv):
         app, socketio = server

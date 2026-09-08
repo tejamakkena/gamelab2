@@ -60,9 +60,19 @@ struct TVLobbyView: View {
                     .font(.system(size: 48, weight: .bold))
                     .foregroundColor(.white)
 
-                Text("\(room.players.count) / \(room.gameID.maxPlayers) players")
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.5))
+                // A solo room now genuinely sits here with zero players
+                // until Start is pressed (see TVRootViewModel's own comment
+                // on why) -- "0 / 4 players" read as broken rather than
+                // optional, so solo gets its own, clearer line instead.
+                if isSolo && room.players.isEmpty {
+                    Text("Playing solo — invite friends with the code, or just press Start")
+                        .font(.title3)
+                        .foregroundColor(.white.opacity(0.5))
+                } else {
+                    Text("\(room.players.count) / \(room.gameID.maxPlayers) players")
+                        .font(.title3)
+                        .foregroundColor(.white.opacity(0.5))
+                }
 
                 ScrollView {
                     VStack(spacing: 12) {

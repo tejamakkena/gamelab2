@@ -75,11 +75,17 @@ def register_native_events(socketio):
             room.attach_tv(sid)
             host_id = v.player_id(data.get("hostID"))
             if solo and host_id:
-                # One synthetic player whose sid is the TV's, so the TV can both
-                # start the game and send actions for it.
-                room.add_player(host_id,
-                                sanitize_name(data.get("hostName"), "Player 1"),
-                                sid)
+                # Not added to room.players yet -- reported directly that
+                # solo games (e.g. Atlas, which needs typed answers) had no
+                # way to bring in a phone at all, because this player used to
+                # be created immediately and the room auto-started before a
+                # phone could ever join it. Held here instead, and only
+                # materialized in handle_start_game -- and only if nobody
+                # real has joined by then -- so the lobby (with its real
+                # room code) stays genuinely open for a phone to join
+                # normally in the meantime.
+                room.pending_host_id = host_id
+                room.pending_host_name = sanitize_name(data.get("hostName"), "Player 1")
 
         socketio.emit("room_joined",
                       {"room": room.to_json(), "playerID": host_id or ""},
@@ -193,6 +199,19 @@ def register_native_events(socketio):
             if not is_tv and (actor is None or not actor.is_host):
                 push_error(socketio, sid, "Only the host can start", "NOT_HOST")
                 return
+
+            # The solo placeholder is only materialized here, at the moment
+            # the game is actually starting -- and only if nobody real
+            # joined the lobby in the meantime (see handle_create_room). A
+            # phone that did join takes its place entirely; the placeholder
+            # is never created in that case. start_game for a solo room is
+            # only ever sent by the TV itself (TVRootViewModel; the phone's
+            # own lobby screen has no start action), so `sid` here is
+            # reliably the TV's own -- exactly what the placeholder needs so
+            # the TV can act on its behalf via game_action's tv_sids bypass.
+            if room.solo and not room.players and room.pending_host_id:
+                room.add_player(room.pending_host_id, room.pending_host_name, sid)
+                room.pending_host_id = None
 
             engine_cls = engine_for(room.game_id)
             minimum = 1 if room.solo else engine_cls.min_players
