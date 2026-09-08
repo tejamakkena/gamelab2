@@ -3,13 +3,33 @@ import SwiftUI
 struct RootTVView: View {
     @StateObject private var vm = TVRootViewModel()
 
-    // Menu on the Siri Remote had no handler anywhere in this app, so tvOS
+    // Menu on the Siri Remote had no handler at all originally, so tvOS
     // fell back to its own default: exit straight to the system Home
-    // Screen, mid-game, with no warning -- reported directly. .onExitCommand
-    // below intercepts it instead. Gated to "not already on the selection
-    // screen": at the top level, Menu exiting the app to the real tvOS Home
-    // Screen is normal, expected platform behavior worth leaving alone.
+    // Screen, mid-game, with no warning. Two SwiftUI .onExitCommand
+    // attempts then failed on real hardware for focus-related reasons --
+    // MenuPressInterceptor (used below) documents both and why a
+    // window-level UIKit press recognizer is what finally works.
     @State private var showQuitConfirm = false
+
+    /// Menu means "back to the game list" during a game, and keeps its
+    /// normal platform meaning (exit the app) on the list itself.
+    private var interceptsMenu: Bool {
+        if case .gameSelection = vm.screen { return false }
+        return true
+    }
+
+    private func handleMenuPress() {
+        switch vm.screen {
+        case .gameSelection:
+            break
+        case .results:
+            // Nothing left to lose by leaving -- same as tapping "Play
+            // Again" on TVResultsView, just via the remote's Menu button.
+            vm.quitToSelection()
+        case .lobby, .playing:
+            showQuitConfirm = true
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -31,56 +51,23 @@ struct RootTVView: View {
 
             case .playing(let room):
                 TVGameBoardView(room: room)
-                    // onExitCommand only fires "while the view has focus"
-                    // (Apple's own docs) -- routed through the focus
-                    // responder chain like every other remote command.
-                    // Confirmed directly on real hardware: Menu still
-                    // exited the whole app on Atlas, which (like Trivia,
-                    // Poker, and every other display-only,
-                    // non-remote-controlled TV board) has zero focusable
-                    // elements of its own, so there was nothing for the
-                    // focus engine to route Menu through here.
-                    //
-                    // A first version of this fix made RootTVView's entire
-                    // outer ZStack focusable, unconditionally, on every
-                    // screen -- and broke TVGameSelectionView's own
-                    // deliberate focus assignment outright (confirmed by
-                    // GameLabTVUITests' very next CI run: "gameCard_trivia
-                    // never gained focus" -- a strictly worse regression
-                    // than the bug this was fixing). Scoping the fallback to
-                    // exactly the case that needs it -- a `.playing` game
-                    // with no remote-input support of its own, so nothing
-                    // else on screen could be focusable anyway -- means
-                    // TVGameSelectionView's view subtree is never touched by
-                    // this modifier at all, for any screen.
-                    //
-                    // TVLobbyView's own Start button is a real, separate gap
-                    // this doesn't cover: it's `.disabled` (and so
-                    // unfocusable) while waiting for enough players, which
-                    // likely leaves Menu broken during that specific window
-                    // too. Left as a known follow-up rather than widening
-                    // this fix's blast radius any further right after the
-                    // regression above.
-                    .focusable(!room.gameID.supportsRemote)
-                    .focusEffectDisabled()
 
             case .results(let room):
                 TVResultsView(room: room, onPlayAgain: vm.returnToSelection)
             }
         }
         .environmentObject(vm)
-        .onExitCommand {
-            switch vm.screen {
-            case .gameSelection:
-                break   // Let Menu do its normal, expected thing here.
-            case .results:
-                // Nothing left to lose by leaving -- same as tapping "Play
-                // Again" on TVResultsView, just via the remote's Menu button.
-                vm.quitToSelection()
-            case .lobby, .playing:
-                showQuitConfirm = true
-            }
-        }
+        // Menu is intercepted through a window-level UIKit press
+        // recognizer rather than SwiftUI's .onExitCommand -- see
+        // MenuPressInterceptor for why two focus-based attempts failed on
+        // real hardware. Inactive on the selection screen so Menu still
+        // exits the app there, which is the platform-standard behavior
+        // tvOS expects from a top-level screen.
+        .overlay(
+            MenuPressInterceptor(isActive: interceptsMenu) { handleMenuPress() }
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+        )
         .confirmationDialog(
             "Quit to Home Screen?",
             isPresented: $showQuitConfirm,

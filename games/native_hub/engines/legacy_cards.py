@@ -450,10 +450,19 @@ class RouletteEngine(NativeGameEngine):
     game_id = "roulette"
     min_players = 1
     max_players = 8
+    # Only needs to notice its own spin deadline, but the default 1 Hz pump
+    # would settle the wheel up to a second after the board's ball animation
+    # has already come to rest. A few ticks a second keeps the number
+    # appearing when the ball actually lands.
+    tick_hz = 4.0
 
     STARTING_CHIPS = 1000
     MAX_ROUNDS = 15
-    SPIN_SECONDS = 2.0
+    # A real wheel takes several seconds to settle, and the TV board
+    # animates the ball decelerating into its pocket over exactly this
+    # window (see TVRouletteBoardView). Two seconds read as an instant
+    # cut rather than a spin.
+    SPIN_SECONDS = 6.0
 
     def __init__(self, room, broadcaster):
         super().__init__(room, broadcaster)
@@ -462,6 +471,11 @@ class RouletteEngine(NativeGameEngine):
         self.is_spinning = False
         self.spin_deadline = 0.0
         self.last_result: int | None = None
+        # Chosen when the spin starts rather than when it ends, so the
+        # board can animate the ball into the pocket it will actually
+        # land in. Only ever published on public_state (the TV), never
+        # on private_state (the phones), so nobody sees it early.
+        self.pending_result: int | None = None
         self.round = 0
         self._finished = False
 
@@ -489,6 +503,7 @@ class RouletteEngine(NativeGameEngine):
         elif action == "spin":
             if any(self.bets.get(pid) for pid in self.bets):
                 self.is_spinning = True
+                self.pending_result = random.randint(0, 36)
                 self.spin_deadline = time.time() + self.SPIN_SECONDS
 
     def tick(self, dt):
@@ -496,7 +511,8 @@ class RouletteEngine(NativeGameEngine):
             return
         if time.time() < self.spin_deadline:
             return
-        result = random.randint(0, 36)
+        result = self.pending_result if self.pending_result is not None \
+            else random.randint(0, 36)
         color = _number_color(result)
         for pid, player_bets in self.bets.items():
             won = sum(amount * ROULETTE_PAYOUTS[target]
@@ -505,6 +521,7 @@ class RouletteEngine(NativeGameEngine):
             self.chips[pid] = self.chips.get(pid, 0) + won
         self.bets = {pid: {} for pid in self.chips}
         self.last_result = result
+        self.pending_result = None
         self.is_spinning = False
         self.round += 1
         for pid in self.chips:
@@ -515,11 +532,20 @@ class RouletteEngine(NativeGameEngine):
             self._finished = True
 
     def public_state(self):
+        # spinRemaining rather than an absolute deadline: the Apple TV's
+        # clock does not have to agree with the server's for the ball to
+        # land on time.
+        remaining = max(0.0, self.spin_deadline - time.time()) if self.is_spinning else 0.0
         return {
             "isSpinning": self.is_spinning,
             "lastResult": self.last_result,
+            "pendingResult": self.pending_result if self.is_spinning else None,
+            "spinRemaining": round(remaining, 2),
+            "spinSeconds": self.SPIN_SECONDS,
             "playerBets": {pid: sum(b.values()) for pid, b in self.bets.items()},
+            "chips": dict(self.chips),
             "round": self.round,
+            "maxRounds": self.MAX_ROUNDS,
             "finished": self._finished,
         }
 
