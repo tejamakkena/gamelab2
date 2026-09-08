@@ -15,14 +15,23 @@ DIRECTIONS = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
 
 
 class NeonSnakeEngine(NativeGameEngine):
-    """Classic snake on a 20x20 grid, driven by the remote's D-pad."""
+    """Classic snake, driven by the remote's D-pad.
+
+    The grid used to be a square 20x20 -- which, like BrickBreakerEngine's
+    old portrait arena, can never fill a 16:9 TV: whichever screen dimension
+    the square's edge is bound by, the other runs out early and leaves huge
+    black margins no matter how the client scales the cell size. Widening the
+    grid to roughly match a 16:9 screen (32x18) is the same fix already
+    applied to the brick breaker arena, so the board the client draws is
+    actually screen-shaped instead of a letterboxed square.
+    """
 
     game_id = "neon_snake"
     min_players = 1
     max_players = 4
     tick_hz = 8.0            # the snake's step rate, not a render rate
 
-    W = H = 20
+    W, H = 32, 18
 
     def __init__(self, room, broadcaster):
         super().__init__(room, broadcaster)
@@ -121,7 +130,25 @@ class NeonSnakeEngine(NativeGameEngine):
 
 
 class Twenty48Engine(NativeGameEngine):
-    """2048. The remote's touch surface swipes the tiles."""
+    """2048. The remote's touch surface swipes the tiles.
+
+    ``boards`` stays exactly what it always was -- a flat list of cell
+    values, in row-major order -- because that is the only representation a
+    swipe actually needs to compute. But a flat value array has no memory: a
+    client that only ever sees "the value at index 0 became 0 and the value
+    at index 3 changed" cannot tell a tile *sliding* from column 0 to column
+    3 apart from a merge or a fresh spawn happening to land on 3, which is
+    exactly why the TV board used to just snap to each new grid of numbers
+    instead of sliding tiles.
+
+    ``tile_ids`` is a parallel array (same shape as ``boards``, 0 meaning
+    "no tile") giving each occupied cell a stable id that survives a slide
+    and is carried by the surviving tile through a merge, so a client that
+    keeps the id from one push to the next can animate the actual movement
+    instead of guessing at it. ``last_move_merged``/``last_move_spawned``
+    call out, for the one push right after a swipe, which ids were the
+    result of a merge (for a pop) or a brand new spawn (for a fade-in).
+    """
 
     game_id = "twenty48"
     min_players = 1
@@ -132,23 +159,42 @@ class Twenty48Engine(NativeGameEngine):
     def __init__(self, room, broadcaster):
         super().__init__(room, broadcaster)
         self.boards: dict[str, list[int]] = {}
+        self.tile_ids: dict[str, list[int]] = {}
+        self.next_tile_id: dict[str, int] = {}
         self.scores: dict[str, int] = {}
         self.done: set[str] = set()
         self.best_tile: dict[str, int] = {}
+        self.last_move_merged: dict[str, list[int]] = {}
+        self.last_move_spawned: dict[str, int | None] = {}
 
     def start(self, players):
         for player in players:
             board = [0] * (self.N * self.N)
-            self._spawn(board)
-            self._spawn(board)
             self.boards[player.id] = board
+            self.tile_ids[player.id] = [0] * (self.N * self.N)
+            self.next_tile_id[player.id] = 1
+            self._spawn(player.id, board)
+            self._spawn(player.id, board)
             self.scores[player.id] = 0
             self.best_tile[player.id] = 2
+            self.last_move_merged[player.id] = []
+            self.last_move_spawned[player.id] = None
 
-    def _spawn(self, board):
+    def _mint_id(self, player_id):
+        tid = self.next_tile_id.get(player_id, 1)
+        self.next_tile_id[player_id] = tid + 1
+        return tid
+
+    def _spawn(self, player_id, board):
         empty = [i for i, v in enumerate(board) if v == 0]
-        if empty:
-            board[random.choice(empty)] = 4 if random.random() < 0.1 else 2
+        if not empty:
+            return None
+        cell = random.choice(empty)
+        board[cell] = 4 if random.random() < 0.1 else 2
+        ids = self.tile_ids.setdefault(player_id, [0] * len(board))
+        tid = self._mint_id(player_id)
+        ids[cell] = tid
+        return tid
 
     def _rows(self, board, direction):
         """Return the board as lists of indices, oriented so a merge is leftward."""
@@ -170,28 +216,47 @@ class Twenty48Engine(NativeGameEngine):
         board = self.boards.get(player_id)
         if board is None:
             return
+        ids = self.tile_ids.get(player_id)
+        if ids is None or len(ids) != len(board):
+            ids = [0] * len(board)
+            self.tile_ids[player_id] = ids
 
         moved = False
         gained = 0
+        merged_ids: list[int] = []
         for line in self._rows(board, direction):
-            values = [board[i] for i in line if board[i]]
-            merged = []
+            # (value, id) pairs for the occupied cells of this row/column, in
+            # slide order. A cell whose value survived from before this
+            # engine tracked ids (or was poked directly, e.g. by a test) has
+            # no id yet -- mint one on the spot rather than losing identity
+            # for that tile forever.
+            occupied = [(board[i], ids[i]) for i in line if board[i]]
+            occupied = [(v, tid if tid else self._mint_id(player_id)) for v, tid in occupied]
+
+            merged: list[tuple[int, int]] = []
             skip = False
-            for i, value in enumerate(values):
+            for i, (value, tid) in enumerate(occupied):
                 if skip:
                     skip = False
                     continue
-                if i + 1 < len(values) and values[i + 1] == value:
-                    merged.append(value * 2)
+                if i + 1 < len(occupied) and occupied[i + 1][0] == value:
+                    # The surviving tile keeps the *leading* id (the one
+                    # further along in the slide direction) so a client
+                    # tracking ids sees one tile continue and one vanish,
+                    # which is exactly what a merge is.
+                    merged.append((value * 2, tid))
+                    merged_ids.append(tid)
                     gained += value * 2
                     skip = True
                 else:
-                    merged.append(value)
-            merged += [0] * (self.N - len(merged))
+                    merged.append((value, tid))
+            merged += [(0, 0)] * (self.N - len(merged))
             for slot, cell in enumerate(line):
-                if board[cell] != merged[slot]:
+                new_value, new_id = merged[slot]
+                if board[cell] != new_value:
                     moved = True
-                board[cell] = merged[slot]
+                board[cell] = new_value
+                ids[cell] = new_id
 
         if not moved:
             return
@@ -201,7 +266,8 @@ class Twenty48Engine(NativeGameEngine):
         player = self.room.player(player_id)
         if player is not None:
             player.score = self.scores[player_id]
-        self._spawn(board)
+        self.last_move_merged[player_id] = merged_ids
+        self.last_move_spawned[player_id] = self._spawn(player_id, board)
 
         if not self._has_move(board):
             self.done.add(player_id)
@@ -219,11 +285,25 @@ class Twenty48Engine(NativeGameEngine):
                     return True
         return False
 
+    def _tile_entities(self, player_id, board):
+        """Occupied cells as {id, value, row, col} objects instead of a flat
+        value array, so a client can track a tile's identity from one push to
+        the next and animate its actual slide instead of re-rendering numbers
+        in place."""
+        ids = self.tile_ids.get(player_id) or [0] * len(board)
+        return [
+            {"id": ids[i] or i + 1, "value": v, "row": i // self.N, "col": i % self.N}
+            for i, v in enumerate(board) if v
+        ]
+
     def public_state(self):
         return {
             "size": self.N,
             "boards": [
-                {"playerID": pid, "name": self.player_name(pid), "tiles": board,
+                {"playerID": pid, "name": self.player_name(pid),
+                 "tiles": self._tile_entities(pid, board),
+                 "merged": self.last_move_merged.get(pid, []),
+                 "spawned": self.last_move_spawned.get(pid),
                  "score": self.scores.get(pid, 0), "best": self.best_tile.get(pid, 0),
                  "done": pid in self.done}
                 for pid, board in self.boards.items()
@@ -232,9 +312,12 @@ class Twenty48Engine(NativeGameEngine):
         }
 
     def private_state(self, player_id):
+        board = self.boards.get(player_id, [])
         return {
             "size": self.N,
-            "tiles": self.boards.get(player_id, []),
+            "tiles": self._tile_entities(player_id, board),
+            "merged": self.last_move_merged.get(player_id, []),
+            "spawned": self.last_move_spawned.get(player_id),
             "score": self.scores.get(player_id, 0),
             "done": player_id in self.done,
             "controls": "swipe",

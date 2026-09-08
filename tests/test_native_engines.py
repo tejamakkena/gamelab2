@@ -375,6 +375,63 @@ class TestGameRules:
         assert 4 in engine.boards[roster[0].id]
         assert engine.scores[roster[0].id] >= 4
 
+    def test_twenty48_tile_identity_survives_a_slide(self):
+        # Reported as "blocky, not smooth": the client can only animate a
+        # slide if it can tell a tile that moved from one that merely changed
+        # value in place, which means the id at a tile's new cell has to be
+        # the same id it had before the swipe.
+        engine, roster = make("twenty48", players=1)
+        pid = roster[0].id
+        board = engine.boards[pid]
+        board[:] = [0] * 16
+        board[3] = 2                                  # one tile, far column
+        ids = engine.tile_ids[pid]
+        ids[:] = [0] * 16
+        ids[3] = 7
+
+        engine.handle_action(pid, "swipe", {"direction": "left"})
+
+        assert engine.boards[pid][0] == 2
+        assert engine.tile_ids[pid][0] == 7            # same id, new cell
+        entities = engine.public_state()["boards"][0]["tiles"]
+        slid = next(t for t in entities if t["id"] == 7)
+        assert slid == {"id": 7, "value": 2, "row": 0, "col": 0}
+        # The swipe also spawns a tile (the board wasn't full); that's a
+        # second entity with a brand new id, not a mutation of tile 7.
+        assert len(entities) == 2
+
+    def test_twenty48_merge_reports_the_surviving_id_and_spawn(self):
+        engine, roster = make("twenty48", players=1)
+        pid = roster[0].id
+        board = engine.boards[pid]
+        board[:] = [0] * 16
+        board[0], board[1] = 2, 2
+        ids = engine.tile_ids[pid]
+        ids[:] = [0] * 16
+        ids[0], ids[1] = 5, 9
+
+        engine.handle_action(pid, "swipe", {"direction": "left"})
+
+        state = engine.public_state()["boards"][0]
+        merged_tile = next(t for t in state["tiles"] if t["col"] == 0)
+        assert merged_tile == {"id": 5, "value": 4, "row": 0, "col": 0}
+        assert state["merged"] == [5]
+        # The swipe also spawns a fresh tile; it must carry its own new id,
+        # distinct from every id already on the board.
+        spawned = next(t for t in state["tiles"] if t["id"] != 5)
+        assert state["spawned"] == spawned["id"]
+        assert spawned["id"] not in (5, 9)
+
+    def test_twenty48_ids_stay_unique_and_stable_across_several_swipes(self):
+        engine, roster = make("twenty48", players=1)
+        pid = roster[0].id
+        for direction in ("left", "up", "right", "down") * 3:
+            engine.handle_action(pid, "swipe", {"direction": direction})
+            tiles = engine.public_state()["boards"][0]["tiles"]
+            ids = [t["id"] for t in tiles]
+            assert len(ids) == len(set(ids))            # every id is unique
+            assert all(isinstance(i, int) and i > 0 for i in ids)
+
     def test_brick_breaker_launches_itself_with_no_serve_action(self):
         # Reported as "no dropping blocks or something moving": worth pinning
         # down that nothing has to be *sent* for the ball to start moving --

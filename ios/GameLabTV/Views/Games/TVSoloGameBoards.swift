@@ -63,8 +63,25 @@ private struct GameOverBanner: View {
 
 // MARK: - Neon Snake
 
+/// Distinct neon hues per snake so multiple players (or multiple synthetic
+/// snakes) read as separate creatures rather than one shared color.
+enum SnakePalette {
+    static let heads: [Color] = [
+        Color(hex: "5eead4"), Color(hex: "f472b6"),
+        Color(hex: "a3e635"), Color(hex: "fbbf24"),
+    ]
+    static let bodies: [Color] = [
+        Color(hex: "22d3ee"), Color(hex: "ec4899"),
+        Color(hex: "65a30d"), Color(hex: "f59e0b"),
+    ]
+    static func head(_ i: Int) -> Color { heads[i % heads.count] }
+    static func body(_ i: Int) -> Color { bodies[i % bodies.count] }
+}
+
 struct SnakeState {
-    var width = 20, height = 20
+    // Mirrors NeonSnakeEngine's own W/H default so the first frame drawn
+    // before any server state arrives is already the right shape.
+    var width = 32, height = 18
     var food = (x: 10, y: 10)
     var bodies: [[(x: Int, y: Int)]] = []
     var colors: [Bool] = []          // alive flags, parallel to bodies
@@ -95,13 +112,85 @@ struct SnakeState {
 }
 
 @MainActor final class SnakeBoardViewModel: ObservableObject {
-    @Published var state = SnakeState()
+    @Published private(set) var state = SnakeState()
     private let socket = GameSocketManager.shared
+
+    // Motion interpolation, the same idea as BrickViewModel's ball: the
+    // server only steps the snake at NeonSnakeEngine.tick_hz (8 Hz), and
+    // rendering each new grid position the instant it arrives is exactly
+    // what read as "just a simple block" snapping from cell to cell instead
+    // of a snake in motion. Every body array here is indexed the same way
+    // the engine builds it: a new head is always inserted at index 0, so
+    // (barring growth) index i's cell after a tick is exactly where index
+    // i-1's cell was before it -- meaning "previous[i] -> target[i]" is
+    // precisely each segment sliding forward into the slot ahead of it,
+    // which is what a real snake's body actually looks like in motion.
+    private var previousBodies: [[CGPoint]] = []
+    private var targetBodies: [[CGPoint]] = []
+    private var segmentStart = Date()
+    private var segmentDuration: TimeInterval = 1.0 / 8.0
+    private var lastUpdate = Date()
+
     func bind(roomCode: String) {
         socket.on(.gameState) { [weak self] (r: GameStateResponse) in
-            guard r.roomCode == roomCode else { return }
-            self?.state.update(from: r.boardState)
+            guard let self, r.roomCode == roomCode else { return }
+            self.apply(r.boardState)
         }
+    }
+
+    /// Where segment `seg` of snake `i` should be drawn right now, in grid
+    /// units (fractional once a slide is in progress).
+    func segment(_ i: Int, _ seg: Int, at now: Date) -> CGPoint {
+        guard i < targetBodies.count, seg < targetBodies[i].count else { return .zero }
+        let target = targetBodies[i][seg]
+        guard i < previousBodies.count, seg < previousBodies[i].count else { return target }
+        let previous = previousBodies[i][seg]
+        let f = min(1, max(0, now.timeIntervalSince(segmentStart) / max(segmentDuration, 1e-4)))
+        return CGPoint(x: previous.x + (target.x - previous.x) * CGFloat(f),
+                       y: previous.y + (target.y - previous.y) * CGFloat(f))
+    }
+
+    /// The heading a snake is currently facing, derived from its two
+    /// frontmost segments (there is no explicit "direction" field on the
+    /// wire). Falls back to facing right for a brand new single-cell snake.
+    func heading(_ i: Int, at now: Date) -> CGVector {
+        guard i < targetBodies.count, targetBodies[i].count >= 2 else { return CGVector(dx: 1, dy: 0) }
+        let head = segment(i, 0, at: now)
+        let neck = segment(i, 1, at: now)
+        let dx = head.x - neck.x, dy = head.y - neck.y
+        let len = max(hypot(dx, dy), 1e-4)
+        return CGVector(dx: dx / len, dy: dy / len)
+    }
+
+    private func apply(_ data: [String: AnyCodable]) {
+        let now = Date()
+        let hadBodies = !state.bodies.isEmpty
+        var next = state
+        next.update(from: data)
+
+        segmentDuration = min(0.5, max(1.0 / 60.0, now.timeIntervalSince(lastUpdate)))
+        lastUpdate = now
+        segmentStart = now
+
+        let newTargets = next.bodies.map { body in
+            body.map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.y)) }
+        }
+        if hadBodies {
+            previousBodies = next.bodies.indices.map { i -> [CGPoint] in
+                let oldBody = i < state.bodies.count ? state.bodies[i] : []
+                return next.bodies[i].indices.map { seg -> CGPoint in
+                    guard seg < oldBody.count else { return newTargets[i][seg] }
+                    return CGPoint(x: CGFloat(oldBody[seg].x), y: CGFloat(oldBody[seg].y))
+                }
+            }
+        } else {
+            // First frame (or a fresh game after one finished) -- nothing to
+            // slide from, so snap instead of animating in from the origin.
+            previousBodies = newTargets
+        }
+        targetBodies = newTargets
+
+        state = next
     }
 }
 
@@ -114,53 +203,26 @@ struct TVNeonSnakeBoardView: View {
         VStack(spacing: 0) {
             SoloHUD(title: "🐍 Neon Snake", score: vm.state.score, subtitle: nil)
             // Reported directly as "not full screen": a fixed 34pt cell sized
-            // the whole board purely off Neon Snake's own 20x20 default grid
-            // (680x680pt), regardless of how much bigger the actual TV
-            // screen is -- leaving huge black margins on any real display.
-            // Deriving the cell size from the space actually available here
-            // makes the board scale to fill it instead.
+            // the whole board purely off Neon Snake's own grid, regardless of
+            // how much bigger the actual TV screen is -- leaving huge black
+            // margins on any real display. That bug had a second layer once
+            // the cell size itself was fixed: a *square* 20x20 grid can never
+            // fill a 16:9 rectangle no matter how big its cells get, because
+            // whichever dimension the square is bound by, the other runs out
+            // early. NeonSnakeEngine's grid is landscape now (32x18, see its
+            // docstring) so the same GeometryReader-derived scale below
+            // actually reaches both edges of the screen instead of
+            // letterboxing a centered square.
             GeometryReader { geo in
-                let margin: CGFloat = 40
-                let availableWidth = max(geo.size.width - margin * 2, 1)
-                let availableHeight = max(geo.size.height - margin * 2, 1)
-                let cell = max(12, min(availableWidth / CGFloat(max(vm.state.width, 1)),
-                                        availableHeight / CGFloat(max(vm.state.height, 1))))
+                let margin: CGFloat = 28
+                let unitW = CGFloat(max(vm.state.width, 1))
+                let unitH = CGFloat(max(vm.state.height, 1))
+                let scale = max(1, min((geo.size.width - margin * 2) / unitW,
+                                       (geo.size.height - margin * 2) / unitH))
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.cyan.opacity(0.3), lineWidth: 3)
-                        .background(RoundedRectangle(cornerRadius: 20).fill(Color.black.opacity(0.4)))
-
-                    Canvas { ctx, _ in
-                        let f = vm.state.food
-                        ctx.fill(Path(roundedRect: CGRect(x: CGFloat(f.x) * cell + 3,
-                                                          y: CGFloat(f.y) * cell + 3,
-                                                          width: cell - 6, height: cell - 6),
-                                      cornerRadius: 6),
-                                 with: .color(.yellow))
-
-                        for (i, body) in vm.state.bodies.enumerated() {
-                            let alive = i < vm.state.colors.count ? vm.state.colors[i] : false
-                            for (j, c) in body.enumerated() {
-                                let shade = alive ? 1.0 - Double(j) / Double(max(body.count, 12)) * 0.55 : 0.2
-                                ctx.fill(
-                                    Path(roundedRect: CGRect(x: CGFloat(c.x) * cell + 2,
-                                                             y: CGFloat(c.y) * cell + 2,
-                                                             width: cell - 4, height: cell - 4),
-                                         cornerRadius: 7),
-                                    with: .color(.cyan.opacity(shade))
-                                )
-                            }
-                        }
-                    }
-                    .frame(width: CGFloat(vm.state.width) * cell,
-                           height: CGFloat(vm.state.height) * cell)
-
-                    if vm.state.finished { GameOverBanner(score: vm.state.score) }
-                }
-                .frame(width: CGFloat(vm.state.width) * cell + 8,
-                       height: CGFloat(vm.state.height) * cell + 8)
-                .frame(width: geo.size.width, height: geo.size.height)
+                board(scale: scale)
+                    .frame(width: unitW * scale, height: unitH * scale)
+                    .frame(width: geo.size.width, height: geo.size.height)
             }
             RemoteHint(text: "Swipe or click the remote's edges to steer")
         }
@@ -175,13 +237,151 @@ struct TVNeonSnakeBoardView: View {
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
+
+    // MARK: Board
+
+    private func board(scale: CGFloat) -> some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: vm.state.finished)) { timeline in
+            Canvas { context, _ in
+                paint(&context, scale: scale, now: timeline.date)
+            }
+        }
+        .background(
+            ZStack {
+                LinearGradient(colors: [Color(hex: "051014"), Color(hex: "0a1f22")],
+                               startPoint: .top, endPoint: .bottom)
+                // A faint grid so the empty board still reads as a play
+                // field, not just a black rectangle -- legibility matters
+                // more than the neon spectacle here.
+                Canvas { ctx, size in
+                    let cols = max(vm.state.width, 1), rows = max(vm.state.height, 1)
+                    var grid = Path()
+                    for c in 0...cols {
+                        let x = CGFloat(c) / CGFloat(cols) * size.width
+                        grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
+                    }
+                    for r in 0...rows {
+                        let y = CGFloat(r) / CGFloat(rows) * size.height
+                        grid.move(to: CGPoint(x: 0, y: y)); grid.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    ctx.stroke(grid, with: .color(.cyan.opacity(0.05)), lineWidth: 1)
+                }
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.cyan.opacity(0.3), lineWidth: 3)
+        )
+        .shadow(color: .cyan.opacity(0.18), radius: 30)
+        .overlay { if vm.state.finished { GameOverBanner(score: vm.state.score) } }
+    }
+
+    private func paint(_ ctx: inout GraphicsContext, scale: CGFloat, now: Date) {
+        // ---- Food -------------------------------------------------------
+        let f = vm.state.food
+        let foodCenter = CGPoint(x: (CGFloat(f.x) + 0.5) * scale, y: (CGFloat(f.y) + 0.5) * scale)
+        let foodR = scale * 0.32
+        let pulse = CGFloat(1.0 + 0.12 * sin(now.timeIntervalSinceReferenceDate * 4))
+        ctx.fill(Path(ellipseIn: CGRect(x: foodCenter.x - foodR * 2.2, y: foodCenter.y - foodR * 2.2,
+                                        width: foodR * 4.4, height: foodR * 4.4)),
+                 with: .radialGradient(Gradient(colors: [.yellow.opacity(0.35), .clear]),
+                                       center: foodCenter, startRadius: 0, endRadius: foodR * 2.2))
+        ctx.fill(Path(ellipseIn: CGRect(x: foodCenter.x - foodR * pulse, y: foodCenter.y - foodR * pulse,
+                                        width: foodR * 2 * pulse, height: foodR * 2 * pulse)),
+                 with: .color(.yellow))
+
+        // ---- Snakes -------------------------------------------------------
+        for i in vm.state.bodies.indices {
+            let alive = i < vm.state.colors.count ? vm.state.colors[i] : false
+            let segCount = vm.state.bodies[i].count
+            guard segCount > 0 else { continue }
+            let points = (0..<segCount).map { seg in
+                let p = vm.segment(i, seg, at: now)
+                return CGPoint(x: (p.x + 0.5) * scale, y: (p.y + 0.5) * scale)
+            }
+            let bodyColor = alive ? SnakePalette.body(i) : Color.white.opacity(0.25)
+            let headColor = alive ? SnakePalette.head(i) : Color.white.opacity(0.4)
+            let lineWidth = max(4, scale * 0.74)
+
+            // A continuous stroked path through every segment's center reads
+            // as one smooth creature instead of a checkerboard of squares;
+            // rounded joins/caps taper the turns instead of showing hard
+            // corners at every cell.
+            if points.count >= 2 {
+                var spine = Path()
+                spine.move(to: points[0])
+                for p in points.dropFirst() { spine.addLine(to: p) }
+
+                if alive {
+                    // Soft neon glow underneath the crisp body -- Neon
+                    // Snake's whole aesthetic -- without drowning the grid.
+                    ctx.stroke(spine, with: .color(bodyColor.opacity(0.35)),
+                               style: StrokeStyle(lineWidth: lineWidth * 1.9, lineCap: .round, lineJoin: .round))
+                }
+                ctx.stroke(spine, with: .linearGradient(
+                    Gradient(colors: [headColor.opacity(0.95), bodyColor.opacity(alive ? 0.85 : 0.4)]),
+                    startPoint: points.first!, endPoint: points.last!),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+            }
+
+            // A distinct, slightly larger head with eyes pointing the way
+            // it's moving, so the snake reads as a creature rather than a
+            // line with no front.
+            let head = points[0]
+            let headR = lineWidth * 0.62
+            if alive {
+                ctx.fill(Path(ellipseIn: CGRect(x: head.x - headR * 1.8, y: head.y - headR * 1.8,
+                                                width: headR * 3.6, height: headR * 3.6)),
+                         with: .radialGradient(Gradient(colors: [headColor.opacity(0.4), .clear]),
+                                               center: head, startRadius: 0, endRadius: headR * 1.8))
+            }
+            ctx.fill(Path(ellipseIn: CGRect(x: head.x - headR, y: head.y - headR,
+                                            width: headR * 2, height: headR * 2)),
+                     with: .color(headColor))
+
+            let dir = vm.heading(i, at: now)
+            let side = CGVector(dx: -dir.dy, dy: dir.dx)          // perpendicular to travel
+            let eyeForward = headR * 0.4, eyeSide = headR * 0.42, eyeR = max(1.5, headR * 0.22)
+            let eyeSigns: [CGFloat] = [-1, 1]
+            for sign in eyeSigns {
+                let ex = head.x + dir.dx * eyeForward + side.dx * eyeSide * sign
+                let ey = head.y + dir.dy * eyeForward + side.dy * eyeSide * sign
+                ctx.fill(Path(ellipseIn: CGRect(x: ex - eyeR, y: ey - eyeR, width: eyeR * 2, height: eyeR * 2)),
+                         with: .color(alive ? .white : .black.opacity(0.5)))
+                if alive {
+                    let pupilR = eyeR * 0.5
+                    let px = ex + dir.dx * pupilR * 0.6, py = ey + dir.dy * pupilR * 0.6
+                    ctx.fill(Path(ellipseIn: CGRect(x: px - pupilR, y: py - pupilR, width: pupilR * 2, height: pupilR * 2)),
+                             with: .color(.black))
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 2048
 
+/// One occupied cell. `id` is the stable identity `Twenty48Engine.tile_ids`
+/// hands out on spawn and carries through a slide -- without it, a client
+/// only ever sees "the value at index 0 became 0 and the value at index 3
+/// changed", which is indistinguishable from a merge or a fresh spawn
+/// landing on 3. With a stable id, the same tile view can be repositioned
+/// (`.position`) across a swipe instead of a whole grid of numbers being
+/// re-rendered in place -- which is what actually reads as sliding rather
+/// than "blocky, instant" change.
+struct Twenty48Tile: Identifiable, Equatable {
+    let id: Int
+    var value: Int
+    var row: Int
+    var col: Int
+    var merged: Bool     // this tile is the survivor of a merge this move
+    var spawned: Bool    // this tile is brand new this move
+}
+
 struct Twenty48State {
     var size = 4
-    var tiles: [Int] = Array(repeating: 0, count: 16)
+    var tiles: [Twenty48Tile] = []
     var score = 0
     var best = 0
     var done = false
@@ -190,7 +390,18 @@ struct Twenty48State {
         if let v = data["size"]?.value as? Int { size = v }
         if let boards = data["boards"]?.value as? [Any],
            let first = boards.first as? [String: Any] {
-            if let t = first["tiles"] as? [Any] { tiles = t.compactMap { $0 as? Int } }
+            let mergedIDs = Set((first["merged"] as? [Any] ?? []).compactMap { jsonInt($0) })
+            let spawnedID = jsonInt(first["spawned"])
+            if let raw = first["tiles"] as? [Any] {
+                tiles = raw.compactMap { item -> Twenty48Tile? in
+                    guard let t = item as? [String: Any],
+                          let id = jsonInt(t["id"]), let value = jsonInt(t["value"]),
+                          let row = jsonInt(t["row"]), let col = jsonInt(t["col"])
+                    else { return nil }
+                    return Twenty48Tile(id: id, value: value, row: row, col: col,
+                                         merged: mergedIDs.contains(id), spawned: id == spawnedID)
+                }
+            }
             if let v = first["score"] as? Int { score = v }
             if let v = first["best"]  as? Int { best = v }
             if let v = first["done"]  as? Bool { done = v }
@@ -209,29 +420,77 @@ struct Twenty48State {
     }
 }
 
+/// The familiar 2048 ramp — warmer as the value climbs.
+private func twenty48Color(for value: Int) -> Color {
+    switch value {
+    case 0:     return .white.opacity(0.06)
+    case 2:     return Color(hex: "eee4da")
+    case 4:     return Color(hex: "ede0c8")
+    case 8:     return Color(hex: "f2b179")
+    case 16:    return Color(hex: "f59563")
+    case 32:    return Color(hex: "f67c5f")
+    case 64:    return Color(hex: "f65e3b")
+    case 128:   return Color(hex: "edcf72")
+    case 256:   return Color(hex: "edcc61")
+    case 512:   return Color(hex: "edc850")
+    case 1024:  return Color(hex: "edc53f")
+    default:    return Color(hex: "edc22e")
+    }
+}
+
+/// One tile. A stable `id` (see `Twenty48Tile`) means SwiftUI reuses the same
+/// view instance for the same physical tile across a swipe, so its `.position`
+/// change is a real, animatable move instead of a teardown-and-rebuild -- and
+/// this view can react to *its own* tile flipping to `merged` with a pop, and
+/// to first appearing already flagged `spawned` with a fade-and-grow-in.
+private struct Twenty48TileView: View {
+    let tile: Twenty48Tile
+    let cellSize: CGFloat
+    @State private var popScale: CGFloat = 1.0
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(twenty48Color(for: tile.value))
+            .frame(width: cellSize, height: cellSize)
+            .overlay(
+                Text(tile.value > 0 ? "\(tile.value)" : "")
+                    .font(.system(size: tile.value > 999 ? 40 : 52, weight: .heavy, design: .rounded))
+                    .foregroundColor(tile.value <= 4 ? Color(hex: "776e65") : .white)
+            )
+            .scaleEffect(popScale)
+            .transition(.scale(scale: 0.35).combined(with: .opacity))
+            .onChange(of: tile.merged) { merged in
+                guard merged else { return }
+                pop()
+            }
+    }
+
+    /// A quick overshoot-and-settle, distinct from the slide/fade every other
+    /// tile is doing, so a merge reads as an event rather than a value that
+    /// silently doubled.
+    private func pop() {
+        popScale = 1.0
+        withAnimation(.easeOut(duration: 0.08)) { popScale = 1.16 }
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.5).delay(0.08)) { popScale = 1.0 }
+    }
+}
+
 struct TVTwenty48BoardView: View {
     let room: Room
     @EnvironmentObject private var root: TVRootViewModel
     @StateObject private var vm = Twenty48ViewModel()
 
-    private let tile: CGFloat = 130
+    private let cell: CGFloat = 130
+    private let gap: CGFloat = 12
 
-    /// The familiar 2048 ramp — warmer as the value climbs.
-    private func color(for value: Int) -> Color {
-        switch value {
-        case 0:     return .white.opacity(0.06)
-        case 2:     return Color(hex: "eee4da")
-        case 4:     return Color(hex: "ede0c8")
-        case 8:     return Color(hex: "f2b179")
-        case 16:    return Color(hex: "f59563")
-        case 32:    return Color(hex: "f67c5f")
-        case 64:    return Color(hex: "f65e3b")
-        case 128:   return Color(hex: "edcf72")
-        case 256:   return Color(hex: "edcc61")
-        case 512:   return Color(hex: "edc850")
-        case 1024:  return Color(hex: "edc53f")
-        default:    return Color(hex: "edc22e")
-        }
+    private var boardExtent: CGFloat {
+        let n = CGFloat(max(vm.state.size, 1))
+        return n * cell + max(n - 1, 0) * gap
+    }
+
+    private func center(row: Int, col: Int) -> CGPoint {
+        CGPoint(x: CGFloat(col) * (cell + gap) + cell / 2,
+                y: CGFloat(row) * (cell + gap) + cell / 2)
     }
 
     var body: some View {
@@ -240,31 +499,34 @@ struct TVTwenty48BoardView: View {
                     subtitle: "best tile \(vm.state.best)")
             Spacer()
             ZStack {
-                VStack(spacing: 12) {
-                    ForEach(0..<vm.state.size, id: \.self) { row in
-                        HStack(spacing: 12) {
-                            ForEach(0..<vm.state.size, id: \.self) { col in
-                                let idx = row * vm.state.size + col
-                                let value = idx < vm.state.tiles.count ? vm.state.tiles[idx] : 0
+                // Empty-slot backdrop. Static, so only the tiles layered on
+                // top of it ever move -- the grid itself is the one thing
+                // that should look perfectly steady while everything slides.
+                VStack(spacing: gap) {
+                    ForEach(0..<vm.state.size, id: \.self) { _ in
+                        HStack(spacing: gap) {
+                            ForEach(0..<vm.state.size, id: \.self) { _ in
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(color(for: value))
-                                    .frame(width: tile, height: tile)
-                                    .overlay(
-                                        Text(value > 0 ? "\(value)" : "")
-                                            .font(.system(size: value > 999 ? 40 : 52,
-                                                          weight: .heavy, design: .rounded))
-                                            .foregroundColor(value <= 4 ? Color(hex: "776e65") : .white)
-                                    )
-                                    .animation(.easeOut(duration: 0.12), value: value)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: cell, height: cell)
                             }
                         }
                     }
                 }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 20).fill(.white.opacity(0.05)))
+
+                ZStack {
+                    ForEach(vm.state.tiles) { tile in
+                        Twenty48TileView(tile: tile, cellSize: cell)
+                            .position(center(row: tile.row, col: tile.col))
+                    }
+                }
+                .frame(width: boardExtent, height: boardExtent)
+                .animation(.easeInOut(duration: 0.15), value: vm.state.tiles)
 
                 if vm.state.done { GameOverBanner(score: vm.state.score) }
             }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 20).fill(.white.opacity(0.05)))
             Spacer()
             RemoteHint(text: "Swipe the remote's touch surface to slide the tiles")
         }
