@@ -23,8 +23,11 @@ struct RootTVView: View {
         case .gameSelection:
             break
         case .results:
-            // Nothing left to lose by leaving -- same as tapping "Play
-            // Again" on TVResultsView, just via the remote's Menu button.
+            // "Play Again" on TVResultsView now actually rematches the same
+            // group instead of leaving (see TVRootViewModel.playAgain) --
+            // Menu still means "leave", same as it does mid-game, which is
+            // why results also has its own explicit "Back to Games" link
+            // for anyone without a remote in hand.
             vm.quitToSelection()
         case .lobby, .playing:
             showQuitConfirm = true
@@ -53,7 +56,7 @@ struct RootTVView: View {
                 TVGameBoardView(room: room)
 
             case .results(let room):
-                TVResultsView(room: room, onPlayAgain: vm.returnToSelection)
+                TVResultsView(room: room, onPlayAgain: vm.playAgain, onBackToGames: vm.quitToSelection)
             }
         }
         .environmentObject(vm)
@@ -150,6 +153,21 @@ final class TVRootViewModel: ObservableObject {
 
     func startGame() {
         guard case .lobby(let room) = screen else { return }
+        socket.emit(.startGame, payload: ["roomCode": room.code])
+    }
+
+    /// What the "Play Again" button on TVResultsView is supposed to do:
+    /// rematch the same room and the same players, not quit to the
+    /// selection grid -- reported directly as "always taking back to Home
+    /// Screen" (it used to just call returnToSelection). The room and its
+    /// players never actually go away when a round ends (finish_game only
+    /// moves room.state to RESULTS), so start_game against the same code
+    /// spins up a fresh engine instance for the exact same group; scores
+    /// are reset server-side in handle_start_game. .on(.roomUpdated)'s
+    /// existing .playing case picks the resulting room_updated back up the
+    /// same way it does for a first-time start.
+    func playAgain() {
+        guard case .results(let room) = screen else { return }
         socket.emit(.startGame, payload: ["roomCode": room.code])
     }
 

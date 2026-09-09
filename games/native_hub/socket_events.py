@@ -221,6 +221,20 @@ def register_native_events(socketio):
                            f"Need at least {minimum} players", "NOT_ENOUGH_PLAYERS")
                 return
 
+            # This same handler is what "Play Again" now calls on a room
+            # sitting in RESULTS (see TVRootViewModel.playAgain) -- the room
+            # and its player list never actually go away when a round ends
+            # (finish_game only changes room.state), so starting again here
+            # reuses the same Player objects a fresh LOBBY start would have
+            # used for the first time. Resetting score before every start,
+            # not just a detected rematch, keeps this one code path correct
+            # for both: a brand-new game's players are already at zero, so
+            # this is a no-op there, and a rematch's players actually get
+            # the clean slate "Play Again" implies instead of carrying last
+            # round's total into the new one.
+            for p in room.players:
+                p.score = 0
+
             room.engine = engine_cls(room, Broadcaster(socketio, room))
             room.state = RoomState.PLAYING
             room.generation += 1

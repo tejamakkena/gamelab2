@@ -8,7 +8,7 @@ and drops the message -- so the screen would simply never update.
 import pytest
 
 from app import create_app
-from utils.room_manager import rooms
+from utils.room_manager import RoomState, rooms
 
 NS = "/native"
 
@@ -212,6 +212,24 @@ class TestStartGame:
         with_key = [i for i, p in enumerate(phones)
                     if latest(p, "private_state")["privateData"].get("key")]
         assert len(with_key) == 2
+
+    def test_rematch_restarts_a_finished_room_and_resets_scores(self, server, tv):
+        # "Play Again" (TVRootViewModel.playAgain) sends exactly this same
+        # start_game event against a room already sitting in RESULTS --
+        # finish_game only ever changes room.state, it never clears
+        # room.players or room.engine, so the same handler that starts a
+        # fresh room from LOBBY has to also handle being called again from
+        # RESULTS for a genuine rematch instead of erroring out.
+        app, socketio = server
+        code, phones = open_room(app, socketio, tv, "cipher_grid", players=4)
+        room = rooms.get(code)
+        room.players[0].score = 40   # as if they'd just finished a round
+        room.state = RoomState.RESULTS
+
+        tv.emit("start_game", {"roomCode": code}, namespace=NS)
+
+        assert latest(tv, "room_updated")["state"] == "playing"
+        assert all(p.score == 0 for p in room.players)
 
     def test_the_pump_keeps_publishing(self, server, tv):
         # Board view models subscribe only after room_updated builds them, and

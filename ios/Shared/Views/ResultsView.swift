@@ -8,6 +8,7 @@ import SwiftUI
 struct TVResultsView: View {
     let room: Room
     let onPlayAgain: () -> Void
+    let onBackToGames: () -> Void
 
     var body: some View {
         VStack(spacing: 40) {
@@ -44,6 +45,17 @@ struct TVResultsView: View {
                     .padding(.horizontal, 60).padding(.vertical, 20)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color.purple))
                     .foregroundColor(.white)
+            }
+            .buttonStyle(.plain)
+
+            // Reported directly: "Play Again" always took everyone back to
+            // the game list -- it does a real rematch now, so this is the
+            // screen's only way back to it, for whoever doesn't already
+            // know Menu on the remote does the same thing.
+            Button(action: onBackToGames) {
+                Text("Back to Games")
+                    .font(.body)
+                    .foregroundColor(.white.opacity(0.4))
             }
             .buttonStyle(.plain)
         }

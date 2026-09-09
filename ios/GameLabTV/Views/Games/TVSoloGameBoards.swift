@@ -1286,7 +1286,10 @@ struct TVAtlasBoardView: View {
                 }
             }
             Spacer()
-            RemoteHint(text: "Type the next place on a phone, or pass the remote around")
+            // "...or pass the remote around" used to sit here too, but the
+            // remote has no text entry at all -- that half of the hint was
+            // never actually possible. A phone is the only way to answer.
+            RemoteHint(text: "Type the next place on your phone")
         }
         .onAppear { vm.bind(roomCode: room.code) }
     }
