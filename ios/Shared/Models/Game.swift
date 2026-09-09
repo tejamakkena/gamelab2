@@ -248,9 +248,22 @@ enum GameID: String, Codable, CaseIterable {
                          minPlayers: 1, maxPlayers: 4, hasPrivateInfo: false,
                          phoneInputStyle: .dpad, supportsRemote: true, soloPlayable: true)
         case .atlas:
+            // Unlike every other game in this section, Atlas has no remote
+            // fallback at all -- its only input is typed text, and there is
+            // no on-screen keyboard anywhere in this app. Marking it
+            // soloPlayable/supportsRemote used to offer "Play Solo Now" (and
+            // a green remote badge on its card) exactly like Neon Snake or
+            // Simon Says, which genuinely can be played with nothing but the
+            // remote. Reported directly, still broken after the deferred-
+            // placeholder fix (see room_manager.Room.pending_host_id): a
+            // player who takes "Play Solo Now" at its word never brings out
+            // a phone at all, and the round simply times out unanswered.
+            // false here routes Atlas through the plain join flow instead,
+            // same as Trivia or Poker -- a phone is required from the very
+            // first player, which is the only way this game ever works.
             return .init(displayName: "Atlas", emoji: "🌍", category: .solo,
                          minPlayers: 1, maxPlayers: 8, hasPrivateInfo: false,
-                         phoneInputStyle: .text, supportsRemote: true, soloPlayable: true)
+                         phoneInputStyle: .text, supportsRemote: false, soloPlayable: false)
         }
     }
 
