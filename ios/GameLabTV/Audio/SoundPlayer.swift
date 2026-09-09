@@ -16,6 +16,10 @@ final class SoundPlayer {
         case rouletteClick = "roulette_click"
         case rouletteSpin  = "roulette_spin"
         case winFanfare    = "win_fanfare"
+        /// A Connect 4 disc landing in its slot -- played by
+        /// `TVConnect4BoardView` once a dropped disc's fall animation
+        /// finishes. `winFanfare` above is reused for a Connect 4 win.
+        case connect4Drop  = "connect4_drop"
     }
 
     /// One reusable player per effect, plus a small pool for the click, which

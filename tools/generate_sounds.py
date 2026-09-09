@@ -110,11 +110,30 @@ def win_fanfare() -> list[float]:
     return out
 
 
+def coin_drop() -> list[float]:
+    """A Connect 4 disc landing in its slot: a short low wooden thud with a
+    brief higher-pitched plastic-on-plastic clack riding on top of it."""
+    duration = 0.22
+    n = int(SAMPLE_RATE * duration)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        thud_env = math.exp(-t * 34)
+        thud = math.sin(2 * math.pi * 140 * t) * thud_env * 0.6
+        thud += math.sin(2 * math.pi * 90 * t) * thud_env * 0.35
+        clack_env = math.exp(-t * 95)
+        clack = math.sin(2 * math.pi * 1_900 * t) * clack_env * 0.3
+        clack += (random.random() * 2 - 1) * clack_env * 0.28
+        out.append(thud + clack)
+    return out
+
+
 def main() -> None:
     random.seed(7)          # deterministic output across regenerations
     write_wav("roulette_click.wav", ball_click())
     write_wav("roulette_spin.wav", spin_loop())
     write_wav("win_fanfare.wav", win_fanfare())
+    write_wav("connect4_drop.wav", coin_drop())
 
 
 if __name__ == "__main__":

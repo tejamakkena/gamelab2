@@ -199,9 +199,15 @@ struct TVPokerBoardView: View {
 
                 // Community cards, positioned to roughly sit over the
                 // physical card slots on the 3D table beneath.
-                VStack(spacing: 10) {
-                    Text("Community Cards").font(.subheadline).foregroundColor(.white.opacity(0.6))
-                    HStack(spacing: 16) {
+                //
+                // Reported directly as "too tiny for the TV screen" --
+                // these were sized for a phone (70x100) despite being read
+                // from a couch several feet away. Scaled up ~1.9x, with the
+                // row spacing widened to match so the five wider cards
+                // don't crowd together.
+                VStack(spacing: 14) {
+                    Text("Community Cards").font(.title3).foregroundColor(.white.opacity(0.6))
+                    HStack(spacing: 28) {
                         ForEach(0..<5, id: \.self) { idx in
                             if idx < vm.state.communityCards.count {
                                 TVCardView(card: vm.state.communityCards[idx])
@@ -211,7 +217,7 @@ struct TVPokerBoardView: View {
                         }
                     }
                 }
-                .padding(.top, 28)
+                .padding(.top, 36)
 
                 Spacer()
 
@@ -219,9 +225,11 @@ struct TVPokerBoardView: View {
                 // table below -- see PokerSeatRingOverlay for why this is a
                 // deliberately independent HUD layout rather than a live
                 // 3D-to-screen projection of the SceneKit seat markers.
+                // Height and inset scaled up alongside the bigger card/badge
+                // sizing below so the ring still clears the screen edges.
                 PokerSeatRingOverlay(seats: vm.state.playerSeats)
-                    .frame(height: 260)
-                    .padding(.bottom, 24)
+                    .frame(height: 340)
+                    .padding(.bottom, 28)
             }
         }
         .onAppear { vm.bind(roomCode: room.code) }
@@ -233,21 +241,21 @@ private struct TVCardView: View {
     private var isRed: Bool { card.contains("♥") || card.contains("♦") }
     var body: some View {
         Text(card)
-            .font(.system(size: 32, weight: .bold))
+            .font(.system(size: 60, weight: .bold))
             .foregroundColor(isRed ? .red : .black)
-            .frame(width: 70, height: 100)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white))
-            .shadow(radius: 4)
+            .frame(width: 132, height: 188)
+            .background(RoundedRectangle(cornerRadius: 18).fill(Color.white))
+            .shadow(radius: 8)
     }
 }
 
 private struct TVCardBack: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: 18)
             .fill(Color(hex: "1a0a2e"))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.purple.opacity(0.4), lineWidth: 1))
-            .frame(width: 70, height: 100)
-            .overlay(Text("🂠").font(.system(size: 40)))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.purple.opacity(0.4), lineWidth: 2))
+            .frame(width: 132, height: 188)
+            .overlay(Text("🂠").font(.system(size: 76)))
     }
 }
 
@@ -315,8 +323,11 @@ private struct PokerSeatRingOverlay: View {
             ForEach(Array(seats.enumerated()), id: \.element.id) { i, seat in
                 let t = count == 1 ? 0.5 : CGFloat(i) / CGFloat(count - 1)
                 let angle = Double.pi * (0.12 + 0.76 * Double(t))
-                let x = geo.size.width / 2 - CGFloat(cos(angle)) * (geo.size.width / 2 - 90)
-                let y = geo.size.height * 0.12 + CGFloat(sin(angle)) * (geo.size.height * 0.8)
+                // Inset widened from 90 to 150 to keep the now-larger
+                // badges (below) clear of the screen edges at the same
+                // arc radius.
+                let x = geo.size.width / 2 - CGFloat(cos(angle)) * (geo.size.width / 2 - 150)
+                let y = geo.size.height * 0.1 + CGFloat(sin(angle)) * (geo.size.height * 0.82)
                 PokerSeatBadge(seat: seat)
                     .position(x: x, y: y)
             }
@@ -327,20 +338,20 @@ private struct PokerSeatRingOverlay: View {
 private struct PokerSeatBadge: View {
     let seat: PokerSeat
     var body: some View {
-        VStack(spacing: 6) {
-            Text(seat.name).font(.headline)
+        VStack(spacing: 8) {
+            Text(seat.name).font(.title3.bold())
                 .foregroundColor(seat.isCurrentTurn ? .yellow : .white)
-            Text("$\(seat.chips)").font(.subheadline).foregroundColor(.green)
+            Text("$\(seat.chips)").font(.headline).foregroundColor(.green)
             if seat.currentBet > 0 {
-                Text("Bet: $\(seat.currentBet)").font(.caption).foregroundColor(.cyan)
+                Text("Bet: $\(seat.currentBet)").font(.subheadline).foregroundColor(.cyan)
             }
-            Text(seat.status).font(.caption2.bold())
+            Text(seat.status).font(.caption.bold())
                 .foregroundColor(statusColor(seat.status))
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14)
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 18)
             .fill(seat.isCurrentTurn ? Color.yellow.opacity(0.18) : Color.black.opacity(0.45))
-            .overlay(RoundedRectangle(cornerRadius: 14)
+            .overlay(RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(seat.isCurrentTurn ? Color.yellow.opacity(0.7) : Color.white.opacity(0.12), lineWidth: 2)))
     }
     private func statusColor(_ s: String) -> Color {
@@ -351,6 +362,17 @@ private struct PokerSeatBadge: View {
 
 // MARK: - Connect 4 Board
 
+private let connect4CellSize: CGFloat = 104
+private let connect4CellSpacing: CGFloat = 14
+
+/// How long a disc takes to fall into row `row` (0 = top row, deepest rows
+/// fall the furthest and therefore take the longest) -- used both to drive
+/// the fall animation itself and to time the landing sound so the "clack"
+/// lands exactly when the disc visually reaches the bottom of its drop.
+private func connect4DropDuration(forRow row: Int) -> Double {
+    0.22 + Double(row + 1) * 0.075
+}
+
 struct TVConnect4BoardView: View {
     let room: Room
     @StateObject private var vm = Connect4BoardViewModel()
@@ -358,7 +380,7 @@ struct TVConnect4BoardView: View {
     private let rows = 6, cols = 7
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 22) {
             TVScoreHeader(players: room.players, currentPlayerID: vm.state.currentPlayerID)
                 .padding(.top, 40)
 
@@ -371,36 +393,208 @@ struct TVConnect4BoardView: View {
                     .font(.title3).foregroundColor(.white.opacity(0.6))
             }
 
-            // Grid
-            VStack(spacing: 6) {
-                ForEach(0..<rows, id: \.self) { row in
-                    HStack(spacing: 6) {
-                        ForEach(0..<cols, id: \.self) { col in
-                            let cell = vm.state.grid[row][col]
-                            let isWin = vm.state.winCells.contains("\(row),\(col)")
-                            Circle()
-                                .fill(cellColor(cell))
-                                .frame(width: 72, height: 72)
-                                .shadow(color: isWin ? .yellow : .clear, radius: 10)
-                                .scaleEffect(isWin ? 1.1 : 1.0)
-                                .animation(.spring(), value: isWin)
+            // Reported directly as wanting "realistic coin drop with sound
+            // effects. And also the 3d stand." The grid now sits inside a
+            // physical-looking cabinet/stand (Connect4StandFrame below),
+            // and each newly-filled cell actually falls into place instead
+            // of popping straight to its final colour -- see
+            // Connect4BoardViewModel.bind for how the single new cell is
+            // detected between two consecutive state pushes.
+            Connect4StandFrame {
+                VStack(spacing: connect4CellSpacing) {
+                    ForEach(0..<rows, id: \.self) { row in
+                        HStack(spacing: connect4CellSpacing) {
+                            ForEach(0..<cols, id: \.self) { col in
+                                let cell = vm.state.grid[row][col]
+                                let isWin = vm.state.winCells.contains("\(row),\(col)")
+                                let dropToken: Int =
+                                    (vm.justDropped?.row == row && vm.justDropped?.col == col)
+                                    ? (vm.justDropped?.counter ?? 0) : 0
+                                Connect4Slot(cell: cell, isWin: isWin, dropToken: dropToken,
+                                             row: row, cellSize: connect4CellSize)
+                            }
                         }
                     }
                 }
             }
-            .padding(20)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: "001a3a")))
 
             Spacer()
         }
         .background(Color(hex: "000814").ignoresSafeArea())
         .onAppear { vm.bind(roomCode: room.code) }
+        // Timed to land when the disc itself visually reaches the bottom
+        // of its fall, not the instant the server tells us about it.
+        .onChange(of: vm.justDropped?.counter) { _ in
+            guard let drop = vm.justDropped else { return }
+            let delay = connect4DropDuration(forRow: drop.row)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                SoundPlayer.shared.play(.connect4Drop)
+            }
+        }
+        .onChange(of: vm.state.winner) { newWinner in
+            guard newWinner != nil else { return }
+            SoundPlayer.shared.play(.winFanfare)
+        }
+    }
+}
+
+/// A physical-looking cabinet and stand wrapped around the playfield --
+/// layered SwiftUI gradients/shapes/shadows rather than SceneKit, so the
+/// result is something this sandbox can actually be confident compiles.
+///
+/// Each decoration is added as a `.background()` of the (already fully
+/// sized, via the grid's own fixed-size circles) content rather than as a
+/// sibling shape in a `ZStack` -- a `.background()` view is always resized
+/// to exactly match the view it's attached to, so the cabinet and recessed
+/// panel take on the grid's real size with no ambiguous-layout guesswork.
+private struct Connect4StandFrame<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(30)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(Color(hex: "07142c"))
+                    .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.black.opacity(0.6), lineWidth: 5))
+                    .shadow(color: .black.opacity(0.7), radius: 14)
+            )
+            .padding(30)
+            .background(
+                RoundedRectangle(cornerRadius: 34)
+                    .fill(
+                        LinearGradient(colors: [Color(hex: "6b4222"), Color(hex: "4a2c15"), Color(hex: "301c0c")],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 34).strokeBorder(Color(hex: "20130a"), lineWidth: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 34).strokeBorder(Color.white.opacity(0.08), lineWidth: 1).padding(4))
+                    .shadow(color: .black.opacity(0.55), radius: 28, y: 20)
+            )
+            // Two stubby legs beneath the cabinet so it reads as a standing
+            // object, not a flat poster. Attached as a background of the
+            // finished cabinet (so it's sized to match) and then offset
+            // further down so the feet actually poke out below it.
+            .background(
+                HStack {
+                    Connect4StandLeg()
+                    Spacer()
+                    Connect4StandLeg()
+                }
+                .padding(.horizontal, 30)
+                .offset(y: 40),
+                alignment: .bottom
+            )
+    }
+}
+
+private struct Connect4StandLeg: View {
+    var body: some View {
+        Connect4Trapezoid()
+            .fill(LinearGradient(colors: [Color(hex: "4a2c15"), Color(hex: "301c0c")],
+                                  startPoint: .top, endPoint: .bottom))
+            .frame(width: 74, height: 60)
+            .shadow(color: .black.opacity(0.5), radius: 8, y: 6)
+    }
+}
+
+private struct Connect4Trapezoid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let inset = rect.width * 0.22
+        p.move(to: CGPoint(x: rect.minX + inset, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// One slot in the grid. Owns its own fall-animation state, keyed off
+/// `dropToken` (0 unless this exact cell is the one the view model just
+/// reported as newly filled) so only the single new disc animates -- every
+/// other cell simply displays its colour at rest.
+private struct Connect4Slot: View {
+    let cell: String
+    let isWin: Bool
+    let dropToken: Int
+    let row: Int
+    let cellSize: CGFloat
+
+    @State private var displayedCell = ""
+    @State private var offsetY: CGFloat = 0
+    @State private var squashY: CGFloat = 1.0
+    @State private var hasAppeared = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hex: "06101f"))
+                .overlay(Circle().strokeBorder(Color.black.opacity(0.55), lineWidth: 3))
+                .frame(width: cellSize, height: cellSize)
+
+            if !displayedCell.isEmpty {
+                Circle()
+                    .fill(coinColor(displayedCell))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 2).padding(cellSize * 0.12))
+                    .frame(width: cellSize, height: cellSize)
+                    .shadow(color: isWin ? .yellow : .black.opacity(0.5), radius: isWin ? 16 : 4)
+                    .scaleEffect(x: 1, y: squashY, anchor: .bottom)
+                    .scaleEffect(isWin ? 1.08 : 1.0)
+                    .offset(y: offsetY)
+            }
+        }
+        .frame(width: cellSize, height: cellSize)
+        .animation(.spring(), value: isWin)
+        .onAppear {
+            guard !hasAppeared else { return }
+            hasAppeared = true
+            // Whatever this slot already holds when the view first mounts
+            // (e.g. joining a game in progress) is shown at rest -- only a
+            // disc landing *while this view is watching* should animate.
+            displayedCell = cell
+        }
+        .onChange(of: cell) { newValue in
+            guard dropToken == 0 else { return }
+            displayedCell = newValue
+        }
+        .onChange(of: dropToken) { newToken in
+            guard newToken > 0, !cell.isEmpty else { return }
+            animateDrop()
+        }
     }
 
-    private func cellColor(_ cell: String) -> Color {
+    private func animateDrop() {
+        displayedCell = cell
+        let travel = CGFloat(row + 1) * (cellSize + connect4CellSpacing) + 70
+        offsetY = -travel
+        squashY = 1.0
+        let duration = connect4DropDuration(forRow: row)
+        withAnimation(.easeIn(duration: duration)) {
+            offsetY = 0
+        }
+        // A quick squash-and-recover "thud" once it lands, instead of an
+        // overshoot on the position itself (which would read as the disc
+        // sinking through the board floor).
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.easeOut(duration: 0.07)) { squashY = 0.7 }
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.45).delay(0.07)) { squashY = 1.0 }
+        }
+    }
+
+    private func coinColor(_ cell: String) -> Color {
         switch cell { case "red": return .red; case "yellow": return .yellow;
                       default: return Color(hex: "0a1a2e") }
     }
+}
+
+struct Connect4DropEvent {
+    let row: Int
+    let col: Int
+    /// Monotonically increasing so SwiftUI's `onChange` fires even if a
+    /// later drop happens to land in a cell with the same (row, col) as a
+    /// previous one (a new game reusing the same grid, say).
+    let counter: Int
 }
 
 struct Connect4BoardState {
@@ -421,12 +615,44 @@ struct Connect4BoardState {
 
 @MainActor final class Connect4BoardViewModel: ObservableObject {
     @Published var state = Connect4BoardState()
+    /// The single cell (if any) that just went from empty to filled on the
+    /// most recent state push -- nil means either nothing changed or this
+    /// is the very first push since `bind()` was called (no prior grid to
+    /// diff against).
+    @Published var justDropped: Connect4DropEvent?
+
     private let socket = GameSocketManager.shared
+    private var hasReceivedState = false
+    private var dropCounter = 0
+
     func bind(roomCode: String) {
         socket.on(.gameState) { [weak self] (r: GameStateResponse) in
-            guard r.roomCode == roomCode else { return }
-            self?.state.update(from: r.boardState)
+            guard let self, r.roomCode == roomCode else { return }
+            if self.hasReceivedState, let newGrid = r.boardState["grid"]?.value as? [[String]] {
+                if let changed = Self.firstNewlyFilledCell(old: self.state.grid, new: newGrid) {
+                    self.dropCounter += 1
+                    self.justDropped = Connect4DropEvent(row: changed.row, col: changed.col, counter: self.dropCounter)
+                }
+            }
+            self.state.update(from: r.boardState)
+            self.hasReceivedState = true
         }
+    }
+
+    /// Diffs two grids -- the same "what just changed between two
+    /// consecutive state pushes" pattern used by the other TV board view
+    /// models in this file -- and returns the first cell that went from
+    /// empty to non-empty. Connect 4 only ever drops one disc per turn, so
+    /// there is at most one such cell in practice.
+    private static func firstNewlyFilledCell(old: [[String]], new: [[String]]) -> (row: Int, col: Int)? {
+        guard old.count == new.count else { return nil }
+        for r in 0..<new.count {
+            guard r < old.count, old[r].count == new[r].count else { continue }
+            for c in 0..<new[r].count where old[r][c].isEmpty && !new[r][c].isEmpty {
+                return (r, c)
+            }
+        }
+        return nil
     }
 }
 

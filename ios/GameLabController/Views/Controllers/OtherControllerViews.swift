@@ -15,22 +15,29 @@ struct PokerControllerView: View {
     private var maxBet: Int { chips }
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Private hand — only you see this
-            VStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "eye.slash.fill").foregroundColor(.cyan)
-                    Text("Your Hand (private)").font(.caption).foregroundColor(.cyan)
-                }
-                HStack(spacing: 12) {
-                    ForEach(hand, id: \.self) { card in
-                        CardView(card: card)
-                    }
+        VStack(spacing: 16) {
+            // Private hand — only you see this. Reported directly as "too
+            // tiny... I want those in full screen with real card flipped
+            // back": the hand is now the dominant element on the whole
+            // screen (big cards, generous breathing room above/below)
+            // instead of a small row floating over empty black space, and
+            // each card starts face-down until swiped to reveal it.
+            HStack(spacing: 6) {
+                Image(systemName: "eye.slash.fill").foregroundColor(.cyan)
+                Text("Your Hand (private) — swipe a card to reveal it")
+                    .font(.caption).foregroundColor(.cyan)
+            }
+            .padding(.top, 20)
+
+            Spacer(minLength: 4)
+
+            HStack(spacing: 22) {
+                ForEach(Array(hand.enumerated()), id: \.offset) { _, card in
+                    FlippableHoleCard(card: card)
                 }
             }
-            .padding(20)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.cyan.opacity(0.08)))
-            .padding(.horizontal, 20)
+
+            Spacer(minLength: 4)
 
             Text("Chips: \(chips)").font(.headline).foregroundColor(.white)
 
@@ -53,28 +60,149 @@ struct PokerControllerView: View {
                     }
                     .padding(.horizontal, 20)
                 }
+                .padding(.bottom, 28)
             } else {
                 Text("Waiting for your turn…")
                     .foregroundColor(.white.opacity(0.4))
+                    .padding(.bottom, 28)
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(hex: "001400").ignoresSafeArea())
         .onAppear { betAmount = Double(minBet) }
     }
 }
 
-private struct CardView: View {
+// MARK: - Flippable hole card
+
+private let pokerCardWidth: CGFloat = 150
+private let pokerCardHeight: CGFloat = 210
+
+/// One private hole card: starts face-down and flips, page-turn style, the
+/// first time it's swiped. Each instance owns its own flip state so the two
+/// hole cards are revealed independently of one another.
+private struct FlippableHoleCard: View {
+    let card: String
+
+    @State private var isFlipped = false
+    @State private var showFace = false
+    private let flipDuration: Double = 0.55
+
+    var body: some View {
+        ZStack {
+            if showFace {
+                PokerCardFace(card: card)
+            } else {
+                PokerCardBack()
+            }
+        }
+        .frame(width: pokerCardWidth, height: pokerCardHeight)
+        // The standard SwiftUI card-flip technique: rotate the whole card
+        // 0°→180° around the vertical axis, and swap which face is drawn
+        // at the midpoint (via the delayed `showFace` flip below) rather
+        // than cross-fading -- at 90° the card is edge-on to the camera,
+        // so the swap is invisible and the reveal reads as a real flip.
+        .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+        .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 14)
+                .onEnded { value in
+                    guard abs(value.translation.width) > 18 || abs(value.translation.height) > 18 else { return }
+                    flip()
+                }
+        )
+        .onTapGesture { flip() }
+    }
+
+    private func flip() {
+        guard !isFlipped else { return }
+        withAnimation(.easeInOut(duration: flipDuration)) {
+            isFlipped = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + flipDuration / 2) {
+            showFace = true
+        }
+    }
+}
+
+/// The revealed face of a hole card: white stock, corner rank/suit indices
+/// top-left and bottom-right (the bottom one rotated, as on a real card so
+/// it reads correctly from either side), and a large centre suit glyph.
+private struct PokerCardFace: View {
     let card: String   // e.g. "A♠", "K♥"
     private var isRed: Bool { card.contains("♥") || card.contains("♦") }
+    private var rank: String { card.isEmpty ? "?" : String(card.dropLast()) }
+    private var suit: String { card.isEmpty ? "" : String(card.suffix(1)) }
+
     var body: some View {
-        Text(card)
-            .font(.system(size: 28, weight: .bold))
-            .foregroundColor(isRed ? .red : .white)
-            .frame(width: 60, height: 84)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white))
-            .shadow(radius: 4)
+        RoundedRectangle(cornerRadius: 18)
+            .fill(Color.white)
+            .overlay(
+                VStack {
+                    HStack {
+                        cornerIndex
+                        Spacer()
+                    }
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        cornerIndex.rotationEffect(.degrees(180))
+                    }
+                }
+                .padding(14)
+            )
+            .overlay(
+                Text(suit)
+                    .font(.system(size: 76))
+                    .foregroundColor(isRed ? .red : .black)
+            )
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.black.opacity(0.12), lineWidth: 1))
+    }
+
+    private var cornerIndex: some View {
+        VStack(spacing: -4) {
+            Text(rank).font(.system(size: 26, weight: .bold))
+            Text(suit).font(.system(size: 20))
+        }
+        .foregroundColor(isRed ? .red : .black)
+    }
+}
+
+/// The hidden face of a hole card: a diagonal-hatch pattern over a deep
+/// purple ground with a centre emblem, matching `TVCardBack`'s palette
+/// (same `1a0a2e` ground / purple border) so the phone and TV card backs
+/// read as the same deck rather than two unrelated designs.
+private struct PokerCardBack: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 18)
+            .fill(Color(hex: "1a0a2e"))
+            .overlay(
+                Canvas { ctx, size in
+                    let step: CGFloat = 16
+                    var x: CGFloat = -size.height
+                    while x < size.width + size.height {
+                        var path = Path()
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x + size.height, y: size.height))
+                        ctx.stroke(path, with: .color(Color.purple.opacity(0.22)), lineWidth: 2)
+                        x += step
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .inset(by: 14)
+                    .strokeBorder(Color.purple.opacity(0.55), lineWidth: 2)
+            )
+            .overlay(
+                Circle()
+                    .fill(Color.purple.opacity(0.35))
+                    .frame(width: 54, height: 54)
+                    .overlay(Text("🂠").font(.system(size: 30)))
+            )
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.purple.opacity(0.45), lineWidth: 1))
     }
 }
 
