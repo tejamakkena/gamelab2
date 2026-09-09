@@ -29,7 +29,18 @@ class NeonSnakeEngine(NativeGameEngine):
     game_id = "neon_snake"
     min_players = 1
     max_players = 4
-    tick_hz = 8.0            # the snake's step rate, not a render rate
+    # The snake's step rate, not a render rate -- a turn sent mid-tick is
+    # buffered in `pending` and only actually applied at the next tick
+    # boundary (see handle_action/tick below), so this rate is also the
+    # floor on how long a turn can take to visibly land: up to 1/tick_hz,
+    # ~62ms on average at 8Hz. Reported directly as "turn left and right
+    # has little delay" -- raised to 10Hz to shrink that worst case to
+    # 100ms/50ms average, without spinning the snake's overall pace up as
+    # much as a bigger jump would. True zero-latency turning would need
+    # turns applied off the tick entirely (a continuous heading/position
+    # model instead of a discrete grid step), which is a bigger engine
+    # change than this round's scope.
+    tick_hz = 10.0
 
     W, H = 32, 18
 

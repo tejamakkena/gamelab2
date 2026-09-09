@@ -357,9 +357,16 @@ class TriviaEngine(NativeGameEngine):
     min_players = 2
     max_players = 10
 
-    TOTAL_ROUNDS = 8
+    # Reported directly: only 8 of the bank's 15 questions were ever played
+    # per game. Using the whole bank means every question gets a turn
+    # instead of the game always cutting off partway through it.
+    TOTAL_ROUNDS = len(TRIVIA_QUESTIONS)
     ROUND_SECONDS = 20
     REVEAL_DELAY_SECONDS = 1.3
+    # How long the correct answer stays up before the next question loads --
+    # a real reveal beat, not an instant cut. See `phase` below for why this
+    # exists at all.
+    REVEAL_HOLD_SECONDS = 3.0
 
     def __init__(self, room, broadcaster):
         super().__init__(room, broadcaster)
@@ -371,6 +378,16 @@ class TriviaEngine(NativeGameEngine):
         self.choices_at = 0.0
         self.answered: dict[str, int] = {}
         self.scores: dict[str, int] = {}
+        # "answering" while the round timer is live, "reveal" for the beat
+        # after it ends where the correct choice is shown. public_state()
+        # only includes correctIndex during "reveal" -- it used to be sent
+        # unconditionally on every single push, including the very first
+        # one for a brand new question, so the TV painted the correct
+        # answer green the instant the choices appeared, well before anyone
+        # had answered or the timer had run down. Reported directly as
+        # "answers are getting revealed way before the questions."
+        self.phase = "answering"
+        self.reveal_until = 0.0
         self._finished = False
 
     def start(self, players):
@@ -384,6 +401,7 @@ class TriviaEngine(NativeGameEngine):
         self.question = self.pool[(self.round - 1) % len(self.pool)]
         self.question_id = f"q{self.round}"
         self.answered = {}
+        self.phase = "answering"
         now = time.time()
         self.deadline = now + self.ROUND_SECONDS
         self.choices_at = now + self.REVEAL_DELAY_SECONDS
@@ -412,24 +430,34 @@ class TriviaEngine(NativeGameEngine):
     def tick(self, dt):
         if self._finished:
             return
+        now = time.time()
+        if self.phase == "reveal":
+            # Holding here, rather than advancing the instant the timer or
+            # every answer comes in, is what actually gives the reveal beat
+            # above a duration to be seen for.
+            if now >= self.reveal_until:
+                if self.round >= self.TOTAL_ROUNDS:
+                    self._finished = True
+                else:
+                    self._next_question()
+            return
+
         active = self.room.connected_players()
         everyone_answered = bool(active) and all(p.id in self.answered for p in active)
-        if time.time() >= self.deadline or everyone_answered:
-            if self.round >= self.TOTAL_ROUNDS:
-                self._finished = True
-            else:
-                self._next_question()
+        if now >= self.deadline or everyone_answered:
+            self.phase = "reveal"
+            self.reveal_until = now + self.REVEAL_HOLD_SECONDS
 
     def public_state(self):
         category, text, choices, correct_index = self.question
-        return {
+        state = {
             "secondsLeft": self.seconds_left(),
             "showChoices": time.time() >= self.choices_at,
             "questionID": self.question_id,
             "questionText": text,
             "choices": choices,
             "category": category,
-            "correctIndex": correct_index,
+            "phase": self.phase,
             "answeredPlayerIDs": list(self.answered.keys()),
             "players": [
                 {"id": p.id, "name": p.name, "score": self.scores.get(p.id, 0), "isHost": p.is_host}
@@ -437,6 +465,12 @@ class TriviaEngine(NativeGameEngine):
             ],
             "finished": self._finished,
         }
+        # Only present once the reveal phase actually starts -- see the
+        # `phase` doc comment in __init__ for why this can't just be sent
+        # unconditionally.
+        if self.phase == "reveal":
+            state["correctIndex"] = correct_index
+        return state
 
     def private_state(self, player_id):
         _, _, choices, _ = self.question
