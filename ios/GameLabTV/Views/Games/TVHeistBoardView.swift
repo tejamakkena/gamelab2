@@ -1,4 +1,5 @@
 import SwiftUI
+import SceneKit
 
 // MARK: - Heist — TV Board
 //
@@ -11,6 +12,14 @@ import SwiftUI
 //   • If a Thief lands on a camera-covered tile → caught, eliminated.
 //   • Thieves must reach the Vault tile (center) and escape to EXIT tile.
 //   • Guard wins if all Thieves caught. Thieves win if any escapes.
+//
+// PRESENTATION: the vault floor is a real top-down 3D SceneKit scene
+// (`HeistCinematicBoardSceneView` below) with a small animated character per
+// thief that walks tile-to-tile instead of teleporting. Every piece of game
+// state a player actually needs to read -- round, phase, timer, the player
+// list, caught/escaped status -- stays ordinary legible SwiftUI text drawn
+// on top of it in `headerBar`/`playerSidebar`; the 3D scene is atmosphere,
+// never the source of truth for any number on screen.
 
 struct TVHeistBoardView: View {
     let room: Room
@@ -22,9 +31,22 @@ struct TVHeistBoardView: View {
             ZStack {
                 Color(hex: "0a0a14").ignoresSafeArea()
 
+                HeistCinematicBoardSceneView(state: vm.state)
+                    .ignoresSafeArea()
+
+                // Subtle top gradient so the header text stays readable over
+                // whatever is directly behind it in the live 3D scene.
+                VStack {
+                    LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 180)
+                    Spacer()
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
                 VStack(spacing: 24) {
                     headerBar
-                    boardGrid
+                    Spacer()
                 }
                 .padding(48)
             }
@@ -66,30 +88,6 @@ struct TVHeistBoardView: View {
         }
     }
 
-    // MARK: - Board Grid
-
-    private var boardGrid: some View {
-        let cols = HeistConstants.cols
-        let rows = HeistConstants.rows
-
-        return VStack(spacing: 4) {
-            ForEach(0..<rows, id: \.self) { row in
-                HStack(spacing: 4) {
-                    ForEach(0..<cols, id: \.self) { col in
-                        let pos = GridPos(col: col, row: row)
-                        HeistTile(
-                            pos: pos,
-                            tileType: vm.state.tileType(at: pos),
-                            cameraArc: vm.state.cameraArcCovers(pos),
-                            thieves: vm.state.thieves(at: pos),
-                            isGuardKnown: vm.state.isGuardRevealedAt(pos)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Sidebar
 
     private var playerSidebar: some View {
@@ -116,100 +114,6 @@ struct TVHeistBoardView: View {
                 WinnerBanner(winner: winner)
                     .padding(24)
             }
-        }
-    }
-}
-
-// MARK: - Tile View
-
-private struct HeistTile: View {
-    let pos: GridPos
-    let tileType: HeistTileType
-    let cameraArc: Bool        // true → camera watches this tile this round
-    let thieves: [HeistThiefStatus]
-    let isGuardKnown: Bool
-
-    var body: some View {
-        ZStack {
-            // Base tile
-            RoundedRectangle(cornerRadius: 6)
-                .fill(baseFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(borderColor, lineWidth: 1)
-                )
-
-            // Camera coverage overlay
-            if cameraArc {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.red.opacity(0.25))
-                    .overlay(
-                        Image(systemName: "video.fill")
-                            .font(.caption2)
-                            .foregroundColor(.red.opacity(0.7))
-                            .padding(2),
-                        alignment: .topTrailing
-                    )
-            }
-
-            // Tile icon
-            tileIcon
-
-            // Thieves (shown as coloured dots)
-            if !thieves.isEmpty {
-                HStack(spacing: 3) {
-                    ForEach(thieves) { t in
-                        Circle()
-                            .fill(t.color)
-                            .frame(width: 14, height: 14)
-                            .shadow(color: t.color, radius: 4)
-                    }
-                }
-                .padding(.bottom, 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
-        }
-        .frame(width: tileSize, height: tileSize)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: thieves.map(\.id))
-    }
-
-    private var tileSize: CGFloat { 88 }
-
-    private var baseFill: Color {
-        switch tileType {
-        case .empty:   return Color(hex: "1a1a2e")
-        case .wall:    return Color(hex: "0d0d14")
-        case .vault:   return Color(hex: "2d1b00")
-        case .exit:    return Color(hex: "0d2d00")
-        case .camera:  return Color(hex: "2d0000")
-        }
-    }
-
-    private var borderColor: Color {
-        switch tileType {
-        case .vault:  return .yellow.opacity(0.6)
-        case .exit:   return .green.opacity(0.6)
-        case .camera: return .red.opacity(0.4)
-        default:      return Color.white.opacity(0.06)
-        }
-    }
-
-    @ViewBuilder
-    private var tileIcon: some View {
-        switch tileType {
-        case .vault:
-            Text("💰").font(.system(size: 28))
-        case .exit:
-            Text("🚪").font(.system(size: 28))
-        case .camera:
-            Text("📷").font(.system(size: 22)).opacity(isGuardKnown ? 1 : 0)
-        case .wall:
-            Rectangle()
-                .fill(Color(hex: "080810"))
-                .cornerRadius(4)
-                .padding(4)
-        default:
-            EmptyView()
         }
     }
 }
@@ -455,4 +359,487 @@ enum HeistConstants {
     static let rows = 7
     static let maxRounds = 8
     static let secondsPerPhase = 20
+}
+
+// MARK: - 3D Board Scene
+//
+// A real top-down SceneKit presentation of the vault floor plan, standing in
+// for what used to be a flat grid of `HeistTile` SwiftUI squares. Built
+// self-contained in this file (rather than routed through the generic
+// `CinematicBoardSceneView` wrapper) since a static top-down shot doesn't
+// need that wrapper's `TablePhase` shot vocabulary -- it reuses
+// `CinematicCameraRig` and `CinematicLighting` verbatim, the same way
+// `PokerCinematicBoardSceneView` does.
+//
+// Layout convention: `GridPos(col, row)` maps to world space with the board
+// centered on the origin -- `worldX(col)`/`worldZ(row)` below -- and every
+// tile/character sits in the XZ plane so the top-down camera reads the whole
+// floor plan at a glance.
+
+/// Shared primitive-geometry material helper -- both the room dressing
+/// (`HeistCinematicBoardSceneView.Coordinator`) and the thief character
+/// (`ThiefCharacterNode`) need the same physically-based material recipe
+/// `PokerDealerNode` uses, so it's a single free function rather than a
+/// method duplicated on two types.
+private func heistMaterial(color: UIColor, roughness: CGFloat, metalness: CGFloat = 0, emission: UIColor? = nil) -> SCNMaterial {
+    let m = SCNMaterial()
+    m.lightingModel = .physicallyBased
+    m.diffuse.contents = color
+    m.roughness.contents = roughness
+    m.metalness.contents = metalness
+    if let emission {
+        m.emission.contents = emission
+    }
+    return m
+}
+
+struct HeistCinematicBoardSceneView: UIViewRepresentable {
+    var state: HeistBoardState
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> SCNView {
+        let view = SCNView()
+        view.scene = context.coordinator.scene
+        view.pointOfView = context.coordinator.cameraRig.cameraNode
+        view.antialiasingMode = .multisampling4X
+        view.backgroundColor = .black
+        view.isPlaying = true
+        view.rendersContinuously = true
+        context.coordinator.apply(state, animated: false)
+        return view
+    }
+
+    func updateUIView(_ view: SCNView, context: Context) {
+        context.coordinator.apply(state, animated: true)
+    }
+
+    @MainActor
+    final class Coordinator {
+        let scene = SCNScene()
+        let cameraRig: CinematicCameraRig
+        let lighting: CinematicLighting
+        private let boardRadius: Float
+
+        private let tileSize: Float = 1.0
+        private let cols = HeistConstants.cols
+        private let rows = HeistConstants.rows
+
+        /// Coverage-glow floor overlays, keyed by tile -- built once for
+        /// every non-wall tile, hidden (`opacity == 0`) until `apply` turns
+        /// on whichever ones are in this round's `cameraArcTiles`.
+        private var arcGlowNodes: [GridPos: SCNNode] = [:]
+        /// Each camera stand's lens light -- dim while dormant, driven up
+        /// when the Guard has actually activated that stand this round.
+        private var cameraLights: [GridPos: SCNLight] = [:]
+        private var characters: [String: ThiefCharacterNode] = [:]
+        private var lastPositions: [String: GridPos] = [:]
+        private var lastPhase: HeistPhase?
+
+        init() {
+            // `radius` is a local copy specifically so the two static-method
+            // calls right below (`Coordinator.shot`/building the rig) never
+            // need to read a stored property before `self` is fully formed
+            // -- the same reason `PokerCinematicBoardSceneView.Coordinator`
+            // copies `tableRadius` to a local `radius` before its own
+            // closure-based setup.
+            let radius = Float(max(HeistConstants.cols, HeistConstants.rows))
+            boardRadius = radius
+
+            let initialShot = Coordinator.shot(forPhase: .guardSets, boardRadius: radius)
+            cameraRig = CinematicCameraRig(initialShot: initialShot)
+            lighting = CinematicLighting(tableRadius: radius * 0.6)
+
+            scene.rootNode.addChildNode(cameraRig.cameraNode)
+            lighting.addToScene(scene)
+
+            // Every stored property above is assigned by this point, so
+            // this ordinary method call (which freely touches `self`) is
+            // safe -- unlike a closure captured *during* the assignments
+            // above would have been.
+            buildFloorPlan()
+        }
+
+        // MARK: - Grid <-> world space
+
+        private func worldX(_ col: Int) -> Float { (Float(col) - Float(cols - 1) / 2) * tileSize }
+        private func worldZ(_ row: Int) -> Float { (Float(row) - Float(rows - 1) / 2) * tileSize }
+        private func worldPosition(_ pos: GridPos, y: Float = 0) -> SCNVector3 {
+            SCNVector3(worldX(pos.col), y, worldZ(pos.row))
+        }
+
+        // MARK: - Room dressing (built once -- the layout never changes)
+
+        private func buildFloorPlan() {
+            let ground = SCNNode(geometry: SCNBox(
+                width: CGFloat(Float(cols) * tileSize + 1),
+                height: 0.05,
+                length: CGFloat(Float(rows) * tileSize + 1),
+                chamferRadius: 0.05
+            ))
+            ground.geometry?.materials = [heistMaterial(color: UIColor(white: 0.015, alpha: 1), roughness: 0.9)]
+            ground.position = SCNVector3(0, -0.06, 0)
+            scene.rootNode.addChildNode(ground)
+
+            let grid = HeistBoardState.defaultGrid()
+            for row in 0..<rows {
+                for col in 0..<cols {
+                    buildTile(pos: GridPos(col: col, row: row), type: grid[row][col])
+                }
+            }
+        }
+
+        private func buildTile(pos: GridPos, type: HeistTileType) {
+            let world = worldPosition(pos)
+
+            if type == .wall {
+                let wall = SCNNode(geometry: SCNBox(
+                    width: CGFloat(tileSize * 0.94), height: 0.6, length: CGFloat(tileSize * 0.94), chamferRadius: 0.03
+                ))
+                wall.geometry?.materials = [heistMaterial(color: UIColor(white: 0.06, alpha: 1), roughness: 0.8)]
+                wall.position = SCNVector3(world.x, 0.3, world.z)
+                scene.rootNode.addChildNode(wall)
+                return
+            }
+
+            let floorColor: UIColor
+            switch type {
+            case .vault:  floorColor = UIColor(red: 0.20, green: 0.14, blue: 0.02, alpha: 1)
+            case .exit:   floorColor = UIColor(red: 0.02, green: 0.16, blue: 0.05, alpha: 1)
+            case .camera: floorColor = UIColor(red: 0.16, green: 0.02, blue: 0.04, alpha: 1)
+            default:      floorColor = UIColor(red: 0.07, green: 0.08, blue: 0.13, alpha: 1)
+            }
+            let floor = SCNNode(geometry: SCNBox(
+                width: CGFloat(tileSize * 0.94), height: 0.08, length: CGFloat(tileSize * 0.94), chamferRadius: 0.04
+            ))
+            floor.geometry?.materials = [heistMaterial(color: floorColor, roughness: 0.75)]
+            floor.position = SCNVector3(world.x, 0.04, world.z)
+            scene.rootNode.addChildNode(floor)
+
+            // Coverage-glow overlay -- a thin emissive plane just above the
+            // floor, hidden until `apply` reveals it for a round where this
+            // tile is under camera coverage. Rotated flat (facing +Y) the
+            // same way an `SCNPlane` always needs to be to lie on a floor:
+            // its default normal is +Z, and rotating -90° about X carries
+            // that normal to +Y.
+            let glowMaterial = heistMaterial(color: UIColor.red, roughness: 1.0, emission: UIColor.red)
+            let glow = SCNNode(geometry: SCNPlane(width: CGFloat(tileSize * 0.9), height: CGFloat(tileSize * 0.9)))
+            glow.geometry?.materials = [glowMaterial]
+            glow.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+            glow.position = SCNVector3(world.x, 0.09, world.z)
+            glow.opacity = 0
+            scene.rootNode.addChildNode(glow)
+            arcGlowNodes[pos] = glow
+
+            switch type {
+            case .vault:
+                let vault = SCNNode(geometry: SCNCylinder(radius: CGFloat(tileSize * 0.32), height: 0.3))
+                vault.geometry?.materials = [heistMaterial(
+                    color: UIColor(red: 1.0, green: 0.82, blue: 0.2, alpha: 1),
+                    roughness: 0.3, metalness: 0.6,
+                    emission: UIColor(red: 0.5, green: 0.38, blue: 0.04, alpha: 1)
+                )]
+                vault.position = SCNVector3(world.x, 0.2, world.z)
+                scene.rootNode.addChildNode(vault)
+
+                let pulseUp = SCNAction.scale(by: 1.06, duration: 1.5)
+                pulseUp.timingMode = .easeInEaseOut
+                vault.runAction(.repeatForever(.sequence([pulseUp, pulseUp.reversed()])), forKey: "vaultPulse")
+
+            case .exit:
+                let ring = SCNNode(geometry: SCNTorus(ringRadius: CGFloat(tileSize * 0.32), pipeRadius: 0.04))
+                ring.geometry?.materials = [heistMaterial(
+                    color: UIColor(red: 0.1, green: 0.9, blue: 0.3, alpha: 1),
+                    roughness: 0.4,
+                    emission: UIColor(red: 0.05, green: 0.55, blue: 0.15, alpha: 1)
+                )]
+                ring.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+                ring.position = SCNVector3(world.x, 0.1, world.z)
+                scene.rootNode.addChildNode(ring)
+
+            case .camera:
+                let turret = Coordinator.buildCameraTurret()
+                turret.node.position = SCNVector3(world.x, 0, world.z)
+                scene.rootNode.addChildNode(turret.node)
+                cameraLights[pos] = turret.light
+
+            default:
+                break
+            }
+        }
+
+        /// A small security-camera turret -- base, dome, and a lens light
+        /// that `apply` drives from a dim dormant glow up to a bright red
+        /// alert when the Guard actually activates that stand for the
+        /// round, so guard presence reads clearly on the board itself.
+        private static func buildCameraTurret() -> (node: SCNNode, light: SCNLight) {
+            let root = SCNNode()
+
+            let base = SCNNode(geometry: SCNCylinder(radius: 0.16, height: 0.14))
+            base.geometry?.materials = [heistMaterial(color: UIColor(white: 0.22, alpha: 1), roughness: 0.5, metalness: 0.4)]
+            base.position = SCNVector3(0, 0.07, 0)
+            root.addChildNode(base)
+
+            let dome = SCNNode(geometry: SCNSphere(radius: 0.14))
+            dome.geometry?.materials = [heistMaterial(
+                color: UIColor(white: 0.55, alpha: 1), roughness: 0.15, metalness: 0.3,
+                emission: UIColor(red: 0.35, green: 0.04, blue: 0.05, alpha: 1)
+            )]
+            dome.position = SCNVector3(0, 0.2, 0)
+            root.addChildNode(dome)
+
+            let lens = SCNNode(geometry: SCNSphere(radius: 0.045))
+            lens.geometry?.materials = [heistMaterial(color: UIColor.black, roughness: 0.1, emission: UIColor.red)]
+            lens.position = SCNVector3(0, 0.13, 0.1)
+            root.addChildNode(lens)
+
+            let light = SCNLight()
+            light.type = .omni
+            light.color = UIColor.red
+            light.intensity = 30
+            let lightNode = SCNNode()
+            lightNode.light = light
+            lightNode.position = SCNVector3(0, 0.4, 0)
+            root.addChildNode(lightNode)
+
+            return (root, light)
+        }
+
+        // MARK: - Live state -> scene
+
+        func apply(_ state: HeistBoardState, animated: Bool) {
+            if state.phase != lastPhase {
+                lastPhase = state.phase
+                let duration: TimeInterval = animated ? 1.2 : 0
+                cameraRig.transition(to: Coordinator.shot(forPhase: state.phase, boardRadius: boardRadius), duration: duration)
+                lighting.apply(Coordinator.mood(for: state.phase), duration: duration)
+            }
+
+            updateCameraGlow(state: state, animated: animated)
+            updateCharacters(state: state, animated: animated)
+        }
+
+        private func updateCameraGlow(state: HeistBoardState, animated: Bool) {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = animated ? 0.6 : 0
+            for (pos, light) in cameraLights {
+                light.intensity = state.isGuardRevealedAt(pos) ? 850 : 30
+            }
+            for (pos, glow) in arcGlowNodes {
+                glow.opacity = state.cameraArcCovers(pos) ? 0.55 : 0
+            }
+            SCNTransaction.commit()
+        }
+
+        /// Walks every currently-live thief's character to its latest
+        /// tile, spawning a character the first time a thief appears and
+        /// fading one out the moment it drops out of `thiefPositions`
+        /// (caught, or escaped) rather than yanking it off the board.
+        private func updateCharacters(state: HeistBoardState, animated: Bool) {
+            let statusByID = Dictionary(uniqueKeysWithValues: state.playerStatuses.map { ($0.id, $0) })
+
+            for (id, pos) in state.thiefPositions {
+                let target = worldPosition(pos)
+                if let character = characters[id] {
+                    if lastPositions[id] != pos {
+                        lastPositions[id] = pos
+                        if animated {
+                            character.walk(to: target, duration: 0.6)
+                        } else {
+                            character.rootNode.position = target
+                        }
+                    }
+                    character.setHidden(false, animated: animated)
+                } else {
+                    let color = statusByID[id].map { UIColor($0.color) } ?? UIColor.cyan
+                    let character = ThiefCharacterNode(color: color)
+                    character.rootNode.position = target
+                    scene.rootNode.addChildNode(character.rootNode)
+                    characters[id] = character
+                    lastPositions[id] = pos
+                }
+            }
+
+            for (id, character) in characters where state.thiefPositions[id] == nil {
+                character.setHidden(true, animated: animated)
+            }
+        }
+
+        // MARK: - Phase -> cinematic vocabulary
+
+        private static func shot(forPhase phase: HeistPhase, boardRadius: Float) -> CameraShot {
+            switch phase {
+            case .guardSets:
+                // Wide establishing view -- the whole floor plan at once.
+                return CameraShot(
+                    position: SCNVector3(0, boardRadius * 1.35, boardRadius * 0.55),
+                    lookAt: SCNVector3(0, 0, 0),
+                    fieldOfView: 50,
+                    focusDistance: CGFloat(boardRadius * 1.3)
+                )
+            case .thievesMove:
+                // A touch closer -- the "action" shot while thieves move.
+                return CameraShot(
+                    position: SCNVector3(0, boardRadius * 1.12, boardRadius * 0.4),
+                    lookAt: SCNVector3(0, 0, 0),
+                    fieldOfView: 46,
+                    focusDistance: CGFloat(boardRadius * 1.1)
+                )
+            case .reveal:
+                // Push in tighter for the round's resolution.
+                return CameraShot(
+                    position: SCNVector3(0, boardRadius * 0.92, boardRadius * 0.28),
+                    lookAt: SCNVector3(0, 0, 0),
+                    fieldOfView: 40,
+                    focusDistance: CGFloat(boardRadius * 0.95)
+                )
+            }
+        }
+
+        private static func mood(for phase: HeistPhase) -> PhaseLightingMood {
+            switch phase {
+            case .guardSets:   return .warm
+            case .thievesMove: return .neutral
+            case .reveal:      return .tense
+            }
+        }
+    }
+}
+
+// MARK: - Thief character
+
+/// A small, stylized "cute" thief character built entirely from primitive
+/// SceneKit geometry (capsule body, spheres for head/eyes/feet, a torus for
+/// a cartoon hood) -- no imported 3D model/rig, same discipline
+/// `PokerDealerNode` uses. `rootNode`'s position is the *only* thing
+/// `walk(to:duration:)` ever touches (a one-shot move); the idle bob and
+/// glance loops below run forever on separate child nodes, so nothing ever
+/// needs to pause or cancel the idle loop to animate a step.
+@MainActor
+private final class ThiefCharacterNode {
+    let rootNode = SCNNode()
+    private let facingNode: SCNNode
+    private let bobNode: SCNNode
+    private let headPivot: SCNNode
+
+    init(color: UIColor) {
+        let bodyMaterial = heistMaterial(color: color, roughness: 0.55)
+        let trimMaterial = heistMaterial(color: UIColor.white, roughness: 0.3, emission: color)
+        let eyeMaterial = heistMaterial(color: UIColor.black, roughness: 0.2)
+
+        let facing = SCNNode()
+        rootNode.addChildNode(facing)
+        facingNode = facing
+
+        let bob = SCNNode()
+        bob.position = SCNVector3(0, 0.14, 0)
+        facing.addChildNode(bob)
+        bobNode = bob
+
+        let body = SCNNode(geometry: SCNCapsule(capRadius: 0.14, height: 0.26))
+        body.geometry?.materials = [bodyMaterial]
+        body.position = SCNVector3(0, 0.15, 0)
+        bob.addChildNode(body)
+
+        // Stubby feet -- purely decorative grounding, like PokerDealerNode's
+        // static legs, so only `bobNode`'s hop ever moves them.
+        for xSign: Float in [-1, 1] {
+            let foot = SCNNode(geometry: SCNSphere(radius: 0.07))
+            foot.geometry?.materials = [trimMaterial]
+            foot.position = SCNVector3(xSign * 0.09, 0.02, 0.03)
+            bob.addChildNode(foot)
+        }
+
+        let head = SCNNode()
+        head.position = SCNVector3(0, 0.34, 0)
+        bob.addChildNode(head)
+        headPivot = head
+
+        let skull = SCNNode(geometry: SCNSphere(radius: 0.15))
+        skull.geometry?.materials = [bodyMaterial]
+        head.addChildNode(skull)
+
+        // Big cute eyes, facing the +Z "front" of the character.
+        for xSign: Float in [-1, 1] {
+            let eye = SCNNode(geometry: SCNSphere(radius: 0.035))
+            eye.geometry?.materials = [eyeMaterial]
+            eye.position = SCNVector3(xSign * 0.06, 0.02, 0.13)
+            head.addChildNode(eye)
+        }
+
+        // A hood-trim ring -- reads as a cartoon "thief" silhouette from
+        // directly above without needing a rigged cape.
+        let hood = SCNNode(geometry: SCNTorus(ringRadius: 0.15, pipeRadius: 0.025))
+        hood.geometry?.materials = [trimMaterial]
+        hood.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        hood.position = SCNVector3(0, 0.05, 0)
+        head.addChildNode(hood)
+
+        startIdle()
+    }
+
+    // MARK: - Idle loop (always running, never interrupted)
+
+    private func startIdle() {
+        let bobUp = SCNAction.moveBy(x: 0, y: 0.03, z: 0, duration: 0.55)
+        bobUp.timingMode = .easeInEaseOut
+        let bobCycle = SCNAction.sequence([bobUp, bobUp.reversed()])
+        bobNode.runAction(.repeatForever(bobCycle), forKey: "idleBob")
+
+        let glanceOut = SCNAction.rotate(by: 0.35, around: SCNVector3(0, 1, 0), duration: 1.1)
+        glanceOut.timingMode = .easeInEaseOut
+        let glance = SCNAction.sequence([glanceOut, .wait(duration: 0.3), glanceOut.reversed(), .wait(duration: 0.5)])
+        headPivot.runAction(.repeatForever(glance), forKey: "idleGlance")
+    }
+
+    // MARK: - One-shot movement (root + facing only -- never fights the idle loop)
+
+    /// Glides from wherever `rootNode` currently sits to `worldPosition`,
+    /// turning `facingNode` to face the direction of travel along the way.
+    /// Speeding up the always-running idle bob for the duration of the walk
+    /// is what reads as a "footstep" bounce, rather than layering a second,
+    /// competing position animation onto the same node.
+    func walk(to worldPosition: SCNVector3, duration: TimeInterval) {
+        let from = rootNode.position
+        let dx = worldPosition.x - from.x
+        let dz = worldPosition.z - from.z
+
+        if abs(dx) > 0.001 || abs(dz) > 0.001 {
+            let heading = CGFloat(atan2(dx, dz))
+            let current = CGFloat(facingNode.eulerAngles.y)
+            // Shortest signed turn from `current` to `heading`, normalized
+            // into (-pi, +pi) -- using `SCNAction.rotate(by:around:duration:)`
+            // (the exact call `PokerDealerNode`'s idle sway already proves
+            // compiles) instead of an absolute rotate-to, since the delta is
+            // trivial to compute by hand and this sidesteps needing to know
+            // that API's exact parameter labels.
+            var delta = heading - current
+            while delta > CGFloat.pi { delta -= 2 * CGFloat.pi }
+            while delta < -CGFloat.pi { delta += 2 * CGFloat.pi }
+
+            facingNode.removeAction(forKey: "turn")
+            let turn = SCNAction.rotate(by: delta, around: SCNVector3(0, 1, 0), duration: duration * 0.4)
+            turn.timingMode = .easeOut
+            facingNode.runAction(turn, forKey: "turn")
+        }
+
+        rootNode.removeAction(forKey: "walk")
+        let move = SCNAction.move(to: worldPosition, duration: duration)
+        move.timingMode = .easeInEaseOut
+
+        bobNode.speed = 1.8
+        rootNode.runAction(move, forKey: "walk") { [weak self] in
+            DispatchQueue.main.async { self?.bobNode.speed = 1.0 }
+        }
+    }
+
+    /// Fades the whole character in/out -- used when a thief first appears
+    /// on the board, and when one drops out of `thiefPositions` (caught or
+    /// escaped) rather than vanishing instantly.
+    func setHidden(_ hidden: Bool, animated: Bool) {
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = animated ? 0.5 : 0
+        rootNode.opacity = hidden ? 0 : 1
+        SCNTransaction.commit()
+    }
 }
