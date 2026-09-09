@@ -180,8 +180,16 @@ final class TriviaboardViewModel: ObservableObject {
         if let s = data["secondsLeft"]?.value as? Int { secondsLeft = s }
         if let show = data["showChoices"]?.value as? Bool { showChoices = show }
 
-        // Reveal correct answer
-        if let idx = data["correctIndex"]?.value as? Int {
+        // Reveal correct answer -- gated on the engine's own reveal phase,
+        // not merely on correctIndex being present. TriviaEngine now only
+        // ever includes correctIndex in this payload while phase == "reveal"
+        // (see legacy_social.py), but checking phase explicitly here too
+        // means this stays correct even if that ever changes, rather than
+        // depending on an implicit contract with the server. Reported
+        // directly: the correct choice used to paint green the instant a
+        // question's choices appeared, before anyone had answered.
+        if data["phase"]?.value as? String == "reveal",
+           let idx = data["correctIndex"]?.value as? Int {
             revealedCorrectIndex = idx
         }
 

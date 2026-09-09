@@ -238,7 +238,15 @@ struct PongControllerView: View {
         .onDisappear { motion.stop() }
         .onChange(of: motion.roll) { roll in
             let now = Date()
-            guard now.timeIntervalSince(lastSent) > 0.05 else { return } // 20 fps max
+            // Reported directly as "so glitchy": this was capped at 20/sec,
+            // but game_action's shared rate limiter (socket_events.py's
+            // ACTION_BURST/ACTION_WINDOW_SECONDS) only sustains 15/sec
+            // averaged over its window. A continuously-tilting phone at
+            // 20/sec burned through the burst budget in under two seconds,
+            // then had updates silently dropped until older ones aged out
+            // -- smooth for a beat, then a stall, on repeat. 12/sec sends
+            // comfortably under the sustained limit instead of racing it.
+            guard now.timeIntervalSince(lastSent) > 0.083 else { return } // ~12 fps max
             lastSent = now
             onAction("paddle", ["position": roll])
         }
@@ -254,8 +262,15 @@ final class MotionManager: ObservableObject {
         guard manager.isDeviceMotionAvailable else { return }
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
         manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
-            guard let motion else { return }
-            self?.roll = max(-1, min(1, motion.attitude.roll / (.pi / 2)))
+            guard let self, let motion else { return }
+            let sample = max(-1, min(1, motion.attitude.roll / (.pi / 2)))
+            // A raw instantaneous gyro reading has no smoothing at all, so
+            // any hand tremor or sensor noise went straight into the
+            // paddle's position. A simple exponential low-pass filter
+            // (each sample nudges toward the new value rather than jumping
+            // to it) removes that noise while still tracking a deliberate
+            // tilt within a frame or two.
+            self.roll = self.roll * 0.75 + sample * 0.25
         }
     }
 
