@@ -62,16 +62,25 @@ struct TVPongBoardView: View {
             }
 
             // Left paddle
+            //
+            // The gyro-driven paddle position only updates at the phone's
+            // throttled send rate (~12/sec, see PongControllerView), well
+            // below this board's own 30Hz state pump -- with no animation
+            // at all, every accepted update popped the paddle straight to
+            // its new position, which read as jittery even once the phone
+            // side was smoothed. Easing each hop closes that visible gap.
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.white)
                 .frame(width: 12, height: 80)
                 .position(x: 60, y: paddleY(vm.state.leftPaddlePos))
+                .animation(.linear(duration: 0.08), value: vm.state.leftPaddlePos)
 
             // Right paddle
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.white)
                 .frame(width: 12, height: 80)
                 .position(x: UIScreen.main.bounds.width - 60, y: paddleY(vm.state.rightPaddlePos))
+                .animation(.linear(duration: 0.08), value: vm.state.rightPaddlePos)
 
             // Ball
             Circle().fill(Color.white).frame(width: 20, height: 20)

@@ -553,3 +553,45 @@ class TestGameRules:
         waiting = next(p for p in engine.order if p != engine.current_player_id())
         engine.handle_action(waiting, "fire", {"cell": 0})
         assert engine.shots[waiting] == {}
+
+    def test_trivia_plays_through_the_whole_question_bank(self):
+        # Used to hardcode 8 rounds regardless of bank size, cutting the
+        # game off partway through -- reported directly as "scoring is only
+        # for 10 questions."
+        from games.native_hub.engines.legacy_social import TRIVIA_QUESTIONS
+        engine, _ = make("trivia", players=2)
+        assert engine.TOTAL_ROUNDS == len(TRIVIA_QUESTIONS)
+        assert engine.TOTAL_ROUNDS > 8
+
+    def test_trivia_hides_the_correct_answer_until_reveal(self):
+        # correctIndex used to be sent on every single push, including the
+        # very first one for a brand new question -- the TV painted the
+        # correct choice green before anyone had answered. Reported
+        # directly as "answers are getting revealed way before the
+        # questions."
+        engine, _ = make("trivia", players=2)
+        assert engine.phase == "answering"
+        assert "correctIndex" not in engine.public_state()
+
+        engine.deadline = 0.0             # force the round timer to expire
+        engine.tick(1 / 30)
+        assert engine.phase == "reveal"
+        assert "correctIndex" in engine.public_state()
+
+    def test_trivia_holds_the_reveal_before_advancing(self):
+        engine, _ = make("trivia", players=2)
+        first_question_id = engine.question_id
+        engine.deadline = 0.0
+        engine.tick(1 / 30)
+        assert engine.phase == "reveal"
+
+        # reveal_until is still in the future -- ticking again shouldn't
+        # jump straight to the next question.
+        engine.tick(1 / 30)
+        assert engine.phase == "reveal"
+        assert engine.question_id == first_question_id
+
+        engine.reveal_until = 0.0
+        engine.tick(1 / 30)
+        assert engine.phase == "answering"
+        assert engine.question_id != first_question_id

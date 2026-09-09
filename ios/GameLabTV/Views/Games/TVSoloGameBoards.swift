@@ -200,19 +200,18 @@ struct TVNeonSnakeBoardView: View {
     @StateObject private var vm = SnakeBoardViewModel()
 
     var body: some View {
-        VStack(spacing: 0) {
-            SoloHUD(title: "🐍 Neon Snake", score: vm.state.score, subtitle: nil)
-            // Reported directly as "not full screen": a fixed 34pt cell sized
-            // the whole board purely off Neon Snake's own grid, regardless of
-            // how much bigger the actual TV screen is -- leaving huge black
-            // margins on any real display. That bug had a second layer once
-            // the cell size itself was fixed: a *square* 20x20 grid can never
-            // fill a 16:9 rectangle no matter how big its cells get, because
-            // whichever dimension the square is bound by, the other runs out
-            // early. NeonSnakeEngine's grid is landscape now (32x18, see its
-            // docstring) so the same GeometryReader-derived scale below
-            // actually reaches both edges of the screen instead of
-            // letterboxing a centered square.
+        // Reported directly as "not full screen", still true after the grid
+        // was widened to a landscape 32x18: stacking SoloHUD and RemoteHint
+        // above/below the GeometryReader in a VStack ate into the *vertical*
+        // space the board's own scale calc measures, so the leftover area
+        // was no longer actually 16:9 -- e.g. losing ~150-200pt of height on
+        // a 1080p screen skews the remainder to something like a 2.1:1
+        // rectangle, and `scale = min(widthScale, heightScale)` then binds
+        // on height, rendering the board narrower than the full width with
+        // black bars on both sides. Overlaying the HUD/hint on top of a
+        // full-bleed board instead, rather than sharing layout flow with it,
+        // means the GeometryReader measures the true full-screen area.
+        ZStack {
             GeometryReader { geo in
                 let margin: CGFloat = 28
                 let unitW = CGFloat(max(vm.state.width, 1))
@@ -224,7 +223,14 @@ struct TVNeonSnakeBoardView: View {
                     .frame(width: unitW * scale, height: unitH * scale)
                     .frame(width: geo.size.width, height: geo.size.height)
             }
-            RemoteHint(text: "Swipe or click the remote's edges to steer")
+            .ignoresSafeArea()
+
+            VStack {
+                SoloHUD(title: "🐍 Neon Snake", score: vm.state.score, subtitle: nil)
+                Spacer()
+                RemoteHint(text: "Swipe or click the remote's edges to steer")
+            }
+            .allowsHitTesting(false)
         }
         .remoteDPad { event in
             // Now that "Invite Friends" can put phones in this same room
@@ -305,13 +311,36 @@ struct TVNeonSnakeBoardView: View {
             let lineWidth = max(4, scale * 0.74)
 
             // A continuous stroked path through every segment's center reads
-            // as one smooth creature instead of a checkerboard of squares;
-            // rounded joins/caps taper the turns instead of showing hard
-            // corners at every cell.
+            // as one smooth creature instead of a checkerboard of squares.
+            // The engine is still a discrete grid stepper underneath --
+            // every turn is a hard 90-degree step at the next tick, and
+            // genuinely continuous curving motion would need a full
+            // continuous-position/heading rewrite of NeonSnakeEngine, out
+            // of scope here -- but the path drawn through those grid points
+            // doesn't have to trace them as straight segments. Running it
+            // through a midpoint quadratic spline (the standard "round a
+            // polyline's corners" trick: curve toward the midpoint of each
+            // pair of segments, using the shared grid point as the curve's
+            // control) turns every corner into a soft arc instead of a
+            // sharp angle. Reported directly as wanting "smooth curvy...
+            // turn."
             if points.count >= 2 {
                 var spine = Path()
                 spine.move(to: points[0])
-                for p in points.dropFirst() { spine.addLine(to: p) }
+                if points.count == 2 {
+                    spine.addLine(to: points[1])
+                } else {
+                    // Named idx, not i, to avoid shadowing the outer per-snake
+                    // loop's own `i` (this snake's index in vm.state.bodies).
+                    for idx in 1..<(points.count - 1) {
+                        let current = points[idx]
+                        let next = points[idx + 1]
+                        let midToNext = CGPoint(x: (current.x + next.x) / 2,
+                                                 y: (current.y + next.y) / 2)
+                        spine.addQuadCurve(to: midToNext, control: current)
+                    }
+                    spine.addLine(to: points[points.count - 1])
+                }
 
                 if alive {
                     // Soft neon glow underneath the crisp body -- Neon

@@ -272,12 +272,23 @@ class TestTrivia:
         start_and_settle(socketio, tv, code)
         board = latest(tv, "game_state")["boardState"]
         assert {"secondsLeft", "showChoices", "questionID", "questionText",
-                "choices", "category", "correctIndex", "answeredPlayerIDs",
+                "choices", "category", "phase", "answeredPlayerIDs",
                 "players"} <= set(board)
+        # correctIndex is only ever included once the reveal phase starts
+        # (see TriviaEngine.public_state) -- it used to be sent
+        # unconditionally, including on this very first push for a brand
+        # new question, which painted the correct choice on the TV before
+        # anyone had answered.
+        assert board["phase"] == "answering"
+        assert "correctIndex" not in board
+
         private = latest(phones[0], "private_state")["privateData"]
         assert {"choices", "questionID", "score"} <= set(private)
 
-        correct = board["correctIndex"]
+        # The real answer lives on the engine itself, not in the
+        # deliberately-hidden board state -- reading it directly is the
+        # whole point of this test now.
+        correct = rooms.get(code).engine.question[3]
         act(socketio, phones[0], code, "dev-0", "answer",
             {"choiceIndex": correct, "questionID": board["questionID"]})
         after = latest(tv, "game_state")["boardState"]
