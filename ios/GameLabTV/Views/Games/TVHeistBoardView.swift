@@ -827,9 +827,13 @@ private final class ThiefCharacterNode {
         let move = SCNAction.move(to: worldPosition, duration: duration)
         move.timingMode = .easeInEaseOut
 
-        bobNode.speed = 1.8
+        // `speed` belongs to SCNAction, not SCNNode -- there's no such
+        // property on the node itself. The already-running "idleBob"
+        // action (started in startIdle()) is what needs speeding up, via
+        // the action instance SCNNode.action(forKey:) hands back.
+        bobNode.action(forKey: "idleBob")?.speed = 1.8
         rootNode.runAction(move, forKey: "walk") { [weak self] in
-            DispatchQueue.main.async { self?.bobNode.speed = 1.0 }
+            DispatchQueue.main.async { self?.bobNode.action(forKey: "idleBob")?.speed = 1.0 }
         }
     }
 
