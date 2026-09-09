@@ -370,11 +370,23 @@ class ChessEngine(TurnBasedEngine):
 # ---------------------------------------------------------------------------
 # Snake & Ladder -- games/snake_ladder's game_logic.py/models.py are empty,
 # so this is an original implementation of the classic board. Verified
-# against ShakeToRollControllerView's isMyTurn/position keys; the TV board
-# is also TVWebGameBoardView (placeholder) for this game.
+# against ShakeToRollControllerView's isMyTurn/position keys. The TV board
+# is now TVSnakeLadderBoardView -- a native cinematic 3D SceneKit board
+# (ios/GameLabTV/Views/Games/TVSnakeLadderBoardView.swift) that renders the
+# snakes/ladders below straight from the `snakes`/`ladders` maps exposed on
+# public_state(), rather than hardcoding its own possibly-drifting copy.
+#
+# Only 3 snakes on purpose (down from an earlier 10): the user asked for a
+# real 3D board with "3 snakes resting with some animation", where each
+# snake is a full serpentine model with its own idle loop plus a one-shot
+# eat/swallow animation -- fewer, more prominent snakes reads better
+# cinematically than a crowded board of thin ones. Ladders are left at 10;
+# only the snake count was asked to shrink. Spaced across the board (one in
+# the high 80s, one in the low 60s, one in the low 30s) so each is a
+# distinct, well-separated set piece rather than clustered together.
 # ---------------------------------------------------------------------------
 
-SNAKES = {99: 41, 95: 75, 92: 88, 87: 24, 64: 60, 62: 19, 56: 53, 49: 11, 47: 26, 16: 6}
+SNAKES = {89: 53, 62: 22, 32: 10}
 LADDERS = {2: 38, 7: 14, 8: 31, 15: 26, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 78: 98}
 
 
@@ -422,6 +434,12 @@ class SnakeLadderEngine(TurnBasedEngine):
                 for pid, pos in self.positions.items()
             ],
             "lastRoll": self.last_roll,
+            # Static board layout, included every call (cheap, unchanging)
+            # so the Swift client has one authoritative source for where
+            # the snakes/ladders are instead of hardcoding its own copy
+            # that could silently drift from SNAKES/LADDERS above.
+            "snakes": {str(head): tail for head, tail in SNAKES.items()},
+            "ladders": {str(bottom): top for bottom, top in LADDERS.items()},
         })
         return state
 
