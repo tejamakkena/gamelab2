@@ -554,6 +554,79 @@ class TestGameRules:
         engine.handle_action(waiting, "fire", {"cell": 0})
         assert engine.shots[waiting] == {}
 
+
+class TestSnakeLadder:
+    """Board layout + movement rules for the native Snake & Ladder engine.
+
+    Regression coverage for two changes: SNAKES was trimmed from 10 entries
+    to exactly 3 (the TV board renders each as a full 3D serpentine model,
+    so fewer/more-prominent snakes reads better cinematically), and
+    public_state() now exposes the static snakes/ladders maps so the Swift
+    client has one authoritative source for the board layout.
+    """
+
+    def test_exactly_three_snakes(self):
+        from games.native_hub.engines.legacy_boards import SNAKES
+        assert len(SNAKES) == 3
+        for head, tail in SNAKES.items():
+            assert 1 <= tail < head <= 100
+
+    def test_ladders_unchanged_at_ten(self):
+        from games.native_hub.engines.legacy_boards import LADDERS
+        assert len(LADDERS) == 10
+        for bottom, top in LADDERS.items():
+            assert 1 <= bottom < top <= 100
+
+    def test_public_state_exposes_snakes_and_ladders_maps(self):
+        from games.native_hub.engines.legacy_boards import LADDERS, SNAKES
+        engine, _ = make("snake_ladder", players=2)
+        state = engine.public_state()
+        assert state["snakes"] == {str(h): t for h, t in SNAKES.items()}
+        assert state["ladders"] == {str(b): t for b, t in LADDERS.items()}
+        # JSON object keys must be strings -- guard against a regression
+        # back to int keys, which `json.dumps` would silently stringify
+        # anyway but which would not round-trip equal to the raw dict.
+        assert all(isinstance(k, str) for k in state["snakes"])
+        assert all(isinstance(k, str) for k in state["ladders"])
+
+    def test_landing_on_a_snake_head_slides_down_to_its_tail(self):
+        from games.native_hub.engines.legacy_boards import SNAKES
+        head = next(iter(SNAKES))
+        tail = SNAKES[head]
+        engine, roster = make("snake_ladder", players=2)
+        pid = engine.current_player_id()
+        engine.positions[pid] = head - 4
+        engine.handle_action(pid, "roll", {"value": 4})
+        assert engine.positions[pid] == tail
+
+    def test_landing_on_a_ladder_bottom_climbs_to_its_top(self):
+        from games.native_hub.engines.legacy_boards import LADDERS
+        bottom = next(iter(LADDERS))
+        top = LADDERS[bottom]
+        engine, roster = make("snake_ladder", players=2)
+        pid = engine.current_player_id()
+        engine.positions[pid] = bottom - 3
+        engine.handle_action(pid, "roll", {"value": 3})
+        assert engine.positions[pid] == top
+
+    def test_overshooting_100_stays_put(self):
+        engine, roster = make("snake_ladder", players=2)
+        pid = engine.current_player_id()
+        engine.positions[pid] = 98
+        engine.handle_action(pid, "roll", {"value": 5})
+        assert engine.positions[pid] == 98
+
+    def test_landing_exactly_on_100_wins(self):
+        engine, roster = make("snake_ladder", players=2)
+        pid = engine.current_player_id()
+        engine.positions[pid] = 94
+        engine.handle_action(pid, "roll", {"value": 6})
+        assert engine.positions[pid] == 100
+        assert engine.is_over()
+        assert engine.winner == pid
+
+
+class TestTrivia:
     def test_trivia_plays_through_the_whole_question_bank(self):
         # Used to hardcode 8 rounds regardless of bank size, cutting the
         # game off partway through -- reported directly as "scoring is only

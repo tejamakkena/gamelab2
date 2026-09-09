@@ -30,7 +30,7 @@ struct TVGameBoardView: View {
         case .chess:         TVWebGameBoardView(room: room)   // web canvas via WKWebView
         case .connectFour:   TVConnect4BoardView(room: room)
         case .memory:        TVMemoryBoardView(room: room)
-        case .snakeLadder:   TVWebGameBoardView(room: room)   // web canvas
+        case .snakeLadder:   TVSnakeLadderBoardView(room: room)
 
         // Action
         case .pong:          TVPongBoardView(room: room)

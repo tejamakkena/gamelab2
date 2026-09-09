@@ -101,33 +101,37 @@ struct ShakeToRollControllerView: View {
     let onAction: (String, [String: Any]) -> Void
 
     @State private var lastRoll: Int? = nil
-    @State private var shakeScale: CGFloat = 1.0
+    @State private var diceScale: CGFloat = 1.0
+    @State private var diceRotation: Double = 0
     private var isMyTurn: Bool { (privateData["isMyTurn"] as? Bool) ?? false }
 
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
 
-            Text("🎲")
-                .font(.system(size: 100))
-                .scaleEffect(shakeScale)
-                .onShake {
-                    guard isMyTurn else { return }
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.4)) { shakeScale = 1.4 }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        withAnimation(.spring()) { shakeScale = 1.0 }
-                        let roll = Int.random(in: 1...6)
-                        lastRoll = roll
-                        onAction("roll", ["value": roll])
-                    }
-                }
+            // A big, tactile pip-faced die (not just a printed number) --
+            // the user specifically asked for "a little bigger dice" here,
+            // so this is sized to dominate the screen the way a physical
+            // die would in your hand, with its own roll flourish on both a
+            // shake and a direct tap (the shake gesture alone is easy to
+            // trigger by accident or to miss entirely; a tap always works).
+            Button(action: roll) {
+                DiceFaceView(value: lastRoll ?? 0, size: 220)
+                    .scaleEffect(diceScale)
+                    .rotation3DEffect(.degrees(diceRotation), axis: (x: 0.5, y: 1, z: 0.15))
+                    .shadow(color: .cyan.opacity(isMyTurn ? 0.35 : 0), radius: 24)
+            }
+            .buttonStyle(.plain)
+            .disabled(!isMyTurn)
+            .onShake { roll() }
+            .accessibilityLabel("Roll the dice")
 
             if let roll = lastRoll {
                 Text("You rolled \(roll)!")
                     .font(.largeTitle.bold()).foregroundColor(.white)
             }
 
-            Text(isMyTurn ? "Shake to roll!" : "Not your turn…")
+            Text(isMyTurn ? "Shake or tap the die to roll!" : "Not your turn…")
                 .font(.title3)
                 .foregroundColor(isMyTurn ? .cyan : .white.opacity(0.4))
 
@@ -139,6 +143,57 @@ struct ShakeToRollControllerView: View {
             Spacer()
         }
         .background(Color(hex: "0a0a14").ignoresSafeArea())
+    }
+
+    private func roll() {
+        guard isMyTurn else { return }
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.35)) { diceScale = 1.28 }
+        withAnimation(.easeOut(duration: 0.55)) { diceRotation += 360 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            withAnimation(.spring()) { diceScale = 1.0 }
+            let value = Int.random(in: 1...6)
+            lastRoll = value
+            onAction("roll", ["value": value])
+        }
+    }
+}
+
+/// A real six-sided die face drawn as pips on a rounded square, rather than
+/// a printed digit -- `value` of 0 renders a blank/idle face (before the
+/// first roll of the game).
+private struct DiceFaceView: View {
+    let value: Int
+    var size: CGFloat = 200
+
+    /// Standard die pip layout, positions as fractions of `size` on each
+    /// axis so the same layout scales to any `size`.
+    private var pipPositions: [(CGFloat, CGFloat)] {
+        switch value {
+        case 1: return [(0.5, 0.5)]
+        case 2: return [(0.26, 0.26), (0.74, 0.74)]
+        case 3: return [(0.26, 0.26), (0.5, 0.5), (0.74, 0.74)]
+        case 4: return [(0.26, 0.26), (0.74, 0.26), (0.26, 0.74), (0.74, 0.74)]
+        case 5: return [(0.26, 0.26), (0.74, 0.26), (0.5, 0.5), (0.26, 0.74), (0.74, 0.74)]
+        case 6: return [(0.26, 0.22), (0.74, 0.22), (0.26, 0.5), (0.74, 0.5), (0.26, 0.78), (0.74, 0.78)]
+        default: return []
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.18)
+                .fill(Color.white)
+            RoundedRectangle(cornerRadius: size * 0.18)
+                .stroke(Color.black.opacity(0.08), lineWidth: 2)
+            ForEach(Array(pipPositions.enumerated()), id: \.offset) { _, pip in
+                Circle()
+                    .fill(Color.black.opacity(0.82))
+                    .frame(width: size * 0.15, height: size * 0.15)
+                    .position(x: pip.0 * size, y: pip.1 * size)
+            }
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.45), radius: 14, y: 8)
     }
 }
 
