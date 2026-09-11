@@ -65,9 +65,30 @@ class TestLevelGeneration:
         ec, er = spec["exit_pos"]
         assert tiles[sr][sc] == br.FLOOR
         assert tiles[er][ec] == br.FLOOR
+        assert (sc, sr) != (ec, er)
+
+        # A gem is only ever collected by moving *onto* its tile (see
+        # handle_action's "move" case) -- one sitting exactly on the spawn
+        # tile could never be picked up through ordinary play (a player
+        # starts standing on it already), and one sitting on the exit tile
+        # meant the exit could never be reached "clean" without it
+        # happening to be the last pickup. Two of the hand-authored
+        # landmark levels (10 and 25) originally shipped with exactly this
+        # bug -- a gem placed directly on that level's own spawn_pos, and
+        # in level 25's case another directly on exit_pos too.
+        gem_set = {tuple(g) for g in spec["gems"]}
+        assert (sc, sr) not in gem_set
+        assert (ec, er) not in gem_set
 
         for gc, gr in spec["gems"]:
             assert tiles[gr][gc] == br.FLOOR
+
+        enemy_positions = [(enemy["col"], enemy["row"]) for enemy in spec["enemies"]]
+        for pos in enemy_positions:
+            assert pos != (sc, sr)
+            assert pos != (ec, er)
+            assert pos not in gem_set
+        assert len(enemy_positions) == len(set(enemy_positions))
 
         for enemy in spec["enemies"]:
             assert tiles[enemy["row"]][enemy["col"]] != br.WALL

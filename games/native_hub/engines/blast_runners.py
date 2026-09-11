@@ -198,7 +198,15 @@ _LEVEL_10_TILES = [
 ]
 LEVEL_10 = {
     "tiles": _LEVEL_10_TILES,
-    "gems": [[4, 3], [5, 3], [4, 6], [5, 6], [1, 1], [8, 8]],
+    # The original list here put a gem on [1, 1] and another on [8, 8] --
+    # exactly the spawn and exit tiles. A gem only gets collected by moving
+    # *onto* its tile, so a gem sitting under a player's own starting
+    # position could never be picked up through ordinary play (you'd have
+    # to realize you should step off your own spawn and back onto it),
+    # and one squatting on the exit meant the exit could never be reached
+    # "clean" without it happening to double as the last pickup. Moved
+    # both to distinct floor tiles in the ring corridor instead.
+    "gems": [[4, 3], [5, 3], [4, 6], [5, 6], [8, 1], [2, 8]],
     "exit_pos": [8, 8],
     "spawn_pos": [1, 1],
     "enemies": [
@@ -291,10 +299,14 @@ _LEVEL_25_TILES = [
 ]
 LEVEL_25 = {
     "tiles": _LEVEL_25_TILES,
+    # Same fix as Level 10: this used to put a gem directly on the spawn
+    # tile [1, 1] and another directly on the exit tile [12, 12], neither
+    # of which can be collected by ordinary "walk onto a gem" play. Moved
+    # both to distinct floor tiles in the outer ring.
     "gems": [
         [6, 6], [7, 6], [6, 7], [7, 7],
         [3, 3], [10, 3], [3, 10], [10, 10],
-        [1, 1], [12, 12], [1, 12], [12, 1],
+        [9, 1], [4, 12], [1, 12], [12, 1],
     ],
     "exit_pos": [12, 12],
     "spawn_pos": [1, 1],
