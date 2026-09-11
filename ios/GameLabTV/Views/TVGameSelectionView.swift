@@ -81,7 +81,7 @@ struct TVGameSelectionView: View {
         HStack(spacing: 60) {
             // Left sidebar — categories
             VStack(alignment: .leading, spacing: 20) {
-                Text("GameLab")
+                Text("Aurora")
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(colors: [.purple, .cyan], startPoint: .leading, endPoint: .trailing)

@@ -41,7 +41,7 @@ targets:
     info:
       path: GameLabController/Info.plist
       properties:
-        CFBundleDisplayName: GameLab
+        CFBundleDisplayName: Aurora Play
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
@@ -51,8 +51,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSMotionUsageDescription: "GameLab uses motion to let you tilt and shake your phone as a game controller."
-        NSLocalNetworkUsageDescription: "GameLab connects to the game server on your local network."
+        NSMotionUsageDescription: "Aurora Play uses motion to let you tilt and shake your phone as a game controller."
+        NSLocalNetworkUsageDescription: "Aurora Play connects to the game server on your local network."
         ITSAppUsesNonExemptEncryption: false
 
     settings:
@@ -89,10 +89,10 @@ targets:
     info:
       path: GameLabTV/Info.plist
       properties:
-        CFBundleDisplayName: GameLab TV
+        CFBundleDisplayName: Aurora
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        NSLocalNetworkUsageDescription: "GameLab TV connects to the game server on your local network."
+        NSLocalNetworkUsageDescription: "Aurora connects to the game server on your local network."
         ITSAppUsesNonExemptEncryption: false
 
     settings:

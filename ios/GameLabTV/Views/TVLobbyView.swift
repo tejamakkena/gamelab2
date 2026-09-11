@@ -32,7 +32,7 @@ struct TVLobbyView: View {
                         )
                         .kerning(12)
 
-                    Text("gamelab.app  •  Enter code above")
+                    Text("aurora.app  •  Enter code above")
                         .font(.body)
                         .foregroundColor(.white.opacity(0.4))
                 }
