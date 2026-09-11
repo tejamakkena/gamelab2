@@ -798,3 +798,136 @@ struct ShakeDetector: ViewModifier {
 extension Notification.Name {
     static let deviceDidShakeNotification = Notification.Name("DeviceDidShake")
 }
+
+// MARK: - Blast Runners (D-pad + one big action button)
+//
+// The only controller in this file with a movement pad *and* a dedicated
+// action button on the same screen -- Neon Snake/Simon Says's plain D-pad
+// (DuelControllers.swift) has nothing to press besides the arrows, so
+// rather than bolt an action button onto that shared type this builds its
+// own compact cross layout scoped entirely to this struct, exactly as the
+// task brief allows ("build fresh" is fine here).
+//
+// `private_state` carries no secrets for this game (`hasPrivateInfo` is
+// false server-side too) -- this screen exists purely so a phone player has
+// the same D-pad + action input a Siri Remote can't cleanly provide
+// alongside real-time steering, not to show anything the TV doesn't.
+
+struct BlastRunnersControllerView: View {
+    let privateData: [String: Any]
+    let onAction: (String, [String: Any]) -> Void
+
+    private var level: Int { privateData.int("level", 1) }
+    private var livesCurrent: Int { privateData.int("livesCurrent") }
+    private var livesMax: Int { privateData.int("livesMax") }
+    private var gemsRemaining: Int { privateData.int("gemsRemaining") }
+    private var phase: String { privateData.str("phase", "playing") }
+    private var isAlive: Bool { privateData.bool("alive", true) }
+
+    private var canAct: Bool { phase == "playing" && isAlive }
+
+    var body: some View {
+        ControllerShell(
+            title: "⛏️ Blast Runners",
+            subtitle: "Level \(level) of 25 · 💎 \(gemsRemaining) left"
+        ) {
+            VStack(spacing: 18) {
+                statusBar
+
+                if !canAct {
+                    bannerText
+                        .padding(.top, 8)
+                }
+
+                Spacer()
+
+                HStack(alignment: .center, spacing: 28) {
+                    dpad
+                    blastButton
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+                Text("Move with the pad, then BLAST to clear rock or knock out enemies")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+
+    private var statusBar: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 4) {
+                ForEach(0..<max(livesMax, 1), id: \.self) { index in
+                    Image(systemName: index < livesCurrent ? "heart.fill" : "heart")
+                        .foregroundColor(index < livesCurrent ? .red : .white.opacity(0.25))
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+
+    @ViewBuilder
+    private var bannerText: some View {
+        switch phase {
+        case "levelFailed":
+            Text("Team down — resetting level \(level)…")
+                .font(.headline).foregroundColor(.red)
+        case "levelComplete":
+            Text("Level \(level) clear! 🎉")
+                .font(.headline).foregroundColor(.green)
+        case "gameComplete":
+            Text("All 25 levels cleared! 🏆")
+                .font(.headline).foregroundColor(.yellow)
+        default:
+            if !isAlive {
+                Text("Respawning…")
+                    .font(.headline).foregroundColor(.orange)
+            }
+        }
+    }
+
+    private var dpad: some View {
+        VStack(spacing: 10) {
+            dpadArrow("up", "chevron.up")
+            HStack(spacing: 10) {
+                dpadArrow("left", "chevron.left")
+                dpadArrow("down", "chevron.down")
+                dpadArrow("right", "chevron.right")
+            }
+        }
+    }
+
+    private func dpadArrow(_ direction: String, _ icon: String) -> some View {
+        Button(action: { if canAct { onAction("move", ["direction": direction]) } }) {
+            Image(systemName: icon)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(canAct ? .white : .white.opacity(0.3))
+                .frame(width: 64, height: 58)
+                .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.09)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAct)
+    }
+
+    private var blastButton: some View {
+        Button(action: { if canAct { onAction("blast", [:]) } }) {
+            VStack(spacing: 6) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 30, weight: .bold))
+                Text("BLAST")
+                    .font(.headline.bold())
+            }
+            .foregroundColor(canAct ? .black : .white.opacity(0.35))
+            .frame(width: 116, height: 116)
+            .background(Circle().fill(canAct ? Color.orange : Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAct)
+    }
+}

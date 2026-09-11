@@ -75,6 +75,9 @@ enum GameID: String, Codable, CaseIterable {
     case simonSays    = "simon_says"
     case atlas        = "atlas"
 
+    // MARK: Co-op arcade
+    case blastRunners = "blast_runners"
+
     var meta: GameMeta {
         switch self {
 
@@ -264,6 +267,21 @@ enum GameID: String, Codable, CaseIterable {
             return .init(displayName: "Atlas", emoji: "🌍", category: .solo,
                          minPlayers: 1, maxPlayers: 8, hasPrivateInfo: false,
                          phoneInputStyle: .text, supportsRemote: false, soloPlayable: false)
+
+        // ---- Co-op arcade ------------------------------------------------
+        case .blastRunners:
+            // min_players is 1 server-side (solo play works fine -- the
+            // shared life pool just applies to one player), but this game's
+            // whole identity is co-op, and offering a "Play Solo Now"
+            // shortcut for it would repeat the exact mistake already fixed
+            // on Atlas earlier: a player who takes it at its word never
+            // brings out a phone, and the game needs one for D-pad + blast
+            // input a Siri Remote can't cleanly provide alongside steering.
+            // Routing through the normal "Invite Friends" join flow (like
+            // Trivia/Poker) is the only configuration that actually works.
+            return .init(displayName: "Blast Runners", emoji: "⛏️", category: .coop,
+                         minPlayers: 1, maxPlayers: 4, hasPrivateInfo: false,
+                         phoneInputStyle: .dpadPlusAction, supportsRemote: false, soloPlayable: false)
         }
     }
 
@@ -302,4 +320,5 @@ enum PhoneInputStyle {
     case tilt       // gyroscope / accelerometer
     case text       // typed answers
     case dpad       // directional pad
+    case dpadPlusAction // directional pad plus one large action button
 }

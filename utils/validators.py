@@ -32,6 +32,8 @@ GAME_IDS = frozenset({
     "ludo", "carrom", "teen_patti",
     # Solo / Siri Remote
     "neon_snake", "twenty48", "brick_breaker", "simon_says", "atlas",
+    # Co-op
+    "blast_runners",
 })
 
 ROOM_CODE_RE = re.compile(r"^[A-Z0-9]{6}$")
