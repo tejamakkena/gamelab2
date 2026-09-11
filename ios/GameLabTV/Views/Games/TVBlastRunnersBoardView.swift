@@ -259,9 +259,17 @@ private func blastMaterial(color: UIColor, roughness: CGFloat, metalness: CGFloa
     return m
 }
 
-private let brFloorColor = UIColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1)
-private let brRockColor = UIColor(red: 0.42, green: 0.28, blue: 0.16, alpha: 1)
-private let brWallColor = UIColor(white: 0.04, alpha: 1)
+// Two alternating floor shades checkerboard the grid so individual tiles read
+// as distinct squares (a player has something to visually key their position
+// off of) rather than one flat, featureless slab. Both are brighter and more
+// saturated (cool slate-blue) than the original single near-black floor color
+// -- necessary now that this board runs on a fixed camera exposure (see
+// `Coordinator.init` below) instead of auto-exposure inflating a too-dark
+// palette into visibility at the cost of washing out every hue.
+private let brFloorColorA = UIColor(red: 0.12, green: 0.15, blue: 0.23, alpha: 1)
+private let brFloorColorB = UIColor(red: 0.08, green: 0.11, blue: 0.18, alpha: 1)
+private let brRockColor = UIColor(red: 0.58, green: 0.36, blue: 0.17, alpha: 1)
+private let brWallColor = UIColor(red: 0.035, green: 0.04, blue: 0.06, alpha: 1)
 private let brPlayerPalette: [UIColor] = [.cyan, .yellow, .green, .orange]
 
 struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
@@ -304,6 +312,7 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
         private var gemNodes: [GridPos: SCNNode] = [:]
         private var exitNode: SCNNode?
         private var exitLight: SCNLight?
+        private var exitBeam: SCNNode?
 
         private var playerNodes: [String: BRActorNode] = [:]
         private var enemyNodes: [String: BRActorNode] = [:]
@@ -332,6 +341,27 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
             lighting.addToScene(scene)
             scene.rootNode.addChildNode(boardRoot)
             scene.rootNode.addChildNode(projectileRoot)
+
+            // `CinematicCameraRig`'s auto-exposure and vignette are tuned for
+            // Poker's brightly-lit felt table. Left as those shared defaults,
+            // the rig reads Blast Runners' deliberately dark top-down dungeon
+            // as "underexposed" and drives brightness up hard, blowing every
+            // material -- including the saturated player/gem colors -- toward
+            // a flat, pale, low-saturation gray. That's exactly the washed-out
+            // monochrome look reported from a real on-device screenshot: the
+            // floor/wall colors are near-neutral by design, so once exposure
+            // lifts them into visibility they read as pale blue-gray instead
+            // of their intended dark, moody tones.
+            //
+            // Fix: pin this board to a fixed exposure instead of scene-content
+            // metering (the lighting mood below is tuned brighter to
+            // compensate for losing that automatic boost), and ease off the
+            // poker-tuned vignette so a wide top-down grid stays legible all
+            // the way into its corners.
+            cameraRig.camera.wantsExposureAdaptation = false
+            cameraRig.camera.exposureOffset = 0
+            cameraRig.camera.vignettingIntensity = 0.12
+            cameraRig.camera.saturation = 0.1
         }
 
         // MARK: - Grid <-> world space
@@ -390,6 +420,7 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
             gemNodes.removeAll()
             exitNode = nil
             exitLight = nil
+            exitBeam = nil
 
             // Enemies are level-scoped (ids restart at "e0" each level), so
             // stale nodes from the previous level's roster must not survive
@@ -435,10 +466,19 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
                 return
             }
 
+            // Checkerboard the floor so each tile reads as a distinct square
+            // instead of one flat slab -- and give it a faint matching
+            // emission so its hue stays legible even in a shadowed corner,
+            // now that this board no longer relies on auto-exposure to lift
+            // dark surfaces into visibility.
+            let isAltFloor = (pos.col + pos.row) % 2 == 0
             let floor = SCNNode(geometry: SCNBox(
                 width: CGFloat(tileSize * 0.94), height: 0.08, length: CGFloat(tileSize * 0.94), chamferRadius: 0.03
             ))
-            floor.geometry?.materials = [blastMaterial(color: brFloorColor, roughness: 0.8)]
+            floor.geometry?.materials = [blastMaterial(
+                color: isAltFloor ? brFloorColorA : brFloorColorB, roughness: 0.78,
+                emission: UIColor(red: 0.02, green: 0.03, blue: 0.05, alpha: 1)
+            )]
             floor.position = SCNVector3(world.x, 0.04, world.z)
             boardRoot.addChildNode(floor)
 
@@ -451,7 +491,10 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
             let rock = SCNNode(geometry: SCNBox(
                 width: CGFloat(tileSize * 0.8), height: 0.5, length: CGFloat(tileSize * 0.8), chamferRadius: 0.06
             ))
-            rock.geometry?.materials = [blastMaterial(color: brRockColor, roughness: 0.95)]
+            rock.geometry?.materials = [blastMaterial(
+                color: brRockColor, roughness: 0.92,
+                emission: UIColor(red: 0.08, green: 0.03, blue: 0.0, alpha: 1)
+            )]
             rock.position = SCNVector3(world.x, 0.25, world.z)
             boardRoot.addChildNode(rock)
             rockNodes[pos] = rock
@@ -540,14 +583,33 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
 
         // MARK: - Exit
 
+        // The goal marker needs to read as "the objective" from anywhere on a
+        // board that can be up to 14x14 tiles -- a thin dim ring at floor
+        // height was easy to lose entirely. This is now a wider spinning
+        // portal ring plus a tall pulsing light column rising out of it, dim
+        // red while locked and a bright pulsing green beacon once every gem
+        // is collected, visible well before a player is standing next to it.
         private func updateExit(state: BlastRunnersBoardState, animated: Bool) {
             let node: SCNNode
-            if let existing = exitNode {
+            let beam: SCNNode
+            if let existing = exitNode, let existingBeam = exitBeam {
                 node = existing
+                beam = existingBeam
             } else {
-                let ring = SCNNode(geometry: SCNTorus(ringRadius: CGFloat(tileSize * 0.34), pipeRadius: 0.045))
+                let ring = SCNNode(geometry: SCNTorus(ringRadius: CGFloat(tileSize * 0.42), pipeRadius: 0.07))
                 ring.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
                 boardRoot.addChildNode(ring)
+                let spin = SCNAction.rotate(by: .pi * 2, around: SCNVector3(0, 0, 1), duration: 4.0)
+                ring.runAction(.repeatForever(spin), forKey: "spin")
+
+                let column = SCNNode(geometry: SCNCylinder(radius: 0.05, height: 2.4))
+                column.position = SCNVector3(0, 1.2, 0)
+                ring.addChildNode(column)
+                let pulse = SCNAction.sequence([
+                    .fadeOpacity(to: 0.3, duration: 0.9),
+                    .fadeOpacity(to: 0.9, duration: 0.9),
+                ])
+                column.runAction(.repeatForever(pulse), forKey: "pulse")
 
                 let light = SCNLight()
                 light.type = .omni
@@ -559,21 +621,25 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
 
                 exitNode = ring
                 exitLight = light
+                exitBeam = column
                 node = ring
+                beam = column
             }
             node.position = worldPosition(state.exitPos, y: 0.1)
 
             let color: UIColor = state.exitUnlocked
                 ? UIColor(red: 0.15, green: 0.95, blue: 0.35, alpha: 1)
-                : UIColor(red: 0.35, green: 0.12, blue: 0.12, alpha: 1)
+                : UIColor(red: 0.55, green: 0.16, blue: 0.16, alpha: 1)
             let emission: UIColor = state.exitUnlocked
-                ? UIColor(red: 0.1, green: 0.6, blue: 0.2, alpha: 1)
-                : UIColor(red: 0.15, green: 0.03, blue: 0.03, alpha: 1)
+                ? UIColor(red: 0.2, green: 0.9, blue: 0.35, alpha: 1)
+                : UIColor(red: 0.35, green: 0.06, blue: 0.06, alpha: 1)
 
             SCNTransaction.begin()
             SCNTransaction.animationDuration = animated ? 0.6 : 0
-            node.geometry?.materials = [blastMaterial(color: color, roughness: 0.35, emission: emission)]
-            exitLight?.intensity = state.exitUnlocked ? 600 : 0
+            node.geometry?.materials = [blastMaterial(color: color, roughness: 0.3, emission: emission)]
+            beam.geometry?.materials = [blastMaterial(color: color, roughness: 0.2, emission: emission)]
+            beam.opacity = state.exitUnlocked ? 0.9 : 0.35
+            exitLight?.intensity = state.exitUnlocked ? 900 : 150
             exitLight?.color = state.exitUnlocked ? UIColor.green : UIColor.red
             SCNTransaction.commit()
         }
@@ -587,7 +653,13 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
                     actor = existing
                 } else {
                     let color = brPlayerPalette[index % brPlayerPalette.count]
-                    actor = BRActorNode(color: color, shape: .capsule)
+                    // Color alone is hard to tell apart at a glance on a TV
+                    // from across the room, especially for players who share
+                    // similar lightness -- each player index also gets a
+                    // distinct silhouette accessory, so "which blob is me" is
+                    // answerable by shape as well as color.
+                    let accessory = BRActorAccessory.allCases[index % BRActorAccessory.allCases.count]
+                    actor = BRActorNode(color: color, shape: .capsule, accessory: accessory)
                     actor.rootNode.position = worldPosition(player.pos)
                     scene.rootNode.addChildNode(actor.rootNode)
                     playerNodes[player.id] = actor
@@ -738,11 +810,23 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
             }
         }
 
+        // Blast Runners uses its own, brighter lighting moods rather than the
+        // shared `.neutral`/`.tense`/`.warm` presets -- those were tuned
+        // assuming `CinematicCameraRig`'s auto-exposure would compensate for
+        // whatever a scene's actual brightness is. This board turns that
+        // auto-exposure off (see `Coordinator.init`) so its dark dungeon
+        // materials read at their true, deliberately moody color instead of
+        // being auto-inflated into a washed-out gray -- which means the
+        // light intensities themselves now have to do that brightening work
+        // directly.
         private static func mood(for phase: String) -> PhaseLightingMood {
             switch phase {
-            case "levelFailed": return .tense
-            case "levelComplete", "gameComplete": return .warm
-            default: return .neutral
+            case "levelFailed":
+                return PhaseLightingMood(keyTemperature: 8200, fillTemperature: 9500, keyIntensity: 1500, fillIntensity: 320)
+            case "levelComplete", "gameComplete":
+                return PhaseLightingMood(keyTemperature: 3400, fillTemperature: 4200, keyIntensity: 1900, fillIntensity: 480)
+            default:
+                return PhaseLightingMood(keyTemperature: 5600, fillTemperature: 6500, keyIntensity: 2000, fillIntensity: 480)
             }
         }
 
@@ -766,6 +850,15 @@ struct BlastRunnersCinematicBoardSceneView: UIViewRepresentable {
 
 private enum BRActorShape { case capsule, cube, cone, turret }
 
+/// A distinguishing silhouette piece worn on top of a player's head, on top
+/// of their already-distinct body color -- so two players are never reduced
+/// to "which colored blob is me" at TV viewing distance. Enemies never wear
+/// one (their shape already varies by type: cube/cone/turret vs. the
+/// players' shared capsule).
+private enum BRActorAccessory: CaseIterable {
+    case antenna, halo, spike, visor
+}
+
 /// A small primitive-geometry character shared by both players and enemies
 /// -- capsule/box/cone/cylinder only, the same discipline `PokerDealerNode`
 /// and `ThiefCharacterNode` use, no imported model. `rootNode`'s position is
@@ -776,7 +869,7 @@ private final class BRActorNode {
     let rootNode = SCNNode()
     private let bobNode = SCNNode()
 
-    init(color: UIColor, shape: BRActorShape) {
+    init(color: UIColor, shape: BRActorShape, accessory: BRActorAccessory? = nil) {
         rootNode.addChildNode(bobNode)
         let material = blastMaterial(color: color, roughness: 0.5, emission: color)
 
@@ -790,6 +883,9 @@ private final class BRActorNode {
             head.geometry?.materials = [material]
             head.position = SCNVector3(0, 0.42, 0)
             bobNode.addChildNode(head)
+            if let accessory {
+                addAccessory(accessory, color: color, to: bobNode)
+            }
 
         case .cube:
             let body = SCNNode(geometry: SCNBox(width: 0.4, height: 0.4, length: 0.4, chamferRadius: 0.05))
@@ -815,6 +911,44 @@ private final class BRActorNode {
         }
 
         startIdle()
+    }
+
+    /// Attaches a small, bright silhouette piece above the head so this
+    /// player is recognizable by shape, not only by color. All four use
+    /// plain primitives already used elsewhere in this file -- no new
+    /// geometry types.
+    private func addAccessory(_ accessory: BRActorAccessory, color: UIColor, to node: SCNNode) {
+        let trim = blastMaterial(color: .white, roughness: 0.25, metalness: 0.35, emission: color)
+        switch accessory {
+        case .antenna:
+            let rod = SCNNode(geometry: SCNCylinder(radius: 0.02, height: 0.22))
+            rod.geometry?.materials = [trim]
+            rod.position = SCNVector3(0, 0.6, 0)
+            node.addChildNode(rod)
+            let tip = SCNNode(geometry: SCNSphere(radius: 0.045))
+            tip.geometry?.materials = [trim]
+            tip.position = SCNVector3(0, 0.72, 0)
+            node.addChildNode(tip)
+
+        case .halo:
+            let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.16, pipeRadius: 0.02))
+            ring.geometry?.materials = [trim]
+            ring.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+            ring.position = SCNVector3(0, 0.58, 0)
+            node.addChildNode(ring)
+
+        case .spike:
+            let spike = SCNNode(geometry: SCNCone(topRadius: 0.0, bottomRadius: 0.09, height: 0.22))
+            spike.geometry?.materials = [trim]
+            spike.position = SCNVector3(0, 0.62, 0)
+            node.addChildNode(spike)
+
+        case .visor:
+            let visor = SCNNode(geometry: SCNBox(width: 0.22, height: 0.05, length: 0.06, chamferRadius: 0.02))
+            visor.geometry?.materials = [trim]
+            visor.position = SCNVector3(0, 0.46, 0)
+            node.addChildNode(visor)
+        }
     }
 
     private func startIdle() {

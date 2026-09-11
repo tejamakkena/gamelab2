@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreMotion
 
 /// Phone controllers for the duel, co-op and solo games.
 
@@ -230,13 +229,21 @@ struct AirHockeyControllerView: View {
     private var width: Double { privateData.dbl("width", 100) }
     private var score: Int { privateData.int("score") }
 
-    @State private var motion = CMMotionManager()
     @State private var x: Double = 50
+    /// Reported "super slow": a raw `DragGesture.onChanged` fires far faster
+    /// than the server's shared action rate limiter (15/sec sustained --
+    /// `ACTION_BURST`/`ACTION_WINDOW_SECONDS` in `socket_events.py`) allows,
+    /// so most paddle updates during a drag were being silently dropped and
+    /// the paddle only caught up to your finger in occasional jumps. This was
+    /// the exact same failure mode already root-caused and fixed for Pong's
+    /// gyro input -- the fix here is the same send-rate guard, just gating a
+    /// touch drag instead of a gyro sample.
+    @State private var lastSendTime: Double = 0
 
     var body: some View {
         ControllerShell(title: "🏒 Air Hockey", subtitle: "Score \(score)") {
             VStack(spacing: 18) {
-                Text("Tilt or drag to move your paddle")
+                Text("Drag to move your paddle")
                     .font(.caption).foregroundColor(.white.opacity(0.45)).padding(.top, 20)
 
                 GeometryReader { geo in
@@ -251,6 +258,12 @@ struct AirHockeyControllerView: View {
                         DragGesture(minimumDistance: 0).onChanged { value in
                             let t = min(max(0, value.location.x / geo.size.width), 1)
                             x = t * width
+                            let now = Date().timeIntervalSince1970
+                            // Same 0.083s (~12/sec) guard used for Pong's gyro
+                            // send rate -- comfortably under the server's
+                            // 15/sec sustained cap.
+                            guard now - lastSendTime > 0.083 else { return }
+                            lastSendTime = now
                             onAction("paddle", ["x": x])
                         }
                     )
@@ -259,21 +272,6 @@ struct AirHockeyControllerView: View {
 
                 Spacer()
             }
-            .onAppear(perform: startTilt)
-            .onDisappear { motion.stopAccelerometerUpdates() }
-        }
-    }
-
-    /// Tilt is offered alongside the drag strip: reuses the accelerometer path
-    /// already proven in the Pong controller.
-    private func startTilt() {
-        guard motion.isAccelerometerAvailable else { return }
-        motion.accelerometerUpdateInterval = 1.0 / 20.0
-        motion.startAccelerometerUpdates(to: .main) { data, _ in
-            guard let data else { return }
-            let tilt = min(max(data.acceleration.x, -0.6), 0.6) / 0.6
-            x = (tilt + 1) / 2 * width
-            onAction("paddle", ["x": x])
         }
     }
 }
