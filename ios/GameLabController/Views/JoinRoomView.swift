@@ -24,7 +24,7 @@ struct JoinRoomView: View {
                 VStack(spacing: 6) {
                     Text("🎮")
                         .font(.system(size: 64))
-                    Text("GameLab")
+                    Text("Aurora Play")
                         .font(.system(size: 36, weight: .black, design: .rounded))
                         .foregroundStyle(
                             LinearGradient(colors: [.purple, .cyan],

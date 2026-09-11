@@ -19,10 +19,10 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>GameLab TV connects to the game server on your local network.</string>
+	<string>Aurora connects to the game server on your local network.</string>
 	<key>NSBonjourServices</key>
 	<array>
-		<string>_gamelab._tcp</string>
+		<string>_aurora._tcp</string>
 	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
