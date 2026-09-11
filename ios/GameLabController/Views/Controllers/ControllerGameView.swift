@@ -73,6 +73,10 @@ struct ControllerGameView: View {
         case .twenty48:      SwipeControllerView(privateData: privateData, onAction: onAction)
         case .brickBreaker:  PaddleControllerView(privateData: privateData, onAction: onAction)
         case .atlas:         AtlasControllerView(privateData: privateData, onAction: onAction)
+
+        // Co-op arcade
+        case .blastRunners:
+            BlastRunnersControllerView(privateData: privateData, onAction: onAction)
         }
     }
 }

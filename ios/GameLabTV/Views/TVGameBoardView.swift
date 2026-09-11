@@ -66,6 +66,9 @@ struct TVGameBoardView: View {
         case .brickBreaker:  TVBrickBreakerBoardView(room: room)
         case .simonSays:     TVSimonSaysBoardView(room: room)
         case .atlas:         TVAtlasBoardView(room: room)
+
+        // Co-op arcade
+        case .blastRunners:  TVBlastRunnersBoardView(room: room)
         }
     }
 }
